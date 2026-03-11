@@ -1,0 +1,95 @@
+{
+    "Sidebar": {
+        "title": "SousFlow",
+        "subtitle": "نظام الري الذكي",
+        "farmName": "مزرعة الأمل",
+        "farmInfo": "Souss-Massa · 12 هكتار",
+        "status": "متصل · 18 جهاز",
+        "nav_dashboard": "الرئيسية",
+        "nav_zones": "القطاعات",
+        "nav_pumps": "المضخات",
+        "nav_alerts": "التنبيهات",
+        "nav_reports": "التقارير",
+        "nav_settings": "الإعدادات"
+    },
+    "GlobalStatus": {
+        "system_status": "حالة النظام",
+        "system_normal": "🟢 يعمل بشكل طبيعي",
+        "system_warning": "🟠 يحتاج انتباه",
+        "system_critical": "🔴 حالة حرجة",
+        "last_updated": "آخر تحديث: {time}"
+    },
+    "StatusBanner": {
+        "good_title": "الكل يعمل بشكل جيد",
+        "good_desc": "لا توجد أي تنبيهات حاليا. جميع القطاعات تسقى بشكل صحيح.",
+        "warning_title": "انخفاض الرطوبة في القطاع 3",
+        "warning_desc": "الرطوبة أقل من الحد المطلوب (45%)",
+        "critical_title": "خطر — تسرب مياه في القطاع 5",
+        "critical_desc": "انخفاض حاد في الضغط. يرجى التدخل الان.",
+        "repair_now": "إصلاح الآن",
+        "open_sector": "فتح القطاع",
+        "view_details": "عرض التفاصيل"
+    },
+    "StatsRow": {
+        "water_saved": "توفير الماء",
+        "solar_energy": "الطاقة الشمسية",
+        "solar_desc": "الإنتاج الحالي",
+        "soil_temp": "حرارة التربة",
+        "soil_temp_desc": "اليوم",
+        "active_zones": "القطاعات نشطة"
+    },
+    "ZoneGrid": {
+        "title": "قطاعات الري",
+        "status_good": "جيد",
+        "status_warning": "تنبيه",
+        "status_critical": "خطر",
+        "status_off": "مغلق",
+        "moisture": "رطوبة التربة",
+        "optimal": "الحد المطلوب",
+        "pressure": "الضغط",
+        "flow": "التدفق",
+        "start": "تشغيل",
+        "stop": "إيقاف",
+        "details": "تفاصيل",
+        "schedule": "جدولة",
+        "close_valve": "إغلاق الصمام",
+        "open_valve": "فتح الصمام",
+        "last_update": "آخر تحديث: قبل {min} دقائق",
+        "irrigation_active": "الري يعمل الآن",
+        "irrigation_duration": "مدة الري: {min} دقيقة",
+        "hide_details": "طي التفاصيل",
+        "show_details": "عرض التفاصيل",
+        "needs_attention": "يحتاج انتباه"
+    },
+    "DataViz": {
+        "moisture_history": "تحليل الرطوبة (24 ساعة)"
+    },
+    "AlertPanel": {
+        "title": "تنبيهات النظام",
+        "mark_all_read": "تحديد الكل كمقروء",
+        "mark_read": "تم الاطلاع",
+        "call_tech": "إرسال للتقني",
+        "time_ago": "منذ {time}",
+        "today": "اليوم"
+    },
+    "Alerts": {
+        "alert1_title": "تسرب مياه — القطاع 5",
+        "alert1_desc": "انخفاض حاد في الضغط مع ارتفاع في التدفق",
+        "alert2_title": "انسداد محتمل — القطاع 3",
+        "alert2_desc": "ضغط مرتفع في الأنابيب وانخفاض تدفق المياه",
+        "alert3_title": "توصية ري",
+        "alert3_desc": "ينصح بري القطاع 3 لمدة 10 دقائق."
+    },
+    "Zones": {
+        "zone1": "القطاع 1",
+        "zone2": "القطاع 2",
+        "zone3": "القطاع 3",
+        "zone4": "القطاع 4",
+        "zone5": "القطاع 5",
+        "zone6": "القطاع 6",
+        "zone7": "القطاع 7",
+        "zone8": "القطاع 8",
+        "alert_c1": "انسداد في الموزعات",
+        "alert_c2": "تسرب مياه حاد"
+    }
+}

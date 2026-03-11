@@ -1,0 +1,105 @@
+@import "tailwindcss";
+
+:root {
+  --background: #fdfbf7;
+  --foreground: #020617;
+  /* Adjust foreground to be dark since we changed morocco-blue */
+
+  /* Orange CTA -> Main Green (#6e9a32) */
+  --copper-50: #f1f6ec;
+  --copper-100: #e2edd8;
+  --copper-200: #cbdfa9;
+  --copper-300: #aecd76;
+  --copper-400: #90b84c;
+  --copper-500: #6e9a32;
+  /* Primary Orange -> Primary Green */
+  --copper-600: #557a24;
+  --copper-700: #415d1e;
+  --copper-800: #354b1a;
+  --copper-900: #2b3d16;
+
+  /* Dark Navy -> Dark Green (#2a5c05) */
+  --morocco-blue-900: #2a5c05;
+  --morocco-blue-950: #1a3c03;
+
+  /* Agri Green -> Sky Blue (#70b8f1) */
+  --agri-green-500: #70b8f1;
+  --agri-green-600: #4ba0e8;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-copper-50: var(--copper-50);
+  --color-copper-100: var(--copper-100);
+  --color-copper-200: var(--copper-200);
+  --color-copper-300: var(--copper-300);
+  --color-copper-400: var(--copper-400);
+  --color-copper-500: var(--copper-500);
+  --color-copper-600: var(--copper-600);
+  --color-copper-700: var(--copper-700);
+  --color-copper-800: var(--copper-800);
+  --color-copper-900: var(--copper-900);
+  --color-morocco-blue-900: var(--morocco-blue-900);
+  --color-morocco-blue-950: var(--morocco-blue-950);
+  --color-agri-green-500: var(--agri-green-500);
+  --color-agri-green-600: var(--agri-green-600);
+
+  /* Animations */
+  --animate-marquee: marquee 30s linear infinite;
+  --animate-blob: blob 7s infinite;
+
+  @keyframes marquee {
+    0% {
+      transform: translateX(0%);
+    }
+
+    100% {
+      transform: translateX(-100%);
+    }
+  }
+
+  @keyframes blob {
+    0% {
+      transform: translate(0px, 0px) scale(1);
+    }
+
+    33% {
+      transform: translate(30px, -50px) scale(1.1);
+    }
+
+    66% {
+      transform: translate(-20px, 20px) scale(0.9);
+    }
+
+    100% {
+      transform: translate(0px, 0px) scale(1);
+    }
+  }
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), sans-serif;
+  overflow-x: hidden;
+}
+
+/* Glassmorphism Classes */
+.glass {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.glass-dark {
+  background: rgba(10, 25, 47, 0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}

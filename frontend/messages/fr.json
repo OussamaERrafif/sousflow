@@ -1,0 +1,95 @@
+{
+    "Sidebar": {
+        "title": "SousFlow",
+        "subtitle": "Système d'Irrigation Intelligent",
+        "farmName": "Ferme Al Amal",
+        "farmInfo": "Souss-Massa · 12 Hectares",
+        "status": "Connecté · 18 appareils",
+        "nav_dashboard": "Accueil",
+        "nav_zones": "Secteurs",
+        "nav_pumps": "Pompes",
+        "nav_alerts": "Alertes",
+        "nav_reports": "Rapports",
+        "nav_settings": "Paramètres"
+    },
+    "GlobalStatus": {
+        "system_status": "État du système",
+        "system_normal": "🟢 Fonctionne normalement",
+        "system_warning": "🟠 Nécessite attention",
+        "system_critical": "🔴 État critique",
+        "last_updated": "Dernière mise à jour: {time}"
+    },
+    "StatusBanner": {
+        "good_title": "Tout fonctionne normalement",
+        "good_desc": "Aucun problème détecté. Les secteurs sont irrigués correctement.",
+        "warning_title": "Baisse d'humidité dans le Secteur 3",
+        "warning_desc": "L'humidité est inférieure au niveau requis (45%)",
+        "critical_title": "Danger — Fuite d'eau dans le Secteur 5",
+        "critical_desc": "Chute de pression brutale. Veuillez intervenir immédiatement.",
+        "repair_now": "Réparer",
+        "open_sector": "Ouvrir",
+        "view_details": "Détails"
+    },
+    "StatsRow": {
+        "water_saved": "Eau économisée",
+        "solar_energy": "Énergie solaire",
+        "solar_desc": "Production actuelle",
+        "soil_temp": "Température sol",
+        "soil_temp_desc": "Aujourd'hui",
+        "active_zones": "Secteurs actifs"
+    },
+    "ZoneGrid": {
+        "title": "Secteurs d'irrigation",
+        "status_good": "Bon",
+        "status_warning": "Alerte",
+        "status_critical": "Danger",
+        "status_off": "Arrêté",
+        "moisture": "Humidité du sol",
+        "optimal": "Optimal",
+        "pressure": "Pression",
+        "flow": "Débit",
+        "start": "Démarrer",
+        "stop": "Arrêter",
+        "details": "Détails",
+        "schedule": "Planifier",
+        "close_valve": "Fermer la vanne",
+        "open_valve": "Ouvrir la vanne",
+        "last_update": "Mis à jour: il y a {min} min",
+        "irrigation_active": "Irrigation en cours",
+        "irrigation_duration": "Durée: {min} min",
+        "hide_details": "Réduire",
+        "show_details": "Détails",
+        "needs_attention": "Nécessite attention"
+    },
+    "DataViz": {
+        "moisture_history": "Analyse d'humidité (24h)"
+    },
+    "AlertPanel": {
+        "title": "Alertes du système",
+        "mark_all_read": "Tout marquer comme lu",
+        "mark_read": "Lu",
+        "call_tech": "Appeler technicien",
+        "time_ago": "Il y a {time}",
+        "today": "Aujourd'hui"
+    },
+    "Alerts": {
+        "alert1_title": "Fuite d'eau — Secteur 5",
+        "alert1_desc": "Chute de pression + hausse du débit détectées",
+        "alert2_title": "Bouchage probable — Secteur 3",
+        "alert2_desc": "Haute pression dans les tuyaux, faible débit",
+        "alert3_title": "Recommandation",
+        "alert3_desc": "Il est conseillé d'irriguer le secteur 3 pendant 10 minutes."
+    },
+    "Zones": {
+        "zone1": "Secteur 1",
+        "zone2": "Secteur 2",
+        "zone3": "Secteur 3",
+        "zone4": "Secteur 4",
+        "zone5": "Secteur 5",
+        "zone6": "Secteur 6",
+        "zone7": "Secteur 7",
+        "zone8": "Secteur 8",
+        "alert_c1": "Bouchage détecté",
+        "alert_c2": "Fuite majeure"
+    }
+}
