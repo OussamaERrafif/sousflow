@@ -3,9 +3,9 @@ OpenAI Service — Olive Irrigation AI Assistant
 Provides conversational AI with awareness of the full IoT dataset schema,
 olive cultivation best practices, and Souss-Massa region context.
 """
-import os
 from datetime import datetime, timezone
 from app.supabase_client import get_supabase_admin
+from app.config import get_settings
 from app.logging_config import logger
 
 _openai_client = None
@@ -15,7 +15,7 @@ def _get_openai():
     global _openai_client
     if _openai_client is None:
         from openai import AsyncOpenAI
-        _openai_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        _openai_client = AsyncOpenAI(api_key=get_settings().OPENAI_API_KEY)
     return _openai_client
 
 SYSTEM_PROMPT = """You are **SoussFlow AI** — an expert olive irrigation assistant for the Souss-Massa region of Morocco (Agadir area).
@@ -124,7 +124,7 @@ async def chat(user_id: str, conversation_id: str, user_message: str) -> str:
     # Call OpenAI
     try:
         response = await _get_openai().chat.completions.create(
-            model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+            model=get_settings().OPENAI_MODEL,
             messages=messages,
             temperature=0.7,
             max_tokens=1500,
@@ -228,8 +228,9 @@ async def _get_sensor_context(user_id: str) -> str:
             if ts:
                 try:
                     dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
-                    ts_str = f" ({datetime.now(timezone.utc) - dt:.0f}m ago)"
-                except:
+                    age_min = int((datetime.now(timezone.utc) - dt).total_seconds() / 60)
+                    ts_str = f" ({age_min}m ago)"
+                except Exception:
                     pass
             
             parts = [f"Zone {zid}{ts_str}:"]
