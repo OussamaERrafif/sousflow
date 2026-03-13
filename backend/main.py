@@ -106,9 +106,13 @@ app = FastAPI(
 )
 
 # CORS middleware
+from app.config import get_settings as _get_settings
+_settings = _get_settings()
+_origins = [o.strip() for o in _settings.ALLOWED_ORIGINS.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # TODO: restrict in production
+    allow_origins=_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

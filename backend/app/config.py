@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     HOST: str = "0.0.0.0"
     PORT: int = 8000
 
+    # CORS
+    ALLOWED_ORIGINS: str = "http://localhost:3000"
+
     # Supabase
     SUPABASE_URL: str = ""
     SUPABASE_ANON_KEY: str = ""
