@@ -10,7 +10,7 @@ import { logout } from "@/lib/store/slices/authSlice";
 import { useTheme } from "@/components/ThemeProvider";
 import { User, Bell, Lock, Wifi, Globe, Moon, Sun, Save, RefreshCw, LogOut, Smartphone, CheckCircle, AlertCircle } from "lucide-react";
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const BASE_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/$/, "");
 
 export default function SettingsPage() {
     const t = useTranslations("Sidebar");

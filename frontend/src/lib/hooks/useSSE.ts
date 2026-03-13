@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { useAppDispatch, useAppSelector } from "@/lib/store/hooks";
 import { setLiveData, setConnected } from "@/lib/store/slices/iotSlice";
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const BASE_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/$/, "");
 
 export function useSSE() {
   const dispatch = useAppDispatch();

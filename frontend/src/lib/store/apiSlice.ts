@@ -6,7 +6,7 @@ import { setCredentials, logout } from "./slices/authSlice";
 export const apiSlice = createApi({
   reducerPath: "api",
   baseQuery: fetchBaseQuery({
-    baseUrl: process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000",
+    baseUrl: (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/$/, ""),
     prepareHeaders: (headers, { endpoint }) => {
       if (endpoint !== 'signIn' && endpoint !== 'signUp') {
         const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
