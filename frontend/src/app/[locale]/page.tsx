@@ -14,12 +14,14 @@ import AlertsPage from "@/components/pages/AlertsPage";
 import ReportsPage from "@/components/pages/ReportsPage";
 import SettingsPage from "@/components/pages/SettingsPage";
 import AIAssistancePage from "@/components/pages/AIAssistancePage";
-import { useAppSelector } from "@/lib/store/hooks";
+import { useAppSelector, useAppDispatch } from "@/lib/store/hooks";
+import { setCredentials } from "@/lib/store/slices/authSlice";
 import { useSSE } from "@/lib/hooks/useSSE";
 
 export default function Dashboard() {
   const [activePage, setActivePage] = useState("dashboard");
   const router = useRouter();
+  const dispatch = useAppDispatch();
   const { isAuthenticated } = useAppSelector((state) => state.auth);
   useSSE();
   const [mounted, setMounted] = useState(false);
@@ -30,12 +32,15 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (mounted && !isAuthenticated) {
-      const token = localStorage.getItem("token");
+      let token: string | null = null;
+      try { token = localStorage.getItem("token"); } catch {}
       if (!token) {
         router.push("/login");
+      } else {
+        dispatch(setCredentials({ user: { id: "", email: "" }, token }));
       }
     }
-  }, [mounted, isAuthenticated, router]);
+  }, [mounted, isAuthenticated, router, dispatch]);
 
   if (!mounted) {
     return (

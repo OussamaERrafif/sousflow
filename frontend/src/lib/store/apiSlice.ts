@@ -32,9 +32,8 @@ export const authenticatingApiSlice = apiSlice.injectEndpoints({
       async onQueryStarted(args, { dispatch, queryFulfilled }) {
         try {
           const { data } = await queryFulfilled;
-          localStorage.setItem("token", data.access_token);
-          localStorage.setItem("refreshToken", data.refresh_token);
-          document.cookie = `token=${data.access_token}; path=/; max-age=86400; SameSite=Lax`;
+          try { localStorage.setItem("token", data.access_token); } catch {}
+          try { localStorage.setItem("refreshToken", data.refresh_token); } catch {}
           dispatch(setCredentials({ user: data.user, token: data.access_token }));
         } catch {
           // Error handled by query
@@ -50,9 +49,8 @@ export const authenticatingApiSlice = apiSlice.injectEndpoints({
       async onQueryStarted(args, { dispatch, queryFulfilled }) {
         try {
           const { data } = await queryFulfilled;
-          localStorage.setItem("token", data.access_token);
-          localStorage.setItem("refreshToken", data.refresh_token);
-          document.cookie = `token=${data.access_token}; path=/; max-age=86400; SameSite=Lax`;
+          try { localStorage.setItem("token", data.access_token); } catch {}
+          try { localStorage.setItem("refreshToken", data.refresh_token); } catch {}
           dispatch(setCredentials({ user: data.user, token: data.access_token }));
         } catch {
           // Error handled by query
@@ -68,9 +66,8 @@ export const authenticatingApiSlice = apiSlice.injectEndpoints({
         try {
           await queryFulfilled;
         } finally {
-          localStorage.removeItem("token");
-          localStorage.removeItem("refreshToken");
-          document.cookie = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+          try { localStorage.removeItem("token"); } catch {}
+          try { localStorage.removeItem("refreshToken"); } catch {}
           dispatch(logout());
         }
       },
@@ -84,17 +81,15 @@ export const authenticatingApiSlice = apiSlice.injectEndpoints({
       async onQueryStarted(args, { dispatch, queryFulfilled }) {
         try {
           const { data } = await queryFulfilled;
-          localStorage.setItem("token", data.access_token);
-          localStorage.setItem("refreshToken", data.refresh_token);
-          document.cookie = `token=${data.access_token}; path=/; max-age=86400; SameSite=Lax`;
+          try { localStorage.setItem("token", data.access_token); } catch {}
+          try { localStorage.setItem("refreshToken", data.refresh_token); } catch {}
           const state = (window as any).__REDUX_STORE__?.getState?.() || {};
           if (state.auth?.user) {
             dispatch(setCredentials({ user: state.auth.user, token: data.access_token }));
           }
         } catch {
-          localStorage.removeItem("token");
-          localStorage.removeItem("refreshToken");
-          document.cookie = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+          try { localStorage.removeItem("token"); } catch {}
+          try { localStorage.removeItem("refreshToken"); } catch {}
           dispatch(logout());
         }
       },
