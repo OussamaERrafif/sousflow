@@ -1,8 +1,46 @@
 import { CheckCircle2, AlertTriangle, XCircle, Power, FileText } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { useGetDashboardApiIotDashboardGetQuery } from "@/lib/store/generated/api";
+import { useAppSelector } from "@/lib/store/hooks";
 
-export default function StatusBanner({ status = "good" }: { status?: "good" | "warning" | "critical" }) {
+export default function StatusBanner() {
     const t = useTranslations("StatusBanner");
+
+    const { readings: sseReadings, connected } = useAppSelector((state) => state.iot);
+    const hasLiveData = connected && sseReadings.length > 0;
+
+    const { data: dashboardData } = useGetDashboardApiIotDashboardGetQuery(
+        undefined,
+        { skip: hasLiveData }
+    );
+
+    // Derive status from SSE readings when live
+    let status: "good" | "warning" | "critical";
+    let alertMessage: string | undefined;
+    let alertDetails: string | undefined;
+
+    if (hasLiveData) {
+        const anomalyZones = sseReadings.filter(r => r.is_anomaly);
+        const dryZones = sseReadings.filter(r => (r.soil_moisture_pct ?? 100) < 35);
+        const irrigatingZones = sseReadings.filter(r => r.irrigation_needed === 1);
+
+        if (anomalyZones.length > 0) {
+            status = "critical";
+            alertMessage = `${anomalyZones.length} zone(s) with sensor anomaly`;
+            alertDetails = `Zones: ${anomalyZones.map(r => r.zone_id).join(", ")}`;
+        } else if (dryZones.length > 0) {
+            status = "warning";
+            alertMessage = `${dryZones.length} zone(s) critically dry`;
+            alertDetails = `${irrigatingZones.length} zone(s) currently irrigating`;
+        } else {
+            status = "good";
+        }
+    } else {
+        const raw = dashboardData?.system_status || "good";
+        status = raw as "good" | "warning" | "critical";
+        alertMessage = dashboardData?.alert_message;
+        alertDetails = dashboardData?.alert_details;
+    }
 
     const configs = {
         good: {
@@ -14,22 +52,21 @@ export default function StatusBanner({ status = "good" }: { status?: "good" | "w
         warning: {
             bg: "bg-zinc-800 border-l-4 border-amber-400 rtl:border-r-4 rtl:border-l-0",
             icon: <AlertTriangle className="w-10 h-10 text-amber-400" />,
-            title: t("warning_title"),
-            desc: t("warning_desc"),
+            title: alertMessage || t("warning_title"),
+            desc: alertDetails || t("warning_desc"),
         },
         critical: {
             bg: "bg-zinc-800 border-l-4 border-red-500 rtl:border-r-4 rtl:border-l-0",
             icon: <XCircle className="w-10 h-10 text-red-500" />,
-            title: t("critical_title"),
-            desc: t("critical_desc"),
-        }
+            title: alertMessage || t("critical_title"),
+            desc: alertDetails || t("critical_desc"),
+        },
     };
 
     const config = configs[status];
 
     return (
         <div className={`relative w-full rounded-2xl overflow-hidden p-5 mb-8 ${config.bg} shadow-md text-white transition-colors duration-300`}>
-            {/* Background texture for visual polish without heavy gradients */}
             <div className="absolute top-0 right-0 w-full h-full opacity-10 pointer-events-none"
                 style={{ backgroundImage: "radial-gradient(circle at top right, white 0%, transparent 60%)" }}>
             </div>

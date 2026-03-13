@@ -4,6 +4,8 @@ import { NextIntlClientProvider } from 'next-intl';
 import { getMessages } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { routing } from '@/i18n/routing';
+import { ReduxProvider } from '@/lib/store/ReduxProvider';
+import { ThemeProvider } from '@/components/ThemeProvider';
 import "./globals.css";
 
 const tajawal = Tajawal({
@@ -36,9 +38,13 @@ export default async function RootLayout({
 
   return (
     <html lang={locale} dir={dir}>
-      <body className={`${tajawal.variable} font-sans antialiased text-[#5A4A3A] bg-[#F5F0E8]`}>
+      <body className={`${tajawal.variable} font-sans antialiased bg-[#F5F0E8] dark:bg-zinc-900 text-[#5A4A3A] dark:text-zinc-100 transition-colors`}>
         <NextIntlClientProvider messages={messages}>
-          {children}
+          <ReduxProvider>
+            <ThemeProvider>
+              {children}
+            </ThemeProvider>
+          </ReduxProvider>
         </NextIntlClientProvider>
       </body>
     </html>

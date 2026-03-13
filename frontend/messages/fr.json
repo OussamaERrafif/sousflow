@@ -54,6 +54,7 @@
         "schedule": "Planifier",
         "close_valve": "Fermer la vanne",
         "open_valve": "Ouvrir la vanne",
+        "live": "En direct",
         "last_update": "Mis à jour: il y a {min} min",
         "irrigation_active": "Irrigation en cours",
         "irrigation_duration": "Durée: {min} min",

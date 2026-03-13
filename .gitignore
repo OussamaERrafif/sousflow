@@ -31,3 +31,13 @@ Thumbs.db
 # IDE
 .vscode/
 .idea/
+
+logs
+CLAUDE.md
+.claude
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+pyvenv.cfg

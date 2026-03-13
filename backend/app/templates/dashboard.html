@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SoussFlow Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        :root {
+            /* Refined Slate Palette */
+            --bg-dark: #0f172a;       /* Slate 900 */
+            --bg-card: #1e293b;       /* Slate 800 */
+            --bg-surface: #334155;    /* Slate 700 */
+            --bg-terminal: #020617;   /* Slate 950 */
+            
+            --border: #334155;
+            --border-light: #475569;
+            
+            --text-primary: #f8fafc;  /* Slate 50 */
+            --text-secondary: #94a3b8;/* Slate 400 */
+            
+            /* Muted Professional Accents */
+            --accent-green: #10b981;  /* Emerald 500 */
+            --accent-yellow: #f59e0b; /* Amber 500 */
+            --accent-red: #ef4444;    /* Red 500 */
+            --accent-blue: #3b82f6;   /* Blue 500 */
+        }
+        
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-primary);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* Navbar Styling */
+        .navbar {
+            background-color: var(--bg-card) !important;
+            border-bottom: 1px solid var(--border);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        .navbar-brand {
+            font-weight: 600;
+            letter-spacing: -0.5px;
+        }
+
+        /* Card Styling */
+        .card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+        }
+        .card-header {
+            background-color: transparent;
+            border-bottom: 1px solid var(--border);
+            font-weight: 600;
+            padding: 1rem 1.25rem;
+            color: var(--text-primary);
+        }
+
+        /* Metric Styling */
+        .metric-box {
+            background-color: rgba(51, 65, 85, 0.3);
+            border-radius: 8px;
+            padding: 1rem;
+            height: 100%;
+            border: 1px solid transparent;
+            transition: border-color 0.2s;
+        }
+        .metric-box:hover {
+            border-color: var(--border-light);
+        }
+        .metric-value { 
+            font-size: 1.5rem; 
+            font-weight: 700; 
+            color: var(--text-primary);
+            line-height: 1.2;
+            margin-bottom: 0.25rem;
+        }
+        .metric-label { 
+            color: var(--text-secondary); 
+            font-size: 0.8rem; 
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 500;
+        }
+
+        /* Status Colors */
+        .status-healthy { color: var(--accent-green); }
+        .status-degraded { color: var(--accent-yellow); }
+        .status-down { color: var(--accent-red); }
+
+        /* Zone Cards */
+        .zone-card {
+            border: 1px solid var(--border);
+            border-left: 4px solid var(--border);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .zone-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+        .zone-active { border-left-color: var(--accent-green); }
+        .zone-inactive { border-left-color: var(--accent-blue); }
+        .zone-warning { border-left-color: var(--accent-yellow); }
+        .zone-critical { border-left-color: var(--accent-red); }
+
+        /* Log Section Styling */
+        .nav-tabs {
+            border-bottom: 1px solid var(--border);
+            padding: 0 1rem;
+        }
+        .nav-tabs .nav-link {
+            color: var(--text-secondary);
+            border: none;
+            border-bottom: 2px solid transparent;
+            padding: 1rem 1.25rem;
+            font-weight: 500;
+        }
+        .nav-tabs .nav-link.active {
+            color: var(--text-primary);
+            background: transparent;
+            border-bottom-color: var(--accent-blue);
+        }
+        .nav-tabs .nav-link:hover:not(.active) {
+            color: var(--text-primary);
+            border-bottom-color: var(--border-light);
+        }
+        
+        .log-container-wrapper {
+            background-color: var(--bg-terminal);
+            border-radius: 0 0 12px 12px;
+            padding: 1rem;
+        }
+        .scrollable-log {
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'JetBrains Mono', 'Consolas', 'Monaco', monospace;
+            font-size: 0.85rem;
+        }
+        .scrollable-log::-webkit-scrollbar { width: 6px; }
+        .scrollable-log::-webkit-scrollbar-track { background: transparent; }
+        .scrollable-log::-webkit-scrollbar-thumb { background: var(--bg-surface); border-radius: 4px; }
+        
+        .log-entry {
+            padding: 0.35rem 0.5rem;
+            border-bottom: 1px solid rgba(51, 65, 85, 0.5);
+            display: flex;
+            gap: 1rem;
+            align-items: flex-start;
+        }
+        .log-entry:last-child { border-bottom: none; }
+        .log-entry:hover { background-color: rgba(255, 255, 255, 0.02); }
+        
+        .log-timestamp { color: var(--text-secondary); white-space: nowrap; }
+        .log-level { font-weight: 600; min-width: 70px; }
+        .log-message { color: var(--text-primary); flex-grow: 1; word-break: break-word; }
+        
+        .log-level-INFO { color: var(--accent-blue); }
+        .log-level-WARNING { color: var(--accent-yellow); }
+        .log-level-ERROR { color: var(--accent-red); }
+        .log-level-DEBUG { color: var(--text-secondary); }
+
+        /* Badges & Buttons */
+        .badge {
+            font-weight: 500;
+            padding: 0.4em 0.8em;
+            border-radius: 6px;
+        }
+        .btn-outline-custom {
+            border-color: var(--border);
+            color: var(--text-secondary);
+        }
+        .btn-outline-custom:hover, .btn-outline-custom.active {
+            background-color: var(--bg-surface);
+            color: var(--text-primary);
+            border-color: var(--border-light);
+        }
+
+        /* Animations */
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+        .live-indicator {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-weight: 500;
+            padding: 0.25rem 0.75rem;
+            background-color: rgba(16, 185, 129, 0.1);
+            border-radius: 20px;
+            color: var(--accent-green);
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark sticky-top">
+        <div class="container-fluid px-4">
+            <span class="navbar-brand mb-0 h1 d-flex align-items-center">
+                <i class="bi bi-droplet-half me-2" style="color: var(--accent-blue);"></i>
+                SoussFlow Analytics
+            </span>
+            <span class="text-end d-flex align-items-center gap-3">
+                <small class="text-secondary">Auto-refresh: 30s</small>
+                <span class="live-indicator">
+                    <i class="bi bi-circle-fill" style="font-size: 8px;"></i> System Live
+                </span>
+            </span>
+        </div>
+    </nav>
+
+    <div class="container-fluid py-4 px-4">
+        <div class="row mb-2">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-activity me-2"></i>System Overview</span>
+                        <span class="badge {% if health.status == 'healthy' %}bg-success{% elif health.status == 'degraded' %}bg-warning{% else %}bg-danger{% endif %}">
+                            {{ health.status|upper }}
+                        </span>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-2 col-6">
+                                <div class="metric-box">
+                                    <div class="metric-value">{{ health.version }}</div>
+                                    <div class="metric-label">Version</div>
+                                </div>
+                            </div>
+                            <div class="col-md-2 col-6">
+                                <div class="metric-box">
+                                    <div class="metric-value">{{ health.uptime }}</div>
+                                    <div class="metric-label">Uptime</div>
+                                </div>
+                            </div>
+                            <div class="col-md-2 col-6">
+                                <div class="metric-box">
+                                    <div class="metric-value fs-5">{{ health.current_time }}</div>
+                                    <div class="metric-label">Server Time</div>
+                                </div>
+                            </div>
+                            <div class="col-md-2 col-6">
+                                <div class="metric-box">
+                                    <div class="metric-value">{{ health.modules|length }}</div>
+                                    <div class="metric-label">Active Modules</div>
+                                </div>
+                            </div>
+                            <div class="col-md-2 col-6">
+                                <div class="metric-box">
+                                    <div class="metric-value status-healthy"><i class="bi bi-check-circle-fill"></i></div>
+                                    <div class="metric-label">Database</div>
+                                </div>
+                            </div>
+                            <div class="col-md-2 col-6">
+                                <div class="metric-box">
+                                    <div class="metric-value {% if simulator_running %}status-healthy{% else %}status-degraded{% endif %}" id="sim-status">
+                                        {% if simulator_running %}<i class="bi bi-play-circle-fill"></i>{% else %}<i class="bi bi-pause-circle-fill"></i>{% endif %}
+                                    </div>
+                                    <div class="metric-label">IoT Simulator</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% if latest_readings %}
+        <div class="row mb-2">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header d-flex align-items-center">
+                        <i class="bi bi-broadcast me-2"></i>Telemetry Data
+                        <span class="badge bg-secondary ms-3 fw-normal" id="timestamp-badge">{{ latest_readings[0].timestamp if latest_readings else 'N/A' }}</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-lg-6 mb-4 mb-lg-0">
+                                <h6 class="text-secondary mb-3 text-uppercase" style="font-size: 0.85rem; letter-spacing: 0.5px;">
+                                    <i class="bi bi-cloud-sun me-2"></i>Environmental Conditions
+                                </h6>
+                                <div class="row g-3">
+                                    <div class="col-4">
+                                        <div class="metric-box">
+                                            <div class="metric-value" id="env-temp">{{ latest_readings[0].air_temperature_c }}°</div>
+                                            <div class="metric-label">Temp</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-4">
+                                        <div class="metric-box">
+                                            <div class="metric-value" id="env-hum">{{ latest_readings[0].air_humidity_pct }}%</div>
+                                            <div class="metric-label">Humidity</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-4">
+                                        <div class="metric-box">
+                                            <div class="metric-value" id="env-pres">{{ latest_readings[0].air_pressure_hpa }}</div>
+                                            <div class="metric-label">hPa</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-4">
+                                        <div class="metric-box">
+                                            <div class="metric-value" id="env-lux">{{ latest_readings[0].light_intensity_lux }}</div>
+                                            <div class="metric-label">Lux</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-4">
+                                        <div class="metric-box">
+                                            <div class="metric-value" id="env-rain">{{ latest_readings[0].precipitation_mm }}</div>
+                                            <div class="metric-label">Rain (mm)</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-4">
+                                        <div class="metric-box">
+                                            <div class="metric-value" id="env-wind">{{ latest_readings[0].wind_speed_kmh }}</div>
+                                            <div class="metric-label">Wind (km/h)</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-lg-6">
+                                <h6 class="text-secondary mb-3 text-uppercase" style="font-size: 0.85rem; letter-spacing: 0.5px;">
+                                    <i class="bi bi-pipeline me-2"></i>Water Infrastructure
+                                </h6>
+                                <div class="row g-3">
+                                    <div class="col-6">
+                                        <div class="metric-box">
+                                            <div class="metric-value {% if latest_readings[0].reservoir_level_pct < 20 %}text-danger{% elif latest_readings[0].reservoir_level_pct < 40 %}text-warning{% else %}text-success{% endif %}" id="infra-reservoir">
+                                                {{ latest_readings[0].reservoir_level_pct }}%
+                                            </div>
+                                            <div class="metric-label">Reservoir Level</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="metric-box">
+                                            <div class="metric-value" id="infra-pressure">{{ latest_readings[0].main_pressure_mpa }}</div>
+                                            <div class="metric-label">Main Pressure (MPa)</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="metric-box">
+                                            <div class="metric-value fs-5 mt-1" id="infra-filter">
+                                                {% if latest_readings[0].filter_status == 0 %}<span class="text-success"><i class="bi bi-check2-circle me-1"></i>Clean</span>
+                                                {% elif latest_readings[0].filter_status == 1 %}<span class="text-warning"><i class="bi bi-exclamation-circle me-1"></i>Partial</span>
+                                                {% else %}<span class="text-danger"><i class="bi bi-x-circle me-1"></i>Clogged</span>{% endif %}
+                                            </div>
+                                            <div class="metric-label mt-2">Filter Status</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="metric-box">
+                                            <div class="metric-value {% if latest_readings[0].is_anomaly %}text-danger{% endif %}" id="infra-zones">
+                                                {% if latest_readings[0].is_anomaly %}<i class="bi bi-exclamation-triangle-fill me-1"></i>{% endif %} {{ latest_readings|length }}
+                                            </div>
+                                            <div class="metric-label">Active Zones</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mb-3">
+            <div class="col-12">
+                <h5 class="text-secondary mb-3 mt-2" style="font-size: 1rem;"><i class="bi bi-grid-1x2 me-2"></i>Irrigation Zones</h5>
+            </div>
+            {% for reading in latest_readings %}
+            <div class="col-md-6 col-xl-4 mb-3">
+                <div class="card h-100 zone-card {% if reading.valve_open %}zone-active{% elif reading.soil_moisture_pct < 30 %}zone-critical{% elif reading.stress_score > 0.3 %}zone-warning{% else %}zone-inactive{% endif %} mb-0" id="zone-card-{{ reading.zone_id }}">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom border-secondary border-opacity-25">
+                            <h6 class="mb-0 fw-bold fs-5">Zone {{ reading.zone_id }}</h6>
+                            <span class="badge {% if reading.valve_open %}bg-success bg-opacity-25 text-success{% else %}bg-secondary bg-opacity-25 text-secondary{% endif %} border border-opacity-10 {% if reading.valve_open %}border-success{% else %}border-secondary{% endif %}">
+                                {% if reading.valve_open %}<i class="bi bi-moisture me-1"></i> Irrigating{% else %}Idle{% endif %}
+                            </span>
+                        </div>
+                        <div class="row g-3 mb-3">
+                            <div class="col-6">
+                                <div class="metric-value fs-4">{{ reading.soil_moisture_pct }}%</div>
+                                <div class="metric-label">Soil Moisture</div>
+                            </div>
+                            <div class="col-6">
+                                <div class="metric-value fs-4">{{ reading.zone_flow_lpm }}</div>
+                                <div class="metric-label">Flow (L/min)</div>
+                            </div>
+                            <div class="col-6">
+                                <div class="metric-value fs-4">{{ reading.zone_pressure_mpa }}</div>
+                                <div class="metric-label">Pressure (MPa)</div>
+                            </div>
+                            <div class="col-6">
+                                <div class="metric-value fs-4">
+                                    <span class="{% if reading.stress_score < 0.1 %}text-success{% elif reading.stress_score < 0.3 %}text-warning{% else %}text-danger{% endif %}">
+                                        {{ "%.2f"|format(reading.stress_score) }}
+                                    </span>
+                                </div>
+                                <div class="metric-label">Stress Score</div>
+                            </div>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">Health: {{ "%.1f"|format(reading.health_score) }}/10</span>
+                            {% if reading.irrigation_needed %}
+                            <span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25"><i class="bi bi-droplet-fill me-1"></i>Needs Water</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body text-center text-secondary py-5">
+                        <i class="bi bi-inbox fs-1 mb-3 d-block"></i>
+                        <h5 class="text-light">No Telemetry Data</h5>
+                        <p class="mb-4">Waiting for sensor data. Ensure the IoT Simulator is active.</p>
+                        <code class="bg-dark px-3 py-2 rounded border border-secondary">IOT_SIMULATOR_ENABLED=true</code>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="row">
+            <div class="col-12">
+                <div class="card overflow-hidden">
+                    <div class="card-header p-0 border-0">
+                        <ul class="nav nav-tabs" id="logTabs" role="tablist">
+                            <li class="nav-item">
+                                <button class="nav-link active" id="all-logs-tab" data-bs-toggle="tab" data-bs-target="#all-logs" type="button">
+                                    <i class="bi bi-terminal me-2"></i>System Logs
+                                </button>
+                            </li>
+                            <li class="nav-item">
+                                <button class="nav-link" id="errors-tab" data-bs-toggle="tab" data-bs-target="#errors" type="button">
+                                    <i class="bi bi-shield-exclamation me-2"></i>Error Diagnostics
+                                </button>
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="tab-content" id="logTabsContent">
+                            <div class="tab-pane fade show active" id="all-logs">
+                                <div class="d-flex justify-content-between align-items-center px-4 py-3 border-bottom border-secondary border-opacity-25">
+                                    <span class="text-secondary small fw-medium">{{ logs|length }} entries total</span>
+                                    <div class="btn-group btn-group-sm">
+                                        <button class="btn btn-outline-custom active" onclick="filterLogs('ALL', this)">All</button>
+                                        <button class="btn btn-outline-custom" onclick="filterLogs('INFO', this)">Info</button>
+                                        <button class="btn btn-outline-custom" onclick="filterLogs('WARNING', this)">Warn</button>
+                                        <button class="btn btn-outline-custom" onclick="filterLogs('ERROR', this)">Error</button>
+                                    </div>
+                                </div>
+                                <div class="log-container-wrapper">
+                                    <div class="scrollable-log" id="logContainer">
+                                        {% for log in logs %}
+                                        <div class="log-entry" data-level="{{ log.level }}">
+                                            <span class="log-timestamp">[{{ log.timestamp }}]</span>
+                                            <span class="log-level log-level-{{ log.level }}">{{ log.level }}</span>
+                                            <span class="log-message">
+                                                {{ log.message }}
+                                                {% if log.module and log.module != '<string>' %}
+                                                <span class="text-secondary ms-2" style="font-size: 0.8em;">in {{ log.module }}</span>
+                                                {% endif %}
+                                            </span>
+                                        </div>
+                                        {% endfor %}
+                                        {% if logs|length == 0 %}
+                                        <div class="text-center text-secondary py-5">System logs are empty.</div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="tab-pane fade" id="errors">
+                                <div class="log-container-wrapper rounded-top-0">
+                                    <div class="scrollable-log">
+                                        {% for log in error_logs %}
+                                        <div class="log-entry">
+                                            <span class="log-timestamp">[{{ log.timestamp }}]</span>
+                                            <span class="log-level log-level-{{ log.level }}">{{ log.level }}</span>
+                                            <span class="log-message">{{ log.message }}</span>
+                                        </div>
+                                        {% endfor %}
+                                        {% if error_logs|length == 0 %}
+                                        <div class="text-center text-secondary py-5">
+                                            <i class="bi bi-shield-check text-success fs-1 d-block mb-2"></i>
+                                            Zero errors detected. System is running cleanly.
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const sseUrl = '/api/events';
+        let eventSource = null;
+        
+        // Get initial data from server-side render
+        const initialReadings = {{ latest_readings|tojson }};
+        
+        function renderReadings(readings) {
+            if (!readings || readings.length === 0) return;
+            
+            // Update timestamp badge
+            const timestampBadge = document.getElementById('timestamp-badge');
+            if (timestampBadge) {
+                timestampBadge.textContent = readings[0].timestamp;
+            }
+            
+            // Update environmental metrics
+            const r = readings[0];
+            document.getElementById('env-temp').textContent = r.air_temperature_c + '°';
+            document.getElementById('env-hum').textContent = r.air_humidity_pct + '%';
+            document.getElementById('env-pres').textContent = r.air_pressure_hpa;
+            document.getElementById('env-lux').textContent = r.light_intensity_lux;
+            document.getElementById('env-rain').textContent = r.precipitation_mm;
+            document.getElementById('env-wind').textContent = r.wind_speed_kmh;
+            
+            // Update infrastructure metrics
+            const resLevel = document.getElementById('infra-reservoir');
+            resLevel.textContent = r.reservoir_level_pct + '%';
+            resLevel.className = 'metric-value ' + (r.reservoir_level_pct < 20 ? 'text-danger' : r.reservoir_level_pct < 40 ? 'text-warning' : 'text-success');
+            
+            document.getElementById('infra-pressure').textContent = r.main_pressure_mpa;
+            
+            const filterStatus = document.getElementById('infra-filter');
+            if (r.filter_status === 0) {
+                filterStatus.innerHTML = '<span class="text-success"><i class="bi bi-check2-circle me-1"></i>Clean</span>';
+            } else if (r.filter_status === 1) {
+                filterStatus.innerHTML = '<span class="text-warning"><i class="bi bi-exclamation-circle me-1"></i>Partial</span>';
+            } else {
+                filterStatus.innerHTML = '<span class="text-danger"><i class="bi bi-x-circle me-1"></i>Clogged</span>';
+            }
+            
+            const zones = document.getElementById('infra-zones');
+            zones.textContent = r.is_anomaly ? '⚠️ ' + readings.length : readings.length;
+            zones.className = 'metric-value ' + (r.is_anomaly ? 'text-danger' : '');
+            
+            // Update simulator status
+            const simStatus = document.getElementById('sim-status');
+            if (simStatus) {
+                simStatus.className = 'metric-value status-healthy';
+                simStatus.innerHTML = '<i class="bi bi-play-circle-fill"></i>';
+            }
+            
+            // Update zone cards
+            readings.forEach((zone, i) => {
+                const card = document.getElementById('zone-card-' + zone.zone_id);
+                if (card) {
+                    // Update status class
+                    card.className = 'card h-100 zone-card mb-0 ' + 
+                        (zone.valve_open ? 'zone-active' : zone.soil_moisture_pct < 30 ? 'zone-critical' : 
+                         zone.stress_score > 0.3 ? 'zone-warning' : 'zone-inactive');
+                    
+                    // Update valve badge
+                    const badge = card.querySelector('.badge');
+                    if (zone.valve_open) {
+                        badge.className = 'badge bg-success bg-opacity-25 text-success border border-success';
+                        badge.innerHTML = '<i class="bi bi-moisture me-1"></i> Irrigating';
+                    } else {
+                        badge.className = 'badge bg-secondary bg-opacity-25 text-secondary border border-secondary';
+                        badge.innerHTML = 'Idle';
+                    }
+                    
+                    // Update metrics
+                    card.querySelectorAll('.metric-value')[0].textContent = zone.soil_moisture_pct + '%';
+                    card.querySelectorAll('.metric-value')[1].textContent = zone.zone_flow_lpm;
+                    card.querySelectorAll('.metric-value')[2].textContent = zone.zone_pressure_mpa;
+                    
+                    const stressEl = card.querySelectorAll('.metric-value')[3];
+                    stressEl.textContent = zone.stress_score.toFixed(2);
+                    stressEl.className = 'metric-value fs-4 ' + 
+                        (zone.stress_score < 0.1 ? 'text-success' : zone.stress_score < 0.3 ? 'text-warning' : 'text-danger');
+                    
+                    // Update health badge
+                    const healthBadge = card.querySelector('.bg-primary');
+                    if (healthBadge) {
+                        healthBadge.textContent = 'Health: ' + zone.health_score.toFixed(1) + '/10';
+                    }
+                    
+                    // Update needs water badge
+                    const needWater = card.querySelector('.bg-warning');
+                    if (zone.irrigation_needed && !needWater) {
+                        const span = document.createElement('span');
+                        span.className = 'badge bg-warning bg-opacity-10 text-warning border border-warning';
+                        span.innerHTML = '<i class="bi bi-droplet-fill me-1"></i>Needs Water';
+                        card.querySelector('.d-flex').appendChild(span);
+                    } else if (!zone.irrigation_needed && needWater) {
+                        needWater.remove();
+                    }
+                }
+            });
+        }
+
+        function connectSSE() {
+            if (eventSource) {
+                eventSource.close();
+            }
+
+            eventSource = new EventSource(sseUrl);
+
+            eventSource.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                if (data.readings && data.readings.length > 0) {
+                    renderReadings(data.readings);
+                }
+            };
+
+            eventSource.onerror = function() {
+                console.log('SSE connection lost, reconnecting...');
+                setTimeout(connectSSE, 3000);
+            };
+        }
+
+        // Log filtering
+        function filterLogs(level, btn) {
+            // Update button states
+            const buttons = btn.parentElement.querySelectorAll('.btn');
+            buttons.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            // Filter entries
+            const entries = document.querySelectorAll('.log-entry[data-level]');
+            entries.forEach(entry => {
+                if (level === 'ALL' || entry.dataset.level === level) {
+                    entry.style.display = 'flex';
+                } else {
+                    entry.style.display = 'none';
+                }
+            });
+        }
+
+        // Initialize
+        if (initialReadings && initialReadings.length > 0) {
+            renderReadings(initialReadings);
+        }
+        connectSSE();
+    </script>
+</body>
+</html>

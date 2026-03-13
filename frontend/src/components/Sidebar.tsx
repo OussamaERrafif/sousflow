@@ -1,18 +1,52 @@
 "use client";
 
-import { Home, Leaf, Bell, Settings, Activity, FileText, Globe } from "lucide-react";
+import { Home, Leaf, Bell, Settings, Activity, FileText, Globe, LogIn, LogOut, User } from "lucide-react";
 import { useTranslations, useLocale } from "next-intl";
 import { usePathname, useRouter } from "@/i18n/routing";
+import { useAppSelector, useAppDispatch } from "@/lib/store/hooks";
+import { useSignOutMutation } from "@/lib/store/apiSlice";
+import { logout } from "@/lib/store/slices/authSlice";
+import { useEffect } from "react";
 
 export default function Sidebar({ activePage, setActivePage }: { activePage: string, setActivePage: (id: string) => void }) {
     const t = useTranslations("Sidebar");
     const locale = useLocale();
     const router = useRouter();
     const pathname = usePathname();
+    const dispatch = useAppDispatch();
+    const { isAuthenticated, user } = useAppSelector((state) => state.auth);
+    const [signOut] = useSignOutMutation();
+
+    useEffect(() => {
+        const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+        if (token && !isAuthenticated) {
+            dispatch({ type: "auth/setCredentials", payload: { user: { id: "", email: "" }, token } });
+        }
+    }, [dispatch, isAuthenticated]);
 
     const switchLocale = () => {
         const nextLocale = locale === "ar" ? "fr" : "ar";
         router.replace(pathname, { locale: nextLocale });
+    };
+
+    const handleSignOut = async () => {
+        try {
+            await signOut(undefined).unwrap();
+        } catch {
+            // Continue even if API call fails
+        }
+        localStorage.removeItem("token");
+        localStorage.removeItem("refreshToken");
+        dispatch(logout());
+        router.push("/login");
+    };
+
+    const handleAuthClick = () => {
+        if (isAuthenticated) {
+            handleSignOut();
+        } else {
+            router.push("/login");
+        }
     };
 
     const renderMenuButton = (id: string, icon: any, label: string, badge?: number) => {
@@ -85,19 +119,50 @@ export default function Sidebar({ activePage, setActivePage }: { activePage: str
                     </div>
                 </nav>
 
-                <div className="p-5 border-t border-[#4A2C1A] flex justify-between items-center">
-                    <div className="flex items-center">
-                        <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse shrink-0"></div>
-                        <p className="rtl:mr-2 ltr:ml-2 text-emerald-400 text-xs font-bold uppercase tracking-wider">{t("status")}</p>
+                <div className="p-5 border-t border-[#4A2C1A]">
+                    {isAuthenticated && user ? (
+                        <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 bg-[#C17A3A] rounded-full flex items-center justify-center">
+                                    <User className="w-4 h-4 text-white" />
+                                </div>
+                                <div className="overflow-hidden">
+                                    <p className="text-white font-bold text-sm truncate">{user.full_name || user.email}</p>
+                                    <p className="text-[#8B7355] text-xs truncate">{user.email}</p>
+                                </div>
+                            </div>
+                        </div>
+                    ) : null}
+                    <div className="flex justify-between items-center">
+                        {isAuthenticated ? (
+                            <div className="flex items-center">
+                                <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse shrink-0"></div>
+                                <p className="rtl:mr-2 ltr:ml-2 text-emerald-400 text-xs font-bold uppercase tracking-wider">{t("status")}</p>
+                            </div>
+                        ) : (
+                            <div className="flex items-center">
+                                <div className="w-2 h-2 bg-zinc-400 rounded-full shrink-0"></div>
+                                <p className="rtl:mr-2 ltr:ml-2 text-zinc-400 text-xs font-bold uppercase tracking-wider">Not logged in</p>
+                            </div>
+                        )}
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={switchLocale}
+                                className="p-1.5 bg-[#3D1F0F] rounded-lg text-[#8B7355] hover:text-white transition-colors flex items-center gap-1.5"
+                                title="Switch Language"
+                            >
+                                <Globe className="w-3.5 h-3.5" />
+                                <span className="text-[10px] font-bold uppercase">{locale === 'ar' ? 'FR' : 'AR'}</span>
+                            </button>
+                            <button
+                                onClick={handleAuthClick}
+                                className="p-1.5 bg-[#3D1F0F] rounded-lg text-[#8B7355] hover:text-white transition-colors flex items-center gap-1.5"
+                                title={isAuthenticated ? "Sign Out" : "Sign In"}
+                            >
+                                {isAuthenticated ? <LogOut className="w-3.5 h-3.5" /> : <LogIn className="w-3.5 h-3.5" />}
+                            </button>
+                        </div>
                     </div>
-                    <button
-                        onClick={switchLocale}
-                        className="p-1.5 bg-[#3D1F0F] rounded-lg text-[#8B7355] hover:text-white transition-colors flex items-center gap-1.5"
-                        title="Switch Language"
-                    >
-                        <Globe className="w-3.5 h-3.5" />
-                        <span className="text-[10px] font-bold uppercase">{locale === 'ar' ? 'FR' : 'AR'}</span>
-                    </button>
                 </div>
             </aside>
 

@@ -54,6 +54,7 @@
         "schedule": "جدولة",
         "close_valve": "إغلاق الصمام",
         "open_valve": "فتح الصمام",
+        "live": "مباشر",
         "last_update": "آخر تحديث: قبل {min} دقائق",
         "irrigation_active": "الري يعمل الآن",
         "irrigation_duration": "مدة الري: {min} دقيقة",
