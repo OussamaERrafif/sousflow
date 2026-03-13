@@ -34,6 +34,7 @@ export const authenticatingApiSlice = apiSlice.injectEndpoints({
           const { data } = await queryFulfilled;
           localStorage.setItem("token", data.access_token);
           localStorage.setItem("refreshToken", data.refresh_token);
+          document.cookie = `token=${data.access_token}; path=/; max-age=86400; SameSite=Lax`;
           dispatch(setCredentials({ user: data.user, token: data.access_token }));
         } catch {
           // Error handled by query
@@ -51,6 +52,7 @@ export const authenticatingApiSlice = apiSlice.injectEndpoints({
           const { data } = await queryFulfilled;
           localStorage.setItem("token", data.access_token);
           localStorage.setItem("refreshToken", data.refresh_token);
+          document.cookie = `token=${data.access_token}; path=/; max-age=86400; SameSite=Lax`;
           dispatch(setCredentials({ user: data.user, token: data.access_token }));
         } catch {
           // Error handled by query
@@ -68,6 +70,7 @@ export const authenticatingApiSlice = apiSlice.injectEndpoints({
         } finally {
           localStorage.removeItem("token");
           localStorage.removeItem("refreshToken");
+          document.cookie = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
           dispatch(logout());
         }
       },
@@ -83,6 +86,7 @@ export const authenticatingApiSlice = apiSlice.injectEndpoints({
           const { data } = await queryFulfilled;
           localStorage.setItem("token", data.access_token);
           localStorage.setItem("refreshToken", data.refresh_token);
+          document.cookie = `token=${data.access_token}; path=/; max-age=86400; SameSite=Lax`;
           const state = (window as any).__REDUX_STORE__?.getState?.() || {};
           if (state.auth?.user) {
             dispatch(setCredentials({ user: state.auth.user, token: data.access_token }));
@@ -90,6 +94,7 @@ export const authenticatingApiSlice = apiSlice.injectEndpoints({
         } catch {
           localStorage.removeItem("token");
           localStorage.removeItem("refreshToken");
+          document.cookie = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
           dispatch(logout());
         }
       },

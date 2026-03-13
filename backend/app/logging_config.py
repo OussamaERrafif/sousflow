@@ -1,6 +1,7 @@
 """
 Logging configuration using Loguru
 """
+import os
 import sys
 from loguru import logger
 import json
@@ -16,11 +17,11 @@ def serialize(record):
         "function": record["function"],
         "line": record["line"],
     }
-    
+
     # Add extra fields
     if record["extra"]:
         subset["extra"] = record["extra"]
-    
+
     return json.dumps(subset)
 
 
@@ -41,25 +42,25 @@ logger.add(
     serialize=False,
 )
 
-# Add file handler
-logger.add(
-    "logs/backend.log",
-    rotation="500 MB",
-    retention="10 days",
-    level="INFO",
-    format=formatter,
-    serialize=False,
-)
+# Only add file handlers when not running on Vercel (read-only filesystem)
+if not os.environ.get("VERCEL"):
+    logger.add(
+        "logs/backend.log",
+        rotation="500 MB",
+        retention="10 days",
+        level="INFO",
+        format=formatter,
+        serialize=False,
+    )
 
-# Add error file handler
-logger.add(
-    "logs/backend_errors.log",
-    rotation="100 MB",
-    retention="30 days",
-    level="ERROR",
-    format=formatter,
-    serialize=False,
-)
+    logger.add(
+        "logs/backend_errors.log",
+        rotation="100 MB",
+        retention="30 days",
+        level="ERROR",
+        format=formatter,
+        serialize=False,
+    )
 
 
 __all__ = ["logger"]

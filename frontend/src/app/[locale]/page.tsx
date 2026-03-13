@@ -13,6 +13,7 @@ import PumpsPage from "@/components/pages/PumpsPage";
 import AlertsPage from "@/components/pages/AlertsPage";
 import ReportsPage from "@/components/pages/ReportsPage";
 import SettingsPage from "@/components/pages/SettingsPage";
+import AIAssistancePage from "@/components/pages/AIAssistancePage";
 import { useAppSelector } from "@/lib/store/hooks";
 import { useSSE } from "@/lib/hooks/useSSE";
 
@@ -72,6 +73,8 @@ export default function Dashboard() {
         return <AlertsPage />;
       case "reports":
         return <ReportsPage />;
+      case "ai_assistant":
+        return <AIAssistancePage />;
       case "settings":
         return <SettingsPage />;
       default:
