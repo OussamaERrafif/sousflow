@@ -37,7 +37,7 @@ export default function Dashboard() {
       if (!token) {
         router.push("/login");
       } else {
-        dispatch(setCredentials({ user: { id: "", email: "" }, token }));
+        dispatch(setCredentials({ user: { id: "", username: "" }, token }));
       }
     }
   }, [mounted, isAuthenticated, router, dispatch]);

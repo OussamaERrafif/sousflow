@@ -134,7 +134,7 @@ export default function SettingsPage() {
                                 </div>
                                 <div>
                                     <h3 className="font-black text-zinc-800 dark:text-zinc-100">{isLoading ? "Loading..." : profile?.full_name ?? "User"}</h3>
-                                    <p className="text-sm text-zinc-500 dark:text-zinc-400 font-bold">{isLoading ? "..." : profile?.username ?? "--"}</p>
+                                    <p className="text-sm text-zinc-500 dark:text-zinc-400 font-bold">{isLoading ? "..." : profile?.email ?? "--"}</p>
                                     <span className="text-xs font-bold text-zinc-400 dark:text-zinc-500 capitalize">{profile?.role ?? "user"}</span>
                                 </div>
                             </div>
@@ -152,7 +152,7 @@ export default function SettingsPage() {
                                     <label className="block text-sm font-bold text-zinc-600 dark:text-zinc-300 mb-1">Username</label>
                                     <input
                                         type="text"
-                                        defaultValue={profile?.username ?? ""}
+                                        defaultValue={profile?.email ?? ""}
                                         className="w-full px-4 py-2.5 rounded-xl border border-zinc-200 dark:border-zinc-600 focus:border-[#C17A3A] focus:outline-none font-bold bg-zinc-50 dark:bg-zinc-600 text-zinc-800 dark:text-zinc-100"
                                         disabled
                                     />
