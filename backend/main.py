@@ -198,16 +198,10 @@ async def dashboard_logout():
 
 # ─── Public Auth Pages (Jinja Templates) ──────────────────────
 
-@app.get("/signin", response_class=HTMLResponse)
-async def signin_page(request: Request):
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request):
     """User sign-in page"""
-    return templates.TemplateResponse("signin.html", {"request": request})
-
-
-@app.get("/ar/signin", response_class=HTMLResponse)
-async def signin_page_ar(request: Request):
-    """User sign-in page (Arabic redirect)"""
-    return templates.TemplateResponse("signin.html", {"request": request})
+    return templates.TemplateResponse("login.html", {"request": request})
 
 
 def _get_user_from_token(request: Request) -> dict | None:
@@ -237,7 +231,7 @@ async def users_page(request: Request):
     """User management page (requires auth)"""
     user = _get_user_from_token(request)
     if not user:
-        return RedirectResponse(url="/signin?return=/users", status_code=302)
+        return RedirectResponse(url="/login?return=/users", status_code=302)
     return templates.TemplateResponse("users.html", {"request": request, "current_user": user})
 
 
