@@ -193,16 +193,23 @@
             btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> جاري التحقق...';
 
             try {
+                const username = document.getElementById('username').value;
+                const password = document.getElementById('password').value;
+                
+                console.log('Signing in with:', username);
+                
                 const res = await fetch('/api/auth/signin', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        username: document.getElementById('username').value,
-                        password: document.getElementById('password').value
+                        username: username,
+                        password: password
                     })
                 });
 
+                console.log('Response status:', res.status);
                 const data = await res.json();
+                console.log('Response data:', data);
 
                 if (!res.ok) {
                     throw new Error(data.detail || 'بيانات الدخول غير صحيحة');
