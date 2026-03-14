@@ -145,20 +145,20 @@ export default function AIAssistancePage() {
     const latestReading = getLatestReading();
 
     return (
-        <div className="w-full">
-            <div className="mb-6">
-                <h1 className="text-3xl font-black text-zinc-800 tracking-tight flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#C17A3A] to-[#8B5A2B] flex items-center justify-center">
-                        <Sparkles className="w-5 h-5 text-white" />
+        <div className="w-full px-2 sm:px-0">
+            <div className="mb-4 sm:mb-6">
+                <h1 className="text-2xl sm:text-3xl font-black text-zinc-800 tracking-tight flex items-center gap-2 sm:gap-3">
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-[#C17A3A] to-[#8B5A2B] flex items-center justify-center">
+                        <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                     </div>
                     {t("title")}
                 </h1>
                 <p className="text-zinc-500 font-bold mt-1">{t("subtitle")}</p>
             </div>
 
-            <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-200px)] min-h-[500px]">
+            <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 h-auto lg:h-[calc(100vh-200px)] min-h-[500px] lg:min-h-0">
                 {/* Chat Area */}
-                <div className="flex-1 flex flex-col bg-white dark:bg-zinc-800 rounded-2xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
+                <div className="flex-1 flex flex-col bg-white dark:bg-zinc-800 rounded-2xl border border-zinc-200 dark:border-zinc-700 overflow-hidden min-h-[400px] lg:min-h-0">
                     {/* Chat Header */}
                     <div className="px-5 py-4 border-b border-zinc-100 dark:border-zinc-700 flex items-center justify-between bg-gradient-to-r from-[#3D1F0F]/5 to-transparent">
                         <div className="flex items-center gap-3">
@@ -189,7 +189,7 @@ export default function AIAssistancePage() {
                                 <h3 className="font-black text-zinc-800 dark:text-zinc-100 text-lg mb-2">{t("welcomeTitle")}</h3>
                                 <p className="text-zinc-500 text-sm max-w-xs mx-auto mb-6">{t("welcomeDesc")}</p>
                                 
-                                <div className="grid grid-cols-2 gap-2 max-w-sm mx-auto">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-sm mx-auto">
                                     {SUGGESTIONS.map((s) => (
                                         <button
                                             key={s.key}
@@ -209,7 +209,7 @@ export default function AIAssistancePage() {
                                 key={idx} 
                                 className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                             >
-                                <div className={`flex gap-3 max-w-[85%] ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
+                                <div className={`flex gap-2 sm:gap-3 max-w-[90%] sm:max-w-[85%] ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
                                     <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
                                         msg.role === "user" 
                                             ? "bg-[#3D1F0F]" 
@@ -281,7 +281,7 @@ export default function AIAssistancePage() {
                 </div>
 
                 {/* Data Panel */}
-                <div className="lg:w-80 shrink-0 flex flex-col gap-4">
+                <div className="lg:w-80 shrink-0 flex flex-col gap-4 order-first lg:order-last">
                     {/* Current Data Card */}
                     <div className="bg-white dark:bg-zinc-800 rounded-2xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
                         <button

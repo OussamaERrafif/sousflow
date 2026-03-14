@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "@/i18n/routing";
 import { useAppSelector, useAppDispatch } from "@/lib/store/hooks";
 import { useSignOutMutation } from "@/lib/store/apiSlice";
 import { logout } from "@/lib/store/slices/authSlice";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 export default function Sidebar({ activePage, setActivePage }: { activePage: string, setActivePage: (id: string) => void }) {
     const t = useTranslations("Sidebar");
@@ -16,6 +16,7 @@ export default function Sidebar({ activePage, setActivePage }: { activePage: str
     const dispatch = useAppDispatch();
     const { isAuthenticated, user } = useAppSelector((state) => state.auth);
     const [signOut] = useSignOutMutation();
+    const [showMore, setShowMore] = useState(false);
 
     useEffect(() => {
         const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
@@ -194,16 +195,48 @@ export default function Sidebar({ activePage, setActivePage }: { activePage: str
                     ))}
                     <li className="flex-1 h-full">
                         <button
-                            onClick={switchLocale}
+                            onClick={() => setShowMore(!showMore)}
                             className="w-full h-full flex flex-col items-center justify-center relative rounded-xl hover:bg-[#3D1F0F]/50 transition-colors"
                         >
-                            <Globe className="w-5 h-5 text-[#8B7355]" />
-                            <span className="text-[10px] mt-1 font-bold text-[#8B7355]">
-                                {locale === 'ar' ? 'FR' : 'AR'}
+                            <div className={`w-5 h-5 flex items-center justify-center text-[14px] font-bold transition-transform duration-300 ${showMore ? "rotate-45 text-[#C17A3A]" : "text-[#8B7355]"}`}>
+                                +
+                            </div>
+                            <span className={`text-[10px] mt-1 font-bold transition-colors duration-300 ${showMore ? "text-[#C17A3A]" : "text-[#8B7355]"}`}>
+                                {showMore ? "إغلاق" : "المزيد"}
                             </span>
                         </button>
                     </li>
                 </ul>
+
+                {/* More Menu Dropdown */}
+                <div className={`absolute bottom-16 left-2 right-2 bg-[#2C1810] border border-[#4A2C1A] rounded-xl p-2 shadow-lg transition-all duration-300 ease-out ${showMore ? "opacity-100 translate-y-0 scale-100" : "opacity-0 translate-y-2 scale-95 pointer-events-none"}`}>
+                    {[
+                        { id: "pumps", icon: Settings, label: t("nav_pumps") },
+                        { id: "ai_assistant", icon: Sparkles, label: t("nav_ai_assistant") },
+                        { id: "reports", icon: FileText, label: t("nav_reports") }
+                    ].map((item, idx) => (
+                        <button
+                            key={item.id}
+                            onClick={() => {
+                                setActivePage(item.id);
+                                setShowMore(false);
+                            }}
+                            className={`w-full flex items-center px-4 py-3 rounded-xl transition-all duration-200 ${activePage === item.id ? "bg-[#3D1F0F] text-[#C17A3A]" : "text-[#8B7355] hover:bg-[#3D1F0F]/50"}`}
+                            style={{ transitionDelay: showMore ? `${idx * 50}ms` : '0ms' }}
+                        >
+                            <item.icon className="w-5 h-5" />
+                            <span className="mr-3 font-bold text-sm">{item.label}</span>
+                        </button>
+                    ))}
+                    <div className="border-t border-[#4A2C1A] my-2"></div>
+                    <button
+                        onClick={switchLocale}
+                        className="w-full flex items-center px-4 py-3 rounded-xl text-[#8B7355] hover:bg-[#3D1F0F]/50 transition-all duration-200"
+                    >
+                        <Globe className="w-5 h-5" />
+                        <span className="mr-3 font-bold text-sm">{locale === 'ar' ? 'العربية' : 'Français'}</span>
+                    </button>
+                </div>
             </nav>
         </>
     );

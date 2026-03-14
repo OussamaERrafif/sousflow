@@ -37,9 +37,19 @@ async def chat(request: ChatRequest, user=Depends(get_current_user)):
     farm_id = _extract_farm_id(user)
     if not farm_id:
         raise HTTPException(400, "No active farm. Please select a farm first.")
-    
-    import uuid
-    conv_id = request.conversation_id or str(uuid.uuid4())
+
+    conv_id = request.conversation_id
+    if not conv_id:
+        # Auto-create a conversation so chat_messages FK is satisfied
+        from app.supabase_client import get_supabase_admin
+        import uuid
+        conv_id = str(uuid.uuid4())
+        get_supabase_admin().table("conversations").insert({
+            "id": conv_id,
+            "user_id": user["id"],
+            "farm_id": farm_id,
+            "title": request.message[:50],
+        }).execute()
 
     try:
         reply = await openai_service.chat(
@@ -50,10 +60,11 @@ async def chat(request: ChatRequest, user=Depends(get_current_user)):
         )
         return {"response": reply, "conversation_id": conv_id}
     except Exception as e:
-        logger.error(f"AI chat error: {e}")
+        import traceback
+        logger.error(f"AI chat error: {e}\n{traceback.format_exc()}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="AI service unavailable",
+            detail=f"AI service error: {type(e).__name__}: {str(e)}",
         )
 
 

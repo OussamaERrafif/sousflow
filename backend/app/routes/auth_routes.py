@@ -23,6 +23,7 @@ async def debug_user(username: str):
     if not result.data:
         return {"found": False, "message": "User not found"}
     user = result.data[0]
+
     return {
         "found": True,
         "username": user["username"],

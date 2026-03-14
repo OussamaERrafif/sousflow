@@ -1,19 +1,83 @@
 "use client";
 
-import { Facebook, Twitter, Linkedin, Instagram, ArrowRight, Globe } from "lucide-react";
+import { Facebook, Twitter, Linkedin, Instagram, ArrowRight, Globe, Menu, X } from "lucide-react";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 
 export default function Footer() {
     const [lang, setLang] = useState("FR");
+    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const t = useTranslations("Footer");
+    const tNav = useTranslations("Navbar");
+
+    const footerLinks = {
+        product: [
+            { label: t('p1'), href: "#product" },
+            { label: t('p2'), href: "#features" },
+            { label: t('p3'), href: "#how-it-works" },
+            { label: t('p4'), href: "#pricing" },
+        ],
+        company: [
+            { label: t('c1'), href: "#about" },
+            { label: t('c2'), href: "#case-studies" },
+            { label: t('c3'), href: "#faq" },
+            { label: t('c4'), href: "#contact" },
+        ],
+        resources: [
+            { label: tNav('features'), href: "#features" },
+            { label: tNav('howItWorks'), href: "#how-it-works" },
+            { label: tNav('pricing'), href: "#pricing" },
+            { label: tNav('faq'), href: "#faq" },
+        ],
+    };
 
     return (
         <footer className="bg-morocco-blue-950 text-white pt-16 md:pt-24 pb-8 md:pb-12 border-t border-white/10 relative overflow-hidden">
             <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-copper-500/10 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
 
             <div className="max-w-7xl mx-auto px-4 sm:px-6 relative z-10">
+                {/* Mobile Burger Menu Button */}
+                <div className="md:hidden mb-6">
+                    <button 
+                        onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                        className="flex items-center gap-2 text-white font-medium"
+                    >
+                        {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+                        <span>{tNav('product')} & More</span>
+                    </button>
+                </div>
+
+                {/* Mobile Expanded Menu */}
+                {mobileMenuOpen && (
+                    <div className="md:hidden bg-white/5 rounded-xl p-4 mb-6 space-y-4">
+                        <div>
+                            <h4 className="font-bold text-lg mb-3 text-copper-400">{t('product')}</h4>
+                            <ul className="space-y-2">
+                                {footerLinks.product.map((link, i) => (
+                                    <li key={i}><a href={link.href} className="text-blue-100/70 hover:text-copper-400 transition-colors">{link.label}</a></li>
+                                ))}
+                            </ul>
+                        </div>
+                        <div>
+                            <h4 className="font-bold text-lg mb-3 text-copper-400">{t('company')}</h4>
+                            <ul className="space-y-2">
+                                {footerLinks.company.map((link, i) => (
+                                    <li key={i}><a href={link.href} className="text-blue-100/70 hover:text-copper-400 transition-colors">{link.label}</a></li>
+                                ))}
+                            </ul>
+                        </div>
+                        <div>
+                            <h4 className="font-bold text-lg mb-3 text-copper-400">{tNav('howItWorks')}</h4>
+                            <ul className="space-y-2">
+                                {footerLinks.resources.map((link, i) => (
+                                    <li key={i}><a href={link.href} className="text-blue-100/70 hover:text-copper-400 transition-colors">{link.label}</a></li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+                )}
+
                 <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-12 gap-8 lg:gap-8 mb-12 md:mb-16">
 
                     <div className="col-span-2 lg:col-span-4">
@@ -45,20 +109,27 @@ export default function Footer() {
                     <div className="col-span-1 lg:col-span-2">
                         <h4 className="font-bold text-lg mb-6">{t('product')}</h4>
                         <ul className="space-y-4">
-                            <li><a href="#" className="text-blue-100/70 hover:text-copper-400 transition-colors">{t('p1')}</a></li>
-                            <li><a href="#" className="text-blue-100/70 hover:text-copper-400 transition-colors">{t('p2')}</a></li>
-                            <li><a href="#" className="text-blue-100/70 hover:text-copper-400 transition-colors">{t('p3')}</a></li>
-                            <li><a href="#" className="text-blue-100/70 hover:text-copper-400 transition-colors">{t('p4')}</a></li>
+                            {footerLinks.product.map((link, i) => (
+                                <li key={i}><a href={link.href} className="text-blue-100/70 hover:text-copper-400 transition-colors">{link.label}</a></li>
+                            ))}
                         </ul>
                     </div>
 
                     <div className="col-span-1 lg:col-span-2">
                         <h4 className="font-bold text-lg mb-6">{t('company')}</h4>
                         <ul className="space-y-4">
-                            <li><a href="#" className="text-blue-100/70 hover:text-copper-400 transition-colors">{t('c1')}</a></li>
-                            <li><a href="#" className="text-blue-100/70 hover:text-copper-400 transition-colors">{t('c2')}</a></li>
-                            <li><a href="#" className="text-blue-100/70 hover:text-copper-400 transition-colors">{t('c3')}</a></li>
-                            <li><a href="#" className="text-blue-100/70 hover:text-copper-400 transition-colors">{t('c4')}</a></li>
+                            {footerLinks.company.map((link, i) => (
+                                <li key={i}><a href={link.href} className="text-blue-100/70 hover:text-copper-400 transition-colors">{link.label}</a></li>
+                            ))}
+                        </ul>
+                    </div>
+
+                    <div className="hidden md:block col-span-1 lg:col-span-2">
+                        <h4 className="font-bold text-lg mb-6">{tNav('howItWorks')}</h4>
+                        <ul className="space-y-4">
+                            {footerLinks.resources.map((link, i) => (
+                                <li key={i}><a href={link.href} className="text-blue-100/70 hover:text-copper-400 transition-colors">{link.label}</a></li>
+                            ))}
                         </ul>
                     </div>
 
