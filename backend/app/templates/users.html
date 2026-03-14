@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SoussFlow — إضافة مستخدم</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --bg-card: #1e293b;
+            --border: #334155;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --accent-blue: #3b82f6;
+            --accent-green: #10b981;
+            --accent-red: #ef4444;
+        }
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-primary);
+            font-family: 'Tajawal', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            min-height: 100vh;
+        }
+        .sidebar {
+            width: 260px;
+            background-color: var(--bg-card);
+            border-left: 1px solid var(--border);
+            min-height: 100vh;
+            position: fixed;
+            left: 0;
+            top: 0;
+            padding: 1.5rem;
+        }
+        .main-content {
+            margin-right: 260px;
+            padding: 2rem;
+        }
+        .card-custom {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        .card-header-custom {
+            background: transparent;
+            border-bottom: 1px solid var(--border);
+            padding: 1.25rem;
+            font-weight: 600;
+        }
+        .card-body-custom {
+            padding: 1.5rem;
+        }
+        .form-control, .form-select {
+            background-color: #0f172a;
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            border-radius: 10px;
+            padding: 0.75rem 1rem;
+        }
+        .form-control:focus, .form-select:focus {
+            background-color: #0f172a;
+            border-color: var(--accent-blue);
+            color: var(--text-primary);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+        }
+        .form-label-custom {
+            color: var(--text-secondary);
+            font-weight: 500;
+            font-size: 0.875rem;
+            margin-bottom: 0.5rem;
+        }
+        .btn-primary-custom {
+            background: linear-gradient(135deg, var(--accent-blue) 0%, #2563eb 100%);
+            border: none;
+            border-radius: 10px;
+            padding: 0.75rem 1.5rem;
+            font-weight: 600;
+            color: white;
+            transition: all 0.3s ease;
+        }
+        .btn-primary-custom:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px -10px rgba(59, 130, 246, 0.5);
+            color: white;
+        }
+        .nav-link-custom {
+            color: var(--text-secondary);
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+        .nav-link-custom:hover, .nav-link-custom.active {
+            background-color: rgba(59, 130, 246, 0.1);
+            color: var(--accent-blue);
+        }
+        .brand-icon {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, var(--accent-blue) 0%, #60a5fa 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .brand-icon i {
+            font-size: 1.4rem;
+            color: white;
+        }
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, var(--accent-green) 0%, #059669 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+        }
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 9999;
+        }
+        .toast-msg {
+            padding: 1rem 1.5rem;
+            border-radius: 12px;
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+            animation: slideIn 0.3s ease;
+        }
+        .toast-success { background: rgba(16, 185, 129, 0.15); color: var(--accent-green); border: 1px solid rgba(16, 185, 129, 0.3); }
+        .toast-error { background: rgba(239, 68, 68, 0.15); color: var(--accent-red); border: 1px solid rgba(239, 68, 68, 0.3); }
+        @keyframes slideIn { from { transform: translateX(-100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        
+        .table-custom {
+            color: var(--text-primary);
+        }
+        .table-custom thead th {
+            background-color: rgba(51, 65, 85, 0.3);
+            color: var(--text-secondary);
+            border-bottom: 1px solid var(--border);
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            font-weight: 600;
+            padding: 0.75rem 1rem;
+        }
+        .table-custom td {
+            border-bottom: 1px solid rgba(51, 65, 85, 0.4);
+            padding: 0.85rem 1rem;
+            vertical-align: middle;
+        }
+        .table-custom tbody tr:hover {
+            background-color: rgba(51, 65, 85, 0.2);
+        }
+        .badge-custom {
+            padding: 0.35em 0.65em;
+            border-radius: 6px;
+            font-weight: 500;
+            font-size: 0.8rem;
+        }
+        .badge-active { background: rgba(16, 185, 129, 0.15); color: var(--accent-green); }
+        .badge-inactive { background: rgba(148, 163, 184, 0.15); color: var(--text-secondary); }
+    </style>
+</head>
+<body>
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Sidebar -->
+    <nav class="sidebar">
+        <div class="d-flex align-items-center mb-4 pb-3 border-bottom border-secondary">
+            <div class="brand-icon me-3">
+                <i class="bi bi-droplet-half"></i>
+            </div>
+            <div>
+                <h6 class="mb-0 fw-bold">SoussFlow</h6>
+                <small class="text-secondary">لوحة التحكم</small>
+            </div>
+        </div>
+
+        <div class="mb-4">
+            <small class="text-secondary text-uppercase" style="font-size: 0.7rem; letter-spacing: 1px;">القائمة</small>
+        </div>
+
+        <a href="/dashboard" class="nav-link-custom mb-2">
+            <i class="bi bi-speedometer2"></i> لوحة المراقبة
+        </a>
+        <a href="/users" class="nav-link-custom mb-2 active">
+            <i class="bi bi-people"></i> المستخدمون
+        </a>
+        <a href="/settings" class="nav-link-custom">
+            <i class="bi bi-gear"></i> الإعدادات
+        </a>
+
+        <div class="mt-auto pt-4 border-top border-secondary">
+            <div class="d-flex align-items-center">
+                <div class="user-avatar me-3" id="userAvatar">-</div>
+                <div>
+                    <div class="fw-medium" id="userName">—</div>
+                    <small class="text-secondary" id="userRole">—</small>
+                </div>
+                <button class="btn btn-sm text-secondary me-auto" onclick="logout()">
+                    <i class="bi bi-box-arrow-right"></i>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h4 class="fw-bold mb-1">إضافة مستخدم جديد</h4>
+                <p class="text-secondary mb-0">أضف مستخدمين جدد إلى المزرعة</p>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Create User Form -->
+            <div class="col-lg-5 mb-4">
+                <div class="card-custom">
+                    <div class="card-header-custom">
+                        <i class="bi bi-person-plus me-2"></i>إنشاء مستخدم جديد
+                    </div>
+                    <div class="card-body-custom">
+                        <form id="createUserForm">
+                            <div class="mb-3">
+                                <label class="form-label-custom">اسم المستخدم *</label>
+                                <input type="text" class="form-control" id="username" required minlength="3" placeholder="أدخل اسم المستخدم">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label-custom">كلمة المرور *</label>
+                                <input type="password" class="form-control" id="password" required minlength="6" placeholder=" минимуم 6 أحرف">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label-custom">الاسم الكامل</label>
+                                <input type="text" class="form-control" id="fullName" placeholder="أدخل الاسم الكامل">
+                            </div>
+                            <div class="mb-4">
+                                <label class="form-label-custom">رقم الهاتف</label>
+                                <input type="text" class="form-control" id="phone" placeholder="+212612345678">
+                            </div>
+                            <div class="mb-4">
+                                <label class="form-label-custom">الدور</label>
+                                <select class="form-select" id="userRole">
+                                    <option value="farm_employee">موظف المزرعة</option>
+                                    <option value="farm_owner">مالك المزرعة</option>
+                                </select>
+                            </div>
+                            <button type="submit" class="btn btn-primary-custom w-100" id="createBtn">
+                                <i class="bi bi-plus-circle me-2"></i>إنشاء المستخدم
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Users Table -->
+            <div class="col-lg-7">
+                <div class="card-custom">
+                    <div class="card-header-custom d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-people me-2"></i>المستخدمون</span>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="loadUsers()">
+                            <i class="bi bi-arrow-clockwise"></i>
+                        </button>
+                    </div>
+                    <div class="card-body-custom p-0">
+                        <div class="table-responsive">
+                            <table class="table table-custom mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>اسم المستخدم</th>
+                                        <th>الاسم</th>
+                                        <th>الدور</th>
+                                        <th>الحالة</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="usersTableBody">
+                                    <tr><td colspan="4" class="text-center text-secondary py-4">جاري التحميل...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const token = localStorage.getItem('token');
+        if (!token) {
+            window.location.href = '/signin?return=/users';
+        }
+
+        // Get current user info
+        async function loadProfile() {
+            try {
+                const res = await fetch('/api/auth/profile', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (res.status === 401) {
+                    logout();
+                    return null;
+                }
+                const user = await res.json();
+                document.getElementById('userName').textContent = user.full_name || user.username;
+                document.getElementById('userRole').textContent = user.role === 'farm_owner' ? 'مالك المزرعة' : 'موظف';
+                document.getElementById('userAvatar').textContent = (user.full_name || user.username).charAt(0).toUpperCase();
+                return user;
+            } catch (err) {
+                console.error(err);
+                return null;
+            }
+        }
+
+        function showToast(message, type) {
+            const container = document.getElementById('toast-container');
+            const div = document.createElement('div');
+            div.className = 'toast-msg toast-' + type;
+            div.textContent = message;
+            container.appendChild(div);
+            setTimeout(() => div.remove(), 4000);
+        }
+
+        function logout() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            window.location.href = '/signin';
+        }
+
+        async function loadUsers() {
+            const tbody = document.getElementById('usersTableBody');
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center text-secondary py-4"><span class="spinner-border spinner-border-sm"></span> جاري التحميل...</td></tr>';
+            try {
+                const res = await fetch('/api/farms', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (res.status === 401) {
+                    logout();
+                    return;
+                }
+                const farmData = await res.json();
+                
+                if (!farmData.farms || farmData.farms.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" class="text-center text-secondary py-4">لا توجد مزارع</td></tr>';
+                    return;
+                }
+                
+                const farmId = farmData.farms[0].id;
+                const empRes = await fetch(`/api/farms/${farmId}/employees`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                const employees = empRes.ok ? await empRes.json() : [];
+                
+                if (employees.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" class="text-center text-secondary py-4">لا يوجد مستخدمين بعد</td></tr>';
+                    return;
+                }
+                
+                tbody.innerHTML = employees.map(u => `
+                    <tr>
+                        <td><strong>${u.username}</strong></td>
+                        <td>${u.full_name || '<span class="text-secondary">—</span>'}</td>
+                        <td><span class="badge-custom badge-active">${u.role === 'farm_employee' ? 'موظف' : 'مالك'}</span></td>
+                        <td><span class="badge-custom ${u.is_active ? 'badge-active' : 'badge-inactive'}">${u.is_active ? 'نشط' : 'غير نشط'}</span></td>
+                    </tr>
+                `).join('');
+            } catch (err) {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center text-danger py-4">فشل في تحميل المستخدمين</td></tr>';
+            }
+        }
+
+        document.getElementById('createUserForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const btn = document.getElementById('createBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> جاري الإنشاء...';
+
+            try {
+                // First get farms to find the farm ID
+                const farmRes = await fetch('/api/farms', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (!farmRes.ok) {
+                    throw new Error('لا يمكنك إنشاء مستخدمين');
+                }
+                
+                const farmData = await farmRes.json();
+                if (!farmData.farms || farmData.farms.length === 0) {
+                    throw new Error('لا توجد مزرعة مرتبطة بحسابك');
+                }
+                
+                const farmId = farmData.farms[0].id;
+                const role = document.getElementById('userRole').value;
+                
+                let url = `/api/farms/${farmId}/employees`;
+                if (role === 'farm_owner') {
+                    // Superadmin creates farm owner
+                    url = '/api/admin/owners';
+                }
+                
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        username: document.getElementById('username').value,
+                        password: document.getElementById('password').value,
+                        full_name: document.getElementById('fullName').value || null,
+                        phone: document.getElementById('phone').value || null
+                    })
+                });
+
+                const data = await res.json();
+
+                if (!res.ok) {
+                    throw new Error(data.detail || 'فشل في إنشاء المستخدم');
+                }
+
+                showToast('تم إنشاء المستخدم بنجاح!', 'success');
+                document.getElementById('createUserForm').reset();
+                loadUsers();
+
+            } catch (err) {
+                showToast(err.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-plus-circle me-2"></i>إنشاء المستخدم';
+            }
+        });
+
+        // Initialize
+        loadProfile();
+        loadUsers();
+    </script>
+</body>
+</html>

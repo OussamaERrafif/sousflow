@@ -4,15 +4,14 @@ Modules: Auth (JWT), WhatsApp (Wassender), IoT, Predictions, AI (OpenAI)
 License: MIT
 """
 import json
-import os
 import time
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Cookie
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.requests import Request
 import asyncio
@@ -70,6 +69,28 @@ def get_uptime() -> str:
     if hours > 0:
         return f"{hours}h {minutes}m"
     return f"{minutes}m {seconds}s"
+
+
+def _get_admin_from_cookie(request: Request) -> dict | None:
+    """Validate admin_token cookie and return user dict if superadmin, else None."""
+    token = request.cookies.get("admin_token")
+    if not token:
+        return None
+    try:
+        from app.auth import decode_token
+        from app.supabase_client import get_supabase_admin
+        payload = decode_token(token)
+        user_id = payload.get("sub")
+        role = payload.get("role")
+        if role != "superadmin" or not user_id:
+            return None
+        admin = get_supabase_admin()
+        user_resp = admin.from_("users").select("id, username, full_name, role").eq("id", user_id).eq("is_active", True).execute()
+        if not user_resp.data or user_resp.data[0]["role"] != "superadmin":
+            return None
+        return user_resp.data[0]
+    except Exception:
+        return None
 
 
 @asynccontextmanager
@@ -155,9 +176,78 @@ async def health_check():
     }
 
 
+# ─── Dashboard (protected by admin cookie) ──────────────────────
+
+@app.get("/dashboard/login", response_class=HTMLResponse)
+async def dashboard_login(request: Request):
+    """Admin login page"""
+    # If already authenticated, redirect to dashboard
+    admin_user = _get_admin_from_cookie(request)
+    if admin_user:
+        return RedirectResponse(url="/dashboard", status_code=302)
+    return templates.TemplateResponse("login.html", {"request": request})
+
+
+@app.get("/dashboard/logout")
+async def dashboard_logout():
+    """Clear admin cookie and redirect to login"""
+    response = RedirectResponse(url="/dashboard/login", status_code=302)
+    response.delete_cookie("admin_token", path="/")
+    return response
+
+
+# ─── Public Auth Pages (Jinja Templates) ──────────────────────
+
+@app.get("/signin", response_class=HTMLResponse)
+async def signin_page(request: Request):
+    """User sign-in page"""
+    return templates.TemplateResponse("signin.html", {"request": request})
+
+
+@app.get("/ar/signin", response_class=HTMLResponse)
+async def signin_page_ar(request: Request):
+    """User sign-in page (Arabic redirect)"""
+    return templates.TemplateResponse("signin.html", {"request": request})
+
+
+def _get_user_from_token(request: Request) -> dict | None:
+    """Validate JWT token from Authorization header and return user if valid."""
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return None
+    token = auth_header.split(" ")[1]
+    try:
+        from app.auth import decode_token
+        from app.supabase_client import get_supabase_admin
+        payload = decode_token(token)
+        user_id = payload.get("sub")
+        if not user_id:
+            return None
+        admin = get_supabase_admin()
+        user_resp = admin.from_("users").select("id, username, full_name, role").eq("id", user_id).eq("is_active", True).execute()
+        if not user_resp.data:
+            return None
+        return user_resp.data[0]
+    except Exception:
+        return None
+
+
+@app.get("/users", response_class=HTMLResponse)
+async def users_page(request: Request):
+    """User management page (requires auth)"""
+    user = _get_user_from_token(request)
+    if not user:
+        return RedirectResponse(url="/signin?return=/users", status_code=302)
+    return templates.TemplateResponse("users.html", {"request": request, "current_user": user})
+
+
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard(request: Request):
-    """Dashboard with health, data, and logs"""
+    """Dashboard with health, data, logs, and user management (superadmin only)"""
+    admin_user = _get_admin_from_cookie(request)
+    if not admin_user:
+        return RedirectResponse(url="/dashboard/login", status_code=302)
+
     logs = read_logs("backend.log", 50)
     error_logs = read_logs("backend_errors.log", 50)
 
@@ -179,6 +269,7 @@ async def dashboard(request: Request):
         "error_logs": error_logs,
         "latest_readings": latest_readings,
         "simulator_running": simulator_running,
+        "admin_user": admin_user,
     })
 
 

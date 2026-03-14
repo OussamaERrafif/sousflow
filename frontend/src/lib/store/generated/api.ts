@@ -432,6 +432,36 @@ const injectedRtkApi = api.injectEndpoints({
     >({
       query: () => ({ url: `/health` }),
     }),
+    dashboardLoginDashboardLoginGet: build.query<
+      DashboardLoginDashboardLoginGetApiResponse,
+      DashboardLoginDashboardLoginGetApiArg
+    >({
+      query: () => ({ url: `/dashboard/login` }),
+    }),
+    dashboardLogoutDashboardLogoutGet: build.query<
+      DashboardLogoutDashboardLogoutGetApiResponse,
+      DashboardLogoutDashboardLogoutGetApiArg
+    >({
+      query: () => ({ url: `/dashboard/logout` }),
+    }),
+    signinPageSigninGet: build.query<
+      SigninPageSigninGetApiResponse,
+      SigninPageSigninGetApiArg
+    >({
+      query: () => ({ url: `/signin` }),
+    }),
+    signinPageArArSigninGet: build.query<
+      SigninPageArArSigninGetApiResponse,
+      SigninPageArArSigninGetApiArg
+    >({
+      query: () => ({ url: `/ar/signin` }),
+    }),
+    usersPageUsersGet: build.query<
+      UsersPageUsersGetApiResponse,
+      UsersPageUsersGetApiArg
+    >({
+      query: () => ({ url: `/users` }),
+    }),
     dashboardDashboardGet: build.query<
       DashboardDashboardGetApiResponse,
       DashboardDashboardGetApiArg
@@ -703,6 +733,17 @@ export type RootGetApiArg = void;
 export type HealthCheckHealthGetApiResponse =
   /** status 200 Successful Response */ any;
 export type HealthCheckHealthGetApiArg = void;
+export type DashboardLoginDashboardLoginGetApiResponse = unknown;
+export type DashboardLoginDashboardLoginGetApiArg = void;
+export type DashboardLogoutDashboardLogoutGetApiResponse =
+  /** status 200 Successful Response */ any;
+export type DashboardLogoutDashboardLogoutGetApiArg = void;
+export type SigninPageSigninGetApiResponse = unknown;
+export type SigninPageSigninGetApiArg = void;
+export type SigninPageArArSigninGetApiResponse = unknown;
+export type SigninPageArArSigninGetApiArg = void;
+export type UsersPageUsersGetApiResponse = unknown;
+export type UsersPageUsersGetApiArg = void;
 export type DashboardDashboardGetApiResponse = unknown;
 export type DashboardDashboardGetApiArg = void;
 export type GetLatestApiLatestGetApiResponse =
@@ -1075,6 +1116,11 @@ export const {
   useGetMessagesApiConversationsConversationIdMessagesGetQuery,
   useRootGetQuery,
   useHealthCheckHealthGetQuery,
+  useDashboardLoginDashboardLoginGetQuery,
+  useDashboardLogoutDashboardLogoutGetQuery,
+  useSigninPageSigninGetQuery,
+  useSigninPageArArSigninGetQuery,
+  useUsersPageUsersGetQuery,
   useDashboardDashboardGetQuery,
   useGetLatestApiLatestGetQuery,
   useSseEventsApiEventsGetQuery,
