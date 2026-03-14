@@ -131,10 +131,10 @@ async def chat(user_id: str, conversation_id: str, user_message: str) -> str:
         )
         assistant_msg = response.choices[0].message.content
     except Exception as e:
-        logger.error("OpenAI API error", error=str(e))
+        import traceback
+        logger.error("OpenAI API error", error=str(e), traceback=traceback.format_exc())
         assistant_msg = (
-            "I'm having trouble connecting to the AI service right now. "
-            "Please try again in a moment."
+            f"[DEBUG] AI error: {type(e).__name__}: {str(e)}"
         )
 
     # Save assistant message
