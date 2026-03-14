@@ -1,16 +1,6 @@
 import { apiSlice as api } from "../apiSlice";
 const injectedRtkApi = api.injectEndpoints({
   endpoints: (build) => ({
-    signUpApiAuthSignupPost: build.mutation<
-      SignUpApiAuthSignupPostApiResponse,
-      SignUpApiAuthSignupPostApiArg
-    >({
-      query: (queryArg) => ({
-        url: `/api/auth/signup`,
-        method: "POST",
-        body: queryArg.signUpRequest,
-      }),
-    }),
     signInApiAuthSigninPost: build.mutation<
       SignInApiAuthSigninPostApiResponse,
       SignInApiAuthSigninPostApiArg
@@ -21,27 +11,67 @@ const injectedRtkApi = api.injectEndpoints({
         body: queryArg.signInRequest,
       }),
     }),
-    refreshTokenApiAuthRefreshPost: build.mutation<
-      RefreshTokenApiAuthRefreshPostApiResponse,
-      RefreshTokenApiAuthRefreshPostApiArg
-    >({
-      query: (queryArg) => ({
-        url: `/api/auth/refresh`,
-        method: "POST",
-        body: queryArg.refreshTokenRequest,
-      }),
-    }),
     getProfileApiAuthProfileGet: build.query<
       GetProfileApiAuthProfileGetApiResponse,
       GetProfileApiAuthProfileGetApiArg
     >({
       query: () => ({ url: `/api/auth/profile` }),
     }),
+    changePasswordApiAuthChangePasswordPost: build.mutation<
+      ChangePasswordApiAuthChangePasswordPostApiResponse,
+      ChangePasswordApiAuthChangePasswordPostApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/auth/change-password`,
+        method: "POST",
+        body: queryArg.changePasswordRequest,
+      }),
+    }),
     signOutApiAuthSignoutPost: build.mutation<
       SignOutApiAuthSignoutPostApiResponse,
       SignOutApiAuthSignoutPostApiArg
     >({
       query: () => ({ url: `/api/auth/signout`, method: "POST" }),
+    }),
+    listOwnersApiAdminOwnersGet: build.query<
+      ListOwnersApiAdminOwnersGetApiResponse,
+      ListOwnersApiAdminOwnersGetApiArg
+    >({
+      query: () => ({ url: `/api/admin/owners` }),
+    }),
+    createOwnerWithFarmApiAdminOwnersPost: build.mutation<
+      CreateOwnerWithFarmApiAdminOwnersPostApiResponse,
+      CreateOwnerWithFarmApiAdminOwnersPostApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/admin/owners`,
+        method: "POST",
+        body: queryArg.createOwnerRequest,
+      }),
+    }),
+    getOwnerDetailApiAdminOwnersOwnerIdGet: build.query<
+      GetOwnerDetailApiAdminOwnersOwnerIdGetApiResponse,
+      GetOwnerDetailApiAdminOwnersOwnerIdGetApiArg
+    >({
+      query: (queryArg) => ({ url: `/api/admin/owners/${queryArg.ownerId}` }),
+    }),
+    deleteOwnerApiAdminOwnersOwnerIdDelete: build.mutation<
+      DeleteOwnerApiAdminOwnersOwnerIdDeleteApiResponse,
+      DeleteOwnerApiAdminOwnersOwnerIdDeleteApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/admin/owners/${queryArg.ownerId}`,
+        method: "DELETE",
+      }),
+    }),
+    toggleOwnerActiveApiAdminOwnersOwnerIdToggleActivePut: build.mutation<
+      ToggleOwnerActiveApiAdminOwnersOwnerIdToggleActivePutApiResponse,
+      ToggleOwnerActiveApiAdminOwnersOwnerIdToggleActivePutApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/admin/owners/${queryArg.ownerId}/toggle-active`,
+        method: "PUT",
+      }),
     }),
     sendMessageApiWhatsappSendPost: build.mutation<
       SendMessageApiWhatsappSendPostApiResponse,
@@ -240,6 +270,159 @@ const injectedRtkApi = api.injectEndpoints({
     >({
       query: (queryArg) => ({ url: `/api/ai/chat/${queryArg.conversationId}` }),
     }),
+    listFarmsApiFarmsGet: build.query<
+      ListFarmsApiFarmsGetApiResponse,
+      ListFarmsApiFarmsGetApiArg
+    >({
+      query: () => ({ url: `/api/farms` }),
+    }),
+    createFarmApiFarmsPost: build.mutation<
+      CreateFarmApiFarmsPostApiResponse,
+      CreateFarmApiFarmsPostApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/farms`,
+        method: "POST",
+        body: queryArg.farmCreate,
+      }),
+    }),
+    getFarmApiFarmsFarmIdGet: build.query<
+      GetFarmApiFarmsFarmIdGetApiResponse,
+      GetFarmApiFarmsFarmIdGetApiArg
+    >({
+      query: (queryArg) => ({ url: `/api/farms/${queryArg.farmId}` }),
+    }),
+    updateFarmApiFarmsFarmIdPut: build.mutation<
+      UpdateFarmApiFarmsFarmIdPutApiResponse,
+      UpdateFarmApiFarmsFarmIdPutApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/farms/${queryArg.farmId}`,
+        method: "PUT",
+        body: queryArg.farmUpdate,
+      }),
+    }),
+    deleteFarmApiFarmsFarmIdDelete: build.mutation<
+      DeleteFarmApiFarmsFarmIdDeleteApiResponse,
+      DeleteFarmApiFarmsFarmIdDeleteApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/farms/${queryArg.farmId}`,
+        method: "DELETE",
+      }),
+    }),
+    createEmployeeApiFarmsFarmIdEmployeesPost: build.mutation<
+      CreateEmployeeApiFarmsFarmIdEmployeesPostApiResponse,
+      CreateEmployeeApiFarmsFarmIdEmployeesPostApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/farms/${queryArg.farmId}/employees`,
+        method: "POST",
+        body: queryArg.createEmployeeRequest,
+      }),
+    }),
+    listEmployeesApiFarmsFarmIdEmployeesGet: build.query<
+      ListEmployeesApiFarmsFarmIdEmployeesGetApiResponse,
+      ListEmployeesApiFarmsFarmIdEmployeesGetApiArg
+    >({
+      query: (queryArg) => ({ url: `/api/farms/${queryArg.farmId}/employees` }),
+    }),
+    listMembersApiFarmsFarmIdMembersGet: build.query<
+      ListMembersApiFarmsFarmIdMembersGetApiResponse,
+      ListMembersApiFarmsFarmIdMembersGetApiArg
+    >({
+      query: (queryArg) => ({ url: `/api/farms/${queryArg.farmId}/members` }),
+    }),
+    addMemberByIdApiFarmsFarmIdMembersUserIdPost: build.mutation<
+      AddMemberByIdApiFarmsFarmIdMembersUserIdPostApiResponse,
+      AddMemberByIdApiFarmsFarmIdMembersUserIdPostApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/farms/${queryArg.farmId}/members/${queryArg.userId}`,
+        method: "POST",
+      }),
+    }),
+    updateMemberApiFarmsFarmIdMembersUserIdPut: build.mutation<
+      UpdateMemberApiFarmsFarmIdMembersUserIdPutApiResponse,
+      UpdateMemberApiFarmsFarmIdMembersUserIdPutApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/farms/${queryArg.farmId}/members/${queryArg.userId}`,
+        method: "PUT",
+        body: queryArg.memberUpdate,
+      }),
+    }),
+    removeMemberApiFarmsFarmIdMembersUserIdDelete: build.mutation<
+      RemoveMemberApiFarmsFarmIdMembersUserIdDeleteApiResponse,
+      RemoveMemberApiFarmsFarmIdMembersUserIdDeleteApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/farms/${queryArg.farmId}/members/${queryArg.userId}`,
+        method: "DELETE",
+      }),
+    }),
+    listConversationsApiConversationsGet: build.query<
+      ListConversationsApiConversationsGetApiResponse,
+      ListConversationsApiConversationsGetApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/conversations`,
+        params: {
+          farm_id: queryArg.farmId,
+          page: queryArg.page,
+          limit: queryArg.limit,
+        },
+      }),
+    }),
+    createConversationApiConversationsPost: build.mutation<
+      CreateConversationApiConversationsPostApiResponse,
+      CreateConversationApiConversationsPostApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/conversations`,
+        method: "POST",
+        body: queryArg.conversationCreate,
+      }),
+    }),
+    getConversationApiConversationsConversationIdGet: build.query<
+      GetConversationApiConversationsConversationIdGetApiResponse,
+      GetConversationApiConversationsConversationIdGetApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/conversations/${queryArg.conversationId}`,
+      }),
+    }),
+    updateConversationApiConversationsConversationIdPut: build.mutation<
+      UpdateConversationApiConversationsConversationIdPutApiResponse,
+      UpdateConversationApiConversationsConversationIdPutApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/conversations/${queryArg.conversationId}`,
+        method: "PUT",
+        body: queryArg.conversationUpdate,
+      }),
+    }),
+    deleteConversationApiConversationsConversationIdDelete: build.mutation<
+      DeleteConversationApiConversationsConversationIdDeleteApiResponse,
+      DeleteConversationApiConversationsConversationIdDeleteApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/conversations/${queryArg.conversationId}`,
+        method: "DELETE",
+      }),
+    }),
+    getMessagesApiConversationsConversationIdMessagesGet: build.query<
+      GetMessagesApiConversationsConversationIdMessagesGetApiResponse,
+      GetMessagesApiConversationsConversationIdMessagesGetApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/conversations/${queryArg.conversationId}/messages`,
+        params: {
+          page: queryArg.page,
+          limit: queryArg.limit,
+        },
+      }),
+    }),
     rootGet: build.query<RootGetApiResponse, RootGetApiArg>({
       query: () => ({ url: `/` }),
     }),
@@ -271,27 +454,44 @@ const injectedRtkApi = api.injectEndpoints({
   overrideExisting: false,
 });
 export { injectedRtkApi as enhancedApi };
-export type SignUpApiAuthSignupPostApiResponse =
-  /** status 200 Successful Response */ AuthResponse;
-export type SignUpApiAuthSignupPostApiArg = {
-  signUpRequest: SignUpRequest;
-};
 export type SignInApiAuthSigninPostApiResponse =
   /** status 200 Successful Response */ AuthResponse;
 export type SignInApiAuthSigninPostApiArg = {
   signInRequest: SignInRequest;
 };
-export type RefreshTokenApiAuthRefreshPostApiResponse =
-  /** status 200 Successful Response */ AuthResponse;
-export type RefreshTokenApiAuthRefreshPostApiArg = {
-  refreshTokenRequest: RefreshTokenRequest;
-};
 export type GetProfileApiAuthProfileGetApiResponse =
   /** status 200 Successful Response */ UserProfile;
 export type GetProfileApiAuthProfileGetApiArg = void;
+export type ChangePasswordApiAuthChangePasswordPostApiResponse =
+  /** status 200 Successful Response */ any;
+export type ChangePasswordApiAuthChangePasswordPostApiArg = {
+  changePasswordRequest: ChangePasswordRequest;
+};
 export type SignOutApiAuthSignoutPostApiResponse =
   /** status 200 Successful Response */ any;
 export type SignOutApiAuthSignoutPostApiArg = void;
+export type ListOwnersApiAdminOwnersGetApiResponse =
+  /** status 200 Successful Response */ UserResponse[];
+export type ListOwnersApiAdminOwnersGetApiArg = void;
+export type CreateOwnerWithFarmApiAdminOwnersPostApiResponse =
+  /** status 201 Successful Response */ OwnerWithFarmResponse;
+export type CreateOwnerWithFarmApiAdminOwnersPostApiArg = {
+  createOwnerRequest: CreateOwnerRequest;
+};
+export type GetOwnerDetailApiAdminOwnersOwnerIdGetApiResponse =
+  /** status 200 Successful Response */ any;
+export type GetOwnerDetailApiAdminOwnersOwnerIdGetApiArg = {
+  ownerId: string;
+};
+export type DeleteOwnerApiAdminOwnersOwnerIdDeleteApiResponse = unknown;
+export type DeleteOwnerApiAdminOwnersOwnerIdDeleteApiArg = {
+  ownerId: string;
+};
+export type ToggleOwnerActiveApiAdminOwnersOwnerIdToggleActivePutApiResponse =
+  /** status 200 Successful Response */ any;
+export type ToggleOwnerActiveApiAdminOwnersOwnerIdToggleActivePutApiArg = {
+  ownerId: string;
+};
 export type SendMessageApiWhatsappSendPostApiResponse =
   /** status 200 Successful Response */ WhatsAppMessageResponse;
 export type SendMessageApiWhatsappSendPostApiArg = {
@@ -405,6 +605,99 @@ export type GetChatHistoryApiAiChatConversationIdGetApiResponse =
 export type GetChatHistoryApiAiChatConversationIdGetApiArg = {
   conversationId: string;
 };
+export type ListFarmsApiFarmsGetApiResponse =
+  /** status 200 Successful Response */ FarmListResponse;
+export type ListFarmsApiFarmsGetApiArg = void;
+export type CreateFarmApiFarmsPostApiResponse =
+  /** status 201 Successful Response */ FarmResponse;
+export type CreateFarmApiFarmsPostApiArg = {
+  farmCreate: FarmCreate;
+};
+export type GetFarmApiFarmsFarmIdGetApiResponse =
+  /** status 200 Successful Response */ FarmResponse;
+export type GetFarmApiFarmsFarmIdGetApiArg = {
+  farmId: string;
+};
+export type UpdateFarmApiFarmsFarmIdPutApiResponse =
+  /** status 200 Successful Response */ FarmResponse;
+export type UpdateFarmApiFarmsFarmIdPutApiArg = {
+  farmId: string;
+  farmUpdate: FarmUpdate;
+};
+export type DeleteFarmApiFarmsFarmIdDeleteApiResponse = unknown;
+export type DeleteFarmApiFarmsFarmIdDeleteApiArg = {
+  farmId: string;
+};
+export type CreateEmployeeApiFarmsFarmIdEmployeesPostApiResponse =
+  /** status 201 Successful Response */ UserResponse;
+export type CreateEmployeeApiFarmsFarmIdEmployeesPostApiArg = {
+  farmId: string;
+  createEmployeeRequest: CreateEmployeeRequest;
+};
+export type ListEmployeesApiFarmsFarmIdEmployeesGetApiResponse =
+  /** status 200 Successful Response */ UserResponse[];
+export type ListEmployeesApiFarmsFarmIdEmployeesGetApiArg = {
+  farmId: string;
+};
+export type ListMembersApiFarmsFarmIdMembersGetApiResponse =
+  /** status 200 Successful Response */ MemberListResponse;
+export type ListMembersApiFarmsFarmIdMembersGetApiArg = {
+  farmId: string;
+};
+export type AddMemberByIdApiFarmsFarmIdMembersUserIdPostApiResponse =
+  /** status 200 Successful Response */ MemberResponse;
+export type AddMemberByIdApiFarmsFarmIdMembersUserIdPostApiArg = {
+  farmId: string;
+  userId: string;
+};
+export type UpdateMemberApiFarmsFarmIdMembersUserIdPutApiResponse =
+  /** status 200 Successful Response */ MemberResponse;
+export type UpdateMemberApiFarmsFarmIdMembersUserIdPutApiArg = {
+  farmId: string;
+  userId: string;
+  memberUpdate: MemberUpdate;
+};
+export type RemoveMemberApiFarmsFarmIdMembersUserIdDeleteApiResponse = unknown;
+export type RemoveMemberApiFarmsFarmIdMembersUserIdDeleteApiArg = {
+  farmId: string;
+  userId: string;
+};
+export type ListConversationsApiConversationsGetApiResponse =
+  /** status 200 Successful Response */ ConversationListResponse;
+export type ListConversationsApiConversationsGetApiArg = {
+  /** Filter by farm (optional) */
+  farmId?: string;
+  page?: number;
+  limit?: number;
+};
+export type CreateConversationApiConversationsPostApiResponse =
+  /** status 201 Successful Response */ ConversationResponse;
+export type CreateConversationApiConversationsPostApiArg = {
+  conversationCreate: ConversationCreate;
+};
+export type GetConversationApiConversationsConversationIdGetApiResponse =
+  /** status 200 Successful Response */ ConversationResponse;
+export type GetConversationApiConversationsConversationIdGetApiArg = {
+  conversationId: string;
+};
+export type UpdateConversationApiConversationsConversationIdPutApiResponse =
+  /** status 200 Successful Response */ ConversationResponse;
+export type UpdateConversationApiConversationsConversationIdPutApiArg = {
+  conversationId: string;
+  conversationUpdate: ConversationUpdate;
+};
+export type DeleteConversationApiConversationsConversationIdDeleteApiResponse =
+  unknown;
+export type DeleteConversationApiConversationsConversationIdDeleteApiArg = {
+  conversationId: string;
+};
+export type GetMessagesApiConversationsConversationIdMessagesGetApiResponse =
+  /** status 200 Successful Response */ ChatMessageResponse[];
+export type GetMessagesApiConversationsConversationIdMessagesGetApiArg = {
+  conversationId: string;
+  page?: number;
+  limit?: number;
+};
 export type RootGetApiResponse = /** status 200 Successful Response */ any;
 export type RootGetApiArg = void;
 export type HealthCheckHealthGetApiResponse =
@@ -420,7 +713,6 @@ export type SseEventsApiEventsGetApiResponse =
 export type SseEventsApiEventsGetApiArg = void;
 export type AuthResponse = {
   access_token: string;
-  refresh_token: string;
   token_type?: string;
   user: {
     [key: string]: any;
@@ -436,25 +728,47 @@ export type ValidationError = {
 export type HttpValidationError = {
   detail?: ValidationError[];
 };
-export type SignUpRequest = {
-  email: string;
-  password: string;
-  full_name?: string | null;
-  phone?: string | null;
-};
 export type SignInRequest = {
-  email: string;
+  username: string;
   password: string;
-};
-export type RefreshTokenRequest = {
-  refresh_token: string;
 };
 export type UserProfile = {
   id: string;
-  email: string;
+  username: string;
   full_name?: string | null;
   phone?: string | null;
-  role?: string | null;
+  role: string;
+  farm_ids?: string[];
+  owned_farm_ids?: string[];
+  active_farm_id?: string | null;
+};
+export type ChangePasswordRequest = {
+  old_password: string;
+  new_password: string;
+};
+export type UserResponse = {
+  id: string;
+  username: string;
+  role: string;
+  full_name?: string | null;
+  phone?: string | null;
+  is_active: boolean;
+};
+export type OwnerWithFarmResponse = {
+  user: UserResponse;
+  farm: {
+    [key: string]: any;
+  };
+};
+export type CreateOwnerRequest = {
+  username: string;
+  password: string;
+  full_name?: string | null;
+  phone?: string | null;
+  farm_name: string;
+  farm_location?: string | null;
+  farm_total_zones?: number;
+  farm_description?: string | null;
 };
 export type WhatsAppMessageResponse = {
   success: boolean;
@@ -624,12 +938,103 @@ export type ChatMessage = {
   content: string;
   created_at?: string | null;
 };
+export type FarmResponse = {
+  name: string;
+  location?: string | null;
+  total_zones?: number;
+  description?: string | null;
+  id: string;
+  owner_id: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+export type FarmListResponse = {
+  farms: FarmResponse[];
+  total: number;
+};
+export type FarmCreate = {
+  name: string;
+  location?: string | null;
+  total_zones?: number;
+  description?: string | null;
+};
+export type FarmUpdate = {
+  name?: string | null;
+  location?: string | null;
+  total_zones?: number | null;
+  description?: string | null;
+  is_active?: boolean | null;
+};
+export type CreateEmployeeRequest = {
+  username: string;
+  password: string;
+  full_name?: string | null;
+  phone?: string | null;
+};
+export type PermissionsSchema = {
+  read?: boolean;
+  write_readings?: boolean;
+  manage_alerts?: boolean;
+  manage_employees?: boolean;
+};
+export type MemberResponse = {
+  id: string;
+  farm_id: string;
+  user_id: string;
+  user_username?: string | null;
+  user_full_name?: string | null;
+  permissions: PermissionsSchema;
+  is_active: boolean;
+  joined_at: string;
+};
+export type MemberListResponse = {
+  members: MemberResponse[];
+  total: number;
+};
+export type MemberUpdate = {
+  permissions?: PermissionsSchema | null;
+  is_active?: boolean | null;
+};
+export type ConversationResponse = {
+  id: string;
+  user_id: string;
+  farm_id?: string | null;
+  title: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+export type ConversationListResponse = {
+  conversations: ConversationResponse[];
+  total: number;
+};
+export type ConversationCreate = {
+  title?: string;
+  farm_id?: string | null;
+};
+export type ConversationUpdate = {
+  title?: string | null;
+  is_active?: boolean | null;
+};
+export type ChatMessageResponse = {
+  id: string;
+  conversation_id: string;
+  sender_id?: string | null;
+  role: string;
+  content: string;
+  created_at: string;
+};
 export const {
-  useSignUpApiAuthSignupPostMutation,
   useSignInApiAuthSigninPostMutation,
-  useRefreshTokenApiAuthRefreshPostMutation,
   useGetProfileApiAuthProfileGetQuery,
+  useChangePasswordApiAuthChangePasswordPostMutation,
   useSignOutApiAuthSignoutPostMutation,
+  useListOwnersApiAdminOwnersGetQuery,
+  useCreateOwnerWithFarmApiAdminOwnersPostMutation,
+  useGetOwnerDetailApiAdminOwnersOwnerIdGetQuery,
+  useDeleteOwnerApiAdminOwnersOwnerIdDeleteMutation,
+  useToggleOwnerActiveApiAdminOwnersOwnerIdToggleActivePutMutation,
   useSendMessageApiWhatsappSendPostMutation,
   useGetMessagesApiWhatsappMessagesGetQuery,
   useGetDeviceStatusApiWhatsappStatusGetQuery,
@@ -651,6 +1056,23 @@ export const {
   useGetHistoryApiPredictionsHistoryGetQuery,
   useChatApiAiChatPostMutation,
   useGetChatHistoryApiAiChatConversationIdGetQuery,
+  useListFarmsApiFarmsGetQuery,
+  useCreateFarmApiFarmsPostMutation,
+  useGetFarmApiFarmsFarmIdGetQuery,
+  useUpdateFarmApiFarmsFarmIdPutMutation,
+  useDeleteFarmApiFarmsFarmIdDeleteMutation,
+  useCreateEmployeeApiFarmsFarmIdEmployeesPostMutation,
+  useListEmployeesApiFarmsFarmIdEmployeesGetQuery,
+  useListMembersApiFarmsFarmIdMembersGetQuery,
+  useAddMemberByIdApiFarmsFarmIdMembersUserIdPostMutation,
+  useUpdateMemberApiFarmsFarmIdMembersUserIdPutMutation,
+  useRemoveMemberApiFarmsFarmIdMembersUserIdDeleteMutation,
+  useListConversationsApiConversationsGetQuery,
+  useCreateConversationApiConversationsPostMutation,
+  useGetConversationApiConversationsConversationIdGetQuery,
+  useUpdateConversationApiConversationsConversationIdPutMutation,
+  useDeleteConversationApiConversationsConversationIdDeleteMutation,
+  useGetMessagesApiConversationsConversationIdMessagesGetQuery,
   useRootGetQuery,
   useHealthCheckHealthGetQuery,
   useDashboardDashboardGetQuery,
