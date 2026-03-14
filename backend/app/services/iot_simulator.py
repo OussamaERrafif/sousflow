@@ -1,6 +1,7 @@
 """
 IoT Simulator Service — Generates continuous sensor data like real IoT devices
 Runs in background, generates readings at configurable intervals, stores to database.
+Farm-scoped version (farm_id instead of user_id).
 """
 import asyncio
 import math
@@ -37,13 +38,13 @@ OLIVE_PROFILE = {
 class IoTSimulator:
     def __init__(
         self,
-        user_id: str,
+        farm_id: str,
         n_zones: int = 4,
         interval_seconds: float = 5.0,
         anomaly_rate: float = 0.03,
         seed: int = 42,
     ):
-        self.user_id = user_id
+        self.farm_id = farm_id
         self.n_zones = n_zones
         self.interval = interval_seconds
         self.anomaly_rate = anomaly_rate
@@ -62,6 +63,7 @@ class IoTSimulator:
         self.zone_char = {z: random.gauss(0, 2.5) for z in range(1, n_zones + 1)}
         self.start_time = datetime.now()
         self.step = 0
+        self._last_readings: list = []
 
     def clamp(self, v, lo, hi):
         return max(lo, min(hi, v))
@@ -252,7 +254,7 @@ class IoTSimulator:
         self.running = True
         logger.info(
             "IoT Simulator started",
-            user=self.user_id[:8],
+            farm=self.farm_id[:8],
             zones=self.n_zones,
             interval=self.interval
         )
@@ -261,7 +263,8 @@ class IoTSimulator:
             try:
                 readings = self.generate_reading()
                 if readings:
-                    await ingest_batch(self.user_id, readings)
+                    self._last_readings = readings
+                    await ingest_batch(self.farm_id, readings)
                     logger.debug(
                         "IoT batch stored",
                         zones=len(readings),
@@ -290,23 +293,23 @@ class IoTSimulator:
 _simulator: Optional[IoTSimulator] = None
 
 
-async def get_default_user_id() -> str:
-    """Get the first user from the database to simulate data for"""
+async def get_default_farm_id() -> str:
+    """Get the first farm from the database to simulate data for"""
     supabase = get_supabase_admin()
     try:
-        result = supabase.table("iot_readings").select("user_id").limit(1).execute()
+        result = supabase.table("farms").select("id").limit(1).execute()
         if result.data:
-            return result.data[0]["user_id"]
+            return result.data[0]["id"]
     except Exception:
         pass
-    logger.warning("No user found for IoT simulator - using demo mode with mock user_id")
+    logger.warning("No farm found for IoT simulator - using demo mode with mock farm_id")
     return "00000000-0000-0000-0000-000000000000"
 
 
 async def start_iot_simulator(
     n_zones: int = 4,
     interval_seconds: float = 5.0,
-    user_id: Optional[str] = None,
+    farm_id: Optional[str] = None,
 ):
     """Start the IoT simulator in the background"""
     global _simulator
@@ -315,12 +318,12 @@ async def start_iot_simulator(
         logger.warning("IoT Simulator already running")
         return
 
-    if not user_id:
-        user_id = await get_default_user_id()
-        logger.info("Using default user for IoT simulator", user=user_id[:8])
+    if not farm_id:
+        farm_id = await get_default_farm_id()
+        logger.info("Using default farm for IoT simulator", farm=farm_id[:8])
 
     _simulator = IoTSimulator(
-        user_id=user_id,
+        farm_id=farm_id,
         n_zones=n_zones,
         interval_seconds=interval_seconds,
     )
@@ -329,7 +332,7 @@ async def start_iot_simulator(
         "IoT Simulator started",
         zones=n_zones,
         interval=interval_seconds,
-        user=user_id[:8]
+        farm=farm_id[:8]
     )
 
 
@@ -348,7 +351,7 @@ def is_simulator_running() -> bool:
 
 
 def get_latest_readings() -> list:
-    """Get the most recent readings from the simulator"""
+    """Get the most recently generated readings without advancing simulation state."""
     if _simulator is None or not _simulator.running:
         return []
-    return _simulator.generate_reading()
+    return _simulator._last_readings

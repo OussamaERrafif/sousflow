@@ -2,7 +2,7 @@
 Authentication schemas
 """
 from pydantic import BaseModel, EmailStr, Field
-from typing import Optional
+from typing import List, Optional
 
 
 class SignUpRequest(BaseModel):
@@ -33,9 +33,12 @@ class RefreshTokenRequest(BaseModel):
 
 
 class UserProfile(BaseModel):
-    """User profile data"""
+    """Enriched user profile with role and farm context."""
     id: str
     email: str
     full_name: Optional[str] = None
     phone: Optional[str] = None
     role: Optional[str] = None
+    farm_ids: List[str] = []
+    owned_farm_ids: List[str] = []
+    active_farm_id: Optional[str] = None

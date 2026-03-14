@@ -24,6 +24,8 @@ from app.routes import (
     iot_router,
     prediction_router,
     openai_router,
+    farm_router,
+    conversation_router,
 )
 
 START_TIME = time.time()
@@ -83,7 +85,7 @@ async def lifespan(app: FastAPI):
         await start_iot_simulator(
             n_zones=settings.IOT_SIMULATOR_ZONES,
             interval_seconds=settings.IOT_SIMULATOR_INTERVAL,
-            user_id=settings.IOT_SIMULATOR_USER_ID,
+            farm_id=settings.IOT_SIMULATOR_FARM_ID,
         )
     else:
         logger.info("IoT Simulator disabled (set IOT_SIMULATOR_ENABLED=true to enable)")
@@ -124,6 +126,8 @@ app.include_router(whatsapp_router)
 app.include_router(iot_router)
 app.include_router(prediction_router)
 app.include_router(openai_router)
+app.include_router(farm_router)
+app.include_router(conversation_router)
 
 
 @app.get("/")

@@ -3,3 +3,5 @@ from app.routes.whatsapp_routes import router as whatsapp_router
 from app.routes.iot_routes import router as iot_router
 from app.routes.prediction_routes import router as prediction_router
 from app.routes.openai_routes import router as openai_router
+from app.routes.farm_routes import router as farm_router
+from app.routes.conversation_routes import router as conversation_router

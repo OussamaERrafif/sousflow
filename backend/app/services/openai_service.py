@@ -82,7 +82,7 @@ You have access to a 26-column IoT dataset with hourly readings:
 """
 
 
-async def chat(user_id: str, conversation_id: str, user_message: str) -> str:
+async def chat(farm_id: str, conversation_id: str, user_message: str, sender_id: str = None) -> str:
     """Chat with context from conversation history and latest sensor data"""
     supabase = get_supabase_admin()
 
@@ -98,15 +98,17 @@ async def chat(user_id: str, conversation_id: str, user_message: str) -> str:
     history = history_result.data or []
 
     # Save user message
-    supabase.table("chat_messages").insert({
+    user_msg_data = {
         "conversation_id": conversation_id,
-        "user_id": user_id,
         "role": "user",
         "content": user_message,
-    }).execute()
+    }
+    if sender_id:
+        user_msg_data["sender_id"] = sender_id
+    supabase.table("chat_messages").insert(user_msg_data).execute()
 
     # Fetch latest sensor context for enrichment
-    sensor_context = await _get_sensor_context(user_id)
+    sensor_context = await _get_sensor_context(farm_id)
 
     # Build messages
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
@@ -137,10 +139,9 @@ async def chat(user_id: str, conversation_id: str, user_message: str) -> str:
             f"[DEBUG] AI error: {type(e).__name__}: {str(e)}"
         )
 
-    # Save assistant message
+    # Save assistant message (sender_id is NULL for assistant)
     supabase.table("chat_messages").insert({
         "conversation_id": conversation_id,
-        "user_id": user_id,
         "role": "assistant",
         "content": assistant_msg,
     }).execute()
@@ -161,7 +162,7 @@ async def get_history(conversation_id: str) -> list[dict]:
     return result.data or []
 
 
-async def _get_sensor_context(user_id: str) -> str:
+async def _get_sensor_context(farm_id: str) -> str:
     """Build a concise sensor context string for the AI with latest data (max 3 hours)"""
     try:
         from datetime import timedelta
@@ -177,7 +178,7 @@ async def _get_sensor_context(user_id: str) -> str:
                     "main_pressure_mpa,valve_open,zone_flow_lpm,zone_pressure_mpa,"
                     "solar_radiation_wm2,precipitation_mm,wind_speed_kmh,cloud_cover_pct,"
                     "stress_score,stress_class,health_score,irrigation_needed,is_anomaly")
-            .eq("user_id", user_id)
+            .eq("farm_id", farm_id)
             .gte("timestamp", three_hours_ago)
             .order("timestamp", desc=True)
             .limit(50)

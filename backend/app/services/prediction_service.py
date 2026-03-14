@@ -39,7 +39,7 @@ OLIVE_LIMITS = {
 
 
 async def forecast(
-    user_id: str,
+    farm_id: str,
     target_column: str,
     zone_id: Optional[int],
     lookback_hours: int,
@@ -52,7 +52,7 @@ async def forecast(
     query = (
         supabase.table("iot_readings")
         .select(f"timestamp,{target_column}")
-        .eq("user_id", user_id)
+        .eq("farm_id", farm_id)
         .gte("timestamp", since)
         .order("timestamp", desc=False)
         .limit(5000)
@@ -156,7 +156,7 @@ async def forecast(
     # Save prediction
     try:
         supabase.table("predictions").insert({
-            "user_id": user_id,
+            "farm_id": farm_id,
             "prediction_type": "forecast",
             "target_column": target_column,
             "zone_id": zone_id,
@@ -186,7 +186,7 @@ async def forecast(
 
 
 async def detect_anomalies(
-    user_id: str,
+    farm_id: str,
     target_column: str,
     zone_id: Optional[int],
     lookback_hours: int,
@@ -199,7 +199,7 @@ async def detect_anomalies(
     query = (
         supabase.table("iot_readings")
         .select(f"timestamp,{target_column}")
-        .eq("user_id", user_id)
+        .eq("farm_id", farm_id)
         .gte("timestamp", since)
         .order("timestamp", desc=False)
         .limit(5000)
@@ -255,7 +255,7 @@ async def detect_anomalies(
     # Save prediction
     try:
         supabase.table("predictions").insert({
-            "user_id": user_id,
+            "farm_id": farm_id,
             "prediction_type": "anomaly",
             "target_column": target_column,
             "zone_id": zone_id,
@@ -282,13 +282,13 @@ async def detect_anomalies(
     }
 
 
-async def get_prediction_history(user_id: str, limit: int = 20) -> list[dict]:
+async def get_prediction_history(farm_id: str, limit: int = 20) -> list[dict]:
     """Get past predictions"""
     supabase = get_supabase_admin()
     result = (
         supabase.table("predictions")
         .select("*")
-        .eq("user_id", user_id)
+        .eq("farm_id", farm_id)
         .order("created_at", desc=True)
         .limit(limit)
         .execute()

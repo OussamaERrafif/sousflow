@@ -249,6 +249,24 @@ const injectedRtkApi = api.injectEndpoints({
     >({
       query: () => ({ url: `/health` }),
     }),
+    dashboardDashboardGet: build.query<
+      DashboardDashboardGetApiResponse,
+      DashboardDashboardGetApiArg
+    >({
+      query: () => ({ url: `/dashboard` }),
+    }),
+    getLatestApiLatestGet: build.query<
+      GetLatestApiLatestGetApiResponse,
+      GetLatestApiLatestGetApiArg
+    >({
+      query: () => ({ url: `/api/latest` }),
+    }),
+    sseEventsApiEventsGet: build.query<
+      SseEventsApiEventsGetApiResponse,
+      SseEventsApiEventsGetApiArg
+    >({
+      query: () => ({ url: `/api/events` }),
+    }),
   }),
   overrideExisting: false,
 });
@@ -392,6 +410,14 @@ export type RootGetApiArg = void;
 export type HealthCheckHealthGetApiResponse =
   /** status 200 Successful Response */ any;
 export type HealthCheckHealthGetApiArg = void;
+export type DashboardDashboardGetApiResponse = unknown;
+export type DashboardDashboardGetApiArg = void;
+export type GetLatestApiLatestGetApiResponse =
+  /** status 200 Successful Response */ any;
+export type GetLatestApiLatestGetApiArg = void;
+export type SseEventsApiEventsGetApiResponse =
+  /** status 200 Successful Response */ any;
+export type SseEventsApiEventsGetApiArg = void;
 export type AuthResponse = {
   access_token: string;
   refresh_token: string;
@@ -627,4 +653,7 @@ export const {
   useGetChatHistoryApiAiChatConversationIdGetQuery,
   useRootGetQuery,
   useHealthCheckHealthGetQuery,
+  useDashboardDashboardGetQuery,
+  useGetLatestApiLatestGetQuery,
+  useSseEventsApiEventsGetQuery,
 } = injectedRtkApi;

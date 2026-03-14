@@ -2,6 +2,7 @@
 IoT Service — Olive Irrigation Data Processing
 Handles ingestion, querying, zone analysis, dashboard snapshots,
 and alert rule evaluation for the 26-column sensor dataset.
+Farm-scoped version (farm_id instead of user_id).
 """
 from datetime import datetime, timedelta, timezone
 from typing import Optional, List
@@ -10,7 +11,6 @@ from app.logging_config import logger
 
 TABLE = "iot_readings"
 
-# ─── All columns we store (excluding id, user_id, created_at) ───
 IOT_COLUMNS = [
     "timestamp", "month", "hour", "zone_id", "plant_type", "plant_species",
     "air_temperature_c", "air_humidity_pct", "air_pressure_hpa", "light_intensity_lux",
@@ -29,7 +29,6 @@ NUMERIC_COLUMNS = [
     "stress_score", "health_score",
 ]
 
-# Olive-specific thresholds (Olea europaea, Souss-Massa region)
 OLIVE_THRESHOLDS = {
     "air_temperature_c": {"optimal_min": 15, "optimal_max": 30, "danger_min": 5, "danger_max": 45},
     "air_humidity_pct": {"optimal_min": 40, "optimal_max": 70, "danger_min": 20, "danger_max": 95},
@@ -42,14 +41,13 @@ OLIVE_THRESHOLDS = {
 }
 
 
-# ─── Ingest ─────────────────────────────────────────────────────
-
-async def ingest_reading(user_id: str, reading: dict) -> dict:
+async def ingest_reading(farm_id: str, reading: dict, recorded_by: Optional[str] = None) -> dict:
     """Insert a single IoT reading"""
     supabase = get_supabase_admin()
-    data = {**reading, "user_id": user_id}
+    data = {**reading, "farm_id": farm_id}
+    if recorded_by:
+        data["recorded_by"] = recorded_by
 
-    # Auto-fill month/hour from timestamp if not provided
     if "timestamp" in data:
         ts = data["timestamp"]
         if isinstance(ts, str):
@@ -61,22 +59,23 @@ async def ingest_reading(user_id: str, reading: dict) -> dict:
         data["timestamp"] = ts.isoformat()
 
     result = supabase.table(TABLE).insert(data).execute()
-    logger.info("IoT reading inserted", zone=data.get("zone_id"), user=user_id[:8])
+    logger.info("IoT reading inserted", zone=data.get("zone_id"), farm=farm_id[:8])
     return result.data[0] if result.data else {}
 
 
-async def ingest_batch(user_id: str, readings: list[dict]) -> dict:
+async def ingest_batch(farm_id: str, readings: list[dict], recorded_by: Optional[str] = None) -> dict:
     """Insert batch of readings (up to 1000)"""
     supabase = get_supabase_admin()
     inserted = 0
     failed = 0
     errors = []
 
-    # Prepare all rows
     rows = []
     for i, r in enumerate(readings):
         try:
-            row = {**r, "user_id": user_id}
+            row = {**r, "farm_id": farm_id}
+            if recorded_by:
+                row["recorded_by"] = recorded_by
             if "timestamp" in row:
                 ts = row["timestamp"]
                 if isinstance(ts, str):
@@ -91,7 +90,6 @@ async def ingest_batch(user_id: str, readings: list[dict]) -> dict:
             failed += 1
             errors.append(f"Row {i}: {str(e)}")
 
-    # Insert in chunks of 200
     chunk_size = 200
     for start in range(0, len(rows), chunk_size):
         chunk = rows[start:start + chunk_size]
@@ -102,14 +100,12 @@ async def ingest_batch(user_id: str, readings: list[dict]) -> dict:
             failed += len(chunk)
             errors.append(f"Chunk {start}-{start+len(chunk)}: {str(e)}")
 
-    logger.info("Batch ingest complete", inserted=inserted, failed=failed, user=user_id[:8])
+    logger.info("Batch ingest complete", inserted=inserted, failed=failed, farm=farm_id[:8])
     return {"inserted": inserted, "failed": failed, "errors": errors[:10]}
 
 
-# ─── Query ──────────────────────────────────────────────────────
-
 async def query_readings(
-    user_id: str,
+    farm_id: str,
     zone_id: Optional[int] = None,
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
@@ -122,14 +118,13 @@ async def query_readings(
     """Query readings with filters"""
     supabase = get_supabase_admin()
 
-    # Select columns
     select_cols = "*"
     if columns:
         valid = [c for c in columns if c in IOT_COLUMNS]
         if valid:
-            select_cols = ",".join(["id", "user_id", "created_at"] + valid)
+            select_cols = ",".join(["id", "farm_id", "recorded_by", "created_at"] + valid)
 
-    query = supabase.table(TABLE).select(select_cols).eq("user_id", user_id)
+    query = supabase.table(TABLE).select(select_cols).eq("farm_id", farm_id)
 
     if zone_id is not None:
         query = query.eq("zone_id", zone_id)
@@ -147,14 +142,13 @@ async def query_readings(
     return result.data or []
 
 
-async def get_latest_per_zone(user_id: str) -> list[dict]:
+async def get_latest_per_zone(farm_id: str) -> list[dict]:
     """Get the most recent reading for each zone"""
     supabase = get_supabase_admin()
-    # Get all zones for this user
     zones_result = (
         supabase.table(TABLE)
         .select("zone_id")
-        .eq("user_id", user_id)
+        .eq("farm_id", farm_id)
         .order("zone_id")
         .execute()
     )
@@ -169,7 +163,7 @@ async def get_latest_per_zone(user_id: str) -> list[dict]:
         result = (
             supabase.table(TABLE)
             .select("*")
-            .eq("user_id", user_id)
+            .eq("farm_id", farm_id)
             .eq("zone_id", zid)
             .order("timestamp", desc=True)
             .limit(1)
@@ -181,10 +175,8 @@ async def get_latest_per_zone(user_id: str) -> list[dict]:
     return latest
 
 
-# ─── Zone Analysis ──────────────────────────────────────────────
-
 async def analyze_zone(
-    user_id: str,
+    farm_id: str,
     zone_id: int,
     hours: int = 24,
 ) -> dict:
@@ -195,7 +187,7 @@ async def analyze_zone(
     result = (
         supabase.table(TABLE)
         .select("*")
-        .eq("user_id", user_id)
+        .eq("farm_id", farm_id)
         .eq("zone_id", zone_id)
         .gte("timestamp", since)
         .order("timestamp", desc=False)
@@ -207,7 +199,6 @@ async def analyze_zone(
     if not rows:
         return {"zone_id": zone_id, "readings": 0, "message": "No data in this period"}
 
-    # Compute stats for each numeric column
     stats = {}
     for col in NUMERIC_COLUMNS:
         values = [r[col] for r in rows if r.get(col) is not None]
@@ -223,18 +214,15 @@ async def analyze_zone(
                 "count": n,
             }
 
-    # Count states
     anomaly_count = sum(1 for r in rows if r.get("is_anomaly") == 1)
     irrigation_count = sum(1 for r in rows if r.get("irrigation_needed") == 1)
     valve_open_count = sum(1 for r in rows if r.get("valve_open") == 1)
 
-    # Stress distribution
     stress_dist = {}
     for r in rows:
         sc = r.get("stress_class", "unknown")
         stress_dist[sc] = stress_dist.get(sc, 0) + 1
 
-    # Generate recommendations
     recommendations = _generate_recommendations(stats, rows)
 
     return {
@@ -252,17 +240,14 @@ async def analyze_zone(
     }
 
 
-# ─── Dashboard Snapshot ─────────────────────────────────────────
-
-async def get_dashboard(user_id: str) -> dict:
+async def get_dashboard(farm_id: str) -> dict:
     """Get a dashboard snapshot across all zones"""
     supabase = get_supabase_admin()
 
-    # Get total count
     count_result = (
         supabase.table(TABLE)
         .select("id", count="exact")
-        .eq("user_id", user_id)
+        .eq("farm_id", farm_id)
         .execute()
     )
     total = count_result.count or 0
@@ -270,24 +255,21 @@ async def get_dashboard(user_id: str) -> dict:
     if total == 0:
         return {"total_readings": 0, "message": "No data yet"}
 
-    # Get latest readings per zone
-    latest = await get_latest_per_zone(user_id)
+    latest = await get_latest_per_zone(farm_id)
 
-    # Get last 24h stats
     since_24h = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
     recent = (
         supabase.table(TABLE)
         .select("zone_id,soil_moisture_pct,air_temperature_c,air_humidity_pct,"
                 "stress_score,health_score,reservoir_level_pct,filter_status,"
                 "is_anomaly,irrigation_needed,valve_open")
-        .eq("user_id", user_id)
+        .eq("farm_id", farm_id)
         .gte("timestamp", since_24h)
         .limit(5000)
         .execute()
     )
     recent_rows = recent.data or []
 
-    # Aggregate
     anomalies_24h = sum(1 for r in recent_rows if r.get("is_anomaly") == 1)
     health_scores = [r["health_score"] for r in recent_rows if r.get("health_score") is not None]
     stress_scores = [r["stress_score"] for r in recent_rows if r.get("stress_score") is not None]
@@ -309,16 +291,14 @@ async def get_dashboard(user_id: str) -> dict:
     }
 
 
-# ─── Alert Rule Evaluation ──────────────────────────────────────
-
-async def check_alert_rules(user_id: str, reading: dict) -> list[dict]:
+async def check_alert_rules(farm_id: str, reading: dict) -> list[dict]:
     """Check a reading against active alert rules, return triggered alerts"""
     supabase = get_supabase_admin()
 
     rules_result = (
         supabase.table("alert_rules")
         .select("*")
-        .eq("user_id", user_id)
+        .eq("farm_id", farm_id)
         .eq("is_active", True)
         .execute()
     )
@@ -333,7 +313,6 @@ async def check_alert_rules(user_id: str, reading: dict) -> list[dict]:
         if val is None:
             continue
 
-        # Check zone filter
         if rule.get("zone_id") and reading.get("zone_id") != rule["zone_id"]:
             continue
 
@@ -350,7 +329,7 @@ async def check_alert_rules(user_id: str, reading: dict) -> list[dict]:
 
         if fire:
             alert = {
-                "user_id": user_id,
+                "farm_id": farm_id,
                 "rule_id": rule["id"],
                 "alert_type": f"{col}_{condition}",
                 "zone_id": reading.get("zone_id"),
@@ -359,7 +338,6 @@ async def check_alert_rules(user_id: str, reading: dict) -> list[dict]:
                 "threshold": threshold,
                 "message": _format_alert_message(rule, val, reading),
             }
-            # Store in history
             try:
                 supabase.table("alert_history").insert(alert).execute()
             except Exception as e:
@@ -369,43 +347,40 @@ async def check_alert_rules(user_id: str, reading: dict) -> list[dict]:
     return triggered
 
 
-# ─── CRUD for Alert Rules ───────────────────────────────────────
-
-async def create_alert_rule(user_id: str, rule: dict) -> dict:
+async def create_alert_rule(farm_id: str, rule: dict, created_by: Optional[str] = None) -> dict:
     supabase = get_supabase_admin()
-    data = {**rule, "user_id": user_id}
+    data = {**rule, "farm_id": farm_id}
+    if created_by:
+        data["created_by"] = created_by
     result = supabase.table("alert_rules").insert(data).execute()
     return result.data[0] if result.data else {}
 
 
-async def list_alert_rules(user_id: str) -> list[dict]:
+async def list_alert_rules(farm_id: str) -> list[dict]:
     supabase = get_supabase_admin()
     result = (
         supabase.table("alert_rules")
         .select("*")
-        .eq("user_id", user_id)
+        .eq("farm_id", farm_id)
         .order("created_at", desc=True)
         .execute()
     )
     return result.data or []
 
 
-async def delete_alert_rule(user_id: str, rule_id: str) -> bool:
+async def delete_alert_rule(farm_id: str, rule_id: str) -> bool:
     supabase = get_supabase_admin()
     result = (
         supabase.table("alert_rules")
         .delete()
         .eq("id", rule_id)
-        .eq("user_id", user_id)
+        .eq("farm_id", farm_id)
         .execute()
     )
     return bool(result.data)
 
 
-# ─── Helpers ────────────────────────────────────────────────────
-
 def _std(values: list[float]) -> float:
-    """Standard deviation"""
     if len(values) < 2:
         return 0.0
     mean = sum(values) / len(values)
@@ -414,11 +389,9 @@ def _std(values: list[float]) -> float:
 
 
 def _generate_recommendations(stats: dict, rows: list[dict]) -> list[str]:
-    """Generate agriculture recommendations based on thresholds"""
     recs = []
     th = OLIVE_THRESHOLDS
 
-    # Soil moisture
     sm = stats.get("soil_moisture_pct", {})
     if sm:
         if sm.get("mean", 50) < th["soil_moisture_pct"]["optimal_min"]:
@@ -426,7 +399,6 @@ def _generate_recommendations(stats: dict, rows: list[dict]) -> list[str]:
         elif sm.get("mean", 50) > th["soil_moisture_pct"]["optimal_max"]:
             recs.append(f"💧 Soil moisture high ({sm['mean']:.1f}%). Reduce irrigation to prevent root rot.")
 
-    # Temperature
     temp = stats.get("air_temperature_c", {})
     if temp:
         if temp.get("max", 0) > th["air_temperature_c"]["danger_max"]:
@@ -434,7 +406,6 @@ def _generate_recommendations(stats: dict, rows: list[dict]) -> list[str]:
         elif temp.get("min", 20) < th["air_temperature_c"]["danger_min"]:
             recs.append(f"❄️ Frost risk ({temp['min']:.1f}°C). Consider frost protection measures.")
 
-    # Reservoir
     res = stats.get("reservoir_level_pct", {})
     if res:
         if res.get("mean", 100) < th["reservoir_level_pct"]["critical"]:
@@ -442,24 +413,20 @@ def _generate_recommendations(stats: dict, rows: list[dict]) -> list[str]:
         elif res.get("mean", 100) < th["reservoir_level_pct"]["warning"]:
             recs.append(f"⚠️ Reservoir level dropping ({res['mean']:.0f}%). Plan refill soon.")
 
-    # Pressure
     pres = stats.get("main_pressure_mpa", {})
     if pres and pres.get("mean", 0.05) < th["main_pressure_mpa"]["optimal_min"]:
         recs.append("🔧 Main pressure below optimal. Check pump and filter.")
 
-    # Filter
     filter_vals = [r.get("filter_status", 0) for r in rows if r.get("filter_status") is not None]
     if filter_vals and max(filter_vals) >= 2:
         recs.append("🔴 Filter is CLOGGED. Clean or replace immediately.")
     elif filter_vals and max(filter_vals) >= 1:
         recs.append("🟡 Filter partially clogged. Schedule maintenance.")
 
-    # Stress
     stress = stats.get("stress_score", {})
     if stress and stress.get("mean", 0) > th["stress_score"]["moderate"]:
         recs.append(f"🌿 Plant stress elevated (avg {stress['mean']:.3f}). Review all environmental conditions.")
 
-    # Health
     health = stats.get("health_score", {})
     if health and health.get("mean", 10) < th["health_score"]["poor"]:
         recs.append(f"🔴 Health score POOR ({health['mean']:.1f}/10). Investigate root cause immediately.")
@@ -473,7 +440,6 @@ def _generate_recommendations(stats: dict, rows: list[dict]) -> list[str]:
 
 
 def _format_alert_message(rule: dict, value: float, reading: dict) -> str:
-    """Format alert message for notification"""
     template = rule.get("message_template")
     if template:
         return template.format(
