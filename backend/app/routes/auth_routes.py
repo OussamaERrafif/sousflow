@@ -15,6 +15,23 @@ from app.logging_config import logger
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 
 
+@router.get("/debug-user/{username}")
+async def debug_user(username: str):
+    """Debug endpoint to check user exists"""
+    admin = get_supabase_admin()
+    result = admin.from_("users").select("id, username, password_hash, role, is_active").eq("username", username).execute()
+    if not result.data:
+        return {"found": False, "message": "User not found"}
+    user = result.data[0]
+    return {
+        "found": True,
+        "username": user["username"],
+        "role": user["role"],
+        "is_active": user["is_active"],
+        "password_hash": user["password_hash"][:20] + "...",
+    }
+
+
 @router.post("/signin", response_model=AuthResponse)
 async def sign_in(request: SignInRequest):
     """Sign in with username/password"""
