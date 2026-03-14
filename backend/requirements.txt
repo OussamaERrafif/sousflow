@@ -12,6 +12,7 @@ supabase>=2.0.0
 
 # Auth (self-managed JWT)
 passlib[bcrypt]>=1.7.4
+bcrypt>=3.2.0,<4.0.0
 python-jose[cryptography]>=3.3.0
 
 # HTTP client (for Wassender API)
