@@ -19,10 +19,15 @@ class Settings(BaseSettings):
     # CORS
     ALLOWED_ORIGINS: str = "http://localhost:3000"
 
-    # Supabase
+    # Supabase (used as database only, not for auth)
     SUPABASE_URL: str = ""
     SUPABASE_ANON_KEY: str = ""
     SUPABASE_SERVICE_ROLE_KEY: str = ""
+
+    # JWT (self-managed auth)
+    JWT_SECRET_KEY: str = "change-me-in-production-use-a-long-random-string"
+    JWT_ALGORITHM: str = "HS256"
+    JWT_EXPIRATION_MINUTES: int = 480  # 8 hours
 
     # Wassender (WhatsApp)
     WASSENDER_ENABLED: bool = False

@@ -1,11 +1,11 @@
 """
-Farm Routes - CRUD for farms and membership management
-/api/farms, /api/farms/{farm_id}/members
+Farm Routes - CRUD for farms, membership management, and employee creation
+/api/farms, /api/farms/{farm_id}/members, /api/farms/{farm_id}/employees
 """
 from typing import List
-from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
-from app.auth import get_current_user, require_farm_owner, require_farm_access
+from app.auth import get_current_user, require_farm_owner, hash_password
+from app.supabase_client import get_supabase_admin
 from app.services.farm_service import get_farm_service, FarmService
 from app.schemas.farm import (
     FarmCreate,
@@ -16,6 +16,8 @@ from app.schemas.farm import (
     MemberResponse,
     MemberListResponse,
 )
+from app.schemas.auth import CreateEmployeeRequest, UserResponse
+from app.logging_config import logger
 
 router = APIRouter(prefix="/api/farms", tags=["farms"])
 
@@ -37,13 +39,12 @@ async def create_farm(
     farm_service: FarmService = Depends(get_farm_service),
 ):
     """Create a new farm (becomes owner)"""
-    # Users with farm_employee role cannot create farms
     if current_user.get("role") == "farm_employee":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Employees cannot create farms",
         )
-    
+
     farm = farm_service.create_farm(
         owner_id=current_user["id"],
         name=farm_data.name,
@@ -105,7 +106,84 @@ async def delete_farm(
         )
 
 
-# Membership endpoints
+# ─── Employee creation ─────────────────────────────────────────
+
+@router.post("/{farm_id}/employees", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+async def create_employee(
+    farm_id: str,
+    request: CreateEmployeeRequest,
+    current_user: dict = Depends(require_farm_owner),
+):
+    """Create an employee user and add them to this farm (owner only)"""
+    # Verify farm ownership
+    admin = get_supabase_admin()
+    farm_resp = admin.from_("farms").select("owner_id").eq("id", farm_id).execute()
+    if not farm_resp.data or farm_resp.data[0]["owner_id"] != current_user["id"]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized for this farm")
+
+    # Check username uniqueness
+    existing = admin.from_("users").select("id").eq("username", request.username).execute()
+    if existing.data:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Username already exists")
+
+    # Create employee user
+    user_data = {
+        "username": request.username,
+        "password_hash": hash_password(request.password),
+        "role": "farm_employee",
+        "full_name": request.full_name,
+        "phone": request.phone,
+    }
+    user_resp = admin.from_("users").insert(user_data).execute()
+    if not user_resp.data:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create employee")
+
+    user = user_resp.data[0]
+
+    # Add membership
+    membership_data = {
+        "farm_id": farm_id,
+        "user_id": user["id"],
+        "invited_by": current_user["id"],
+        "permissions": {"read": True, "write_readings": True, "manage_alerts": False, "manage_employees": False},
+    }
+    admin.from_("farm_memberships").insert(membership_data).execute()
+
+    logger.info(f"Owner '{current_user['username']}' created employee '{request.username}' for farm {farm_id}")
+    return {
+        "id": user["id"],
+        "username": user["username"],
+        "role": user["role"],
+        "full_name": user.get("full_name"),
+        "phone": user.get("phone"),
+        "is_active": user["is_active"],
+    }
+
+
+@router.get("/{farm_id}/employees", response_model=List[UserResponse])
+async def list_employees(
+    farm_id: str,
+    current_user: dict = Depends(require_farm_owner),
+):
+    """List employees of a farm (owner only)"""
+    admin = get_supabase_admin()
+
+    # Verify farm ownership
+    farm_resp = admin.from_("farms").select("owner_id").eq("id", farm_id).execute()
+    if not farm_resp.data or farm_resp.data[0]["owner_id"] != current_user["id"]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized for this farm")
+
+    memberships = admin.from_("farm_memberships").select("user_id").eq("farm_id", farm_id).eq("is_active", True).execute()
+    if not memberships.data:
+        return []
+
+    user_ids = [m["user_id"] for m in memberships.data]
+    users_resp = admin.from_("users").select("id, username, role, full_name, phone, is_active").in_("id", user_ids).execute()
+    return users_resp.data or []
+
+
+# ─── Membership endpoints ─────────────────────────────────────
+
 @router.get("/{farm_id}/members", response_model=MemberListResponse)
 async def list_members(
     farm_id: str,

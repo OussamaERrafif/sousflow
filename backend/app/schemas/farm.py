@@ -47,7 +47,7 @@ class FarmWithMembers(FarmResponse):
 
 
 class MemberBase(BaseModel):
-    user_email: str = Field(..., description="Email of the user to invite")
+    user_username: str = Field(..., description="Username of the user to invite")
     permissions: PermissionsSchema = Field(
         default_factory=PermissionsSchema,
         description="Permissions for the member"
@@ -67,7 +67,7 @@ class MemberResponse(BaseModel):
     id: UUID
     farm_id: UUID
     user_id: UUID
-    user_email: Optional[str] = None
+    user_username: Optional[str] = None
     user_full_name: Optional[str] = None
     permissions: PermissionsSchema
     is_active: bool

@@ -20,7 +20,7 @@ export default function Sidebar({ activePage, setActivePage }: { activePage: str
     useEffect(() => {
         const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
         if (token && !isAuthenticated) {
-            dispatch({ type: "auth/setCredentials", payload: { user: { id: "", email: "" }, token } });
+            dispatch({ type: "auth/setCredentials", payload: { user: { id: "", username: "" }, token } });
         }
     }, [dispatch, isAuthenticated]);
 
@@ -36,7 +36,6 @@ export default function Sidebar({ activePage, setActivePage }: { activePage: str
             // Continue even if API call fails
         }
         localStorage.removeItem("token");
-        localStorage.removeItem("refreshToken");
         dispatch(logout());
         router.push("/login");
     };
@@ -128,8 +127,8 @@ export default function Sidebar({ activePage, setActivePage }: { activePage: str
                                     <User className="w-4 h-4 text-white" />
                                 </div>
                                 <div className="overflow-hidden">
-                                    <p className="text-white font-bold text-sm truncate">{user.full_name || user.email}</p>
-                                    <p className="text-[#8B7355] text-xs truncate">{user.email}</p>
+                                    <p className="text-white font-bold text-sm truncate">{user.full_name || user.username}</p>
+                                    <p className="text-[#8B7355] text-xs truncate">{user.username}</p>
                                 </div>
                             </div>
                         </div>

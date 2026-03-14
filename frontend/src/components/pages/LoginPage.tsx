@@ -3,15 +3,15 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSignInMutation } from "@/lib/store/apiSlice";
-import { Leaf, Mail, Lock, Eye, EyeOff, AlertCircle } from "lucide-react";
+import { Leaf, User, Lock, Eye, EyeOff, AlertCircle } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
-  
+
   const [signIn, { isLoading }] = useSignInMutation();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -19,10 +19,10 @@ export default function LoginPage() {
     setError("");
 
     try {
-      await signIn({ email, password }).unwrap();
+      await signIn({ username, password }).unwrap();
       router.push("/");
     } catch (err: any) {
-      setError(err?.data?.detail || "Invalid email or password");
+      setError(err?.data?.detail || "Invalid username or password");
     }
   };
 
@@ -49,15 +49,15 @@ export default function LoginPage() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-bold text-zinc-600 mb-1.5">Email</label>
+              <label className="block text-sm font-bold text-zinc-600 mb-1.5">Username</label>
               <div className="relative">
-                <Mail className="absolute ltr:left-3 rtl:right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-400" />
+                <User className="absolute ltr:left-3 rtl:right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-400" />
                 <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
                   className="w-full ltr:pl-11 rtl:pr-11 px-4 py-3 rounded-xl border border-zinc-200 focus:border-[#C17A3A] focus:outline-none font-bold"
-                  placeholder="you@example.com"
+                  placeholder="Enter your username"
                   required
                 />
               </div>
@@ -93,18 +93,6 @@ export default function LoginPage() {
               {isLoading ? "Signing in..." : "Sign In"}
             </button>
           </form>
-
-          <div className="mt-6 text-center">
-            <p className="text-zinc-500 font-bold text-sm">
-              Don't have an account?{" "}
-              <button
-                onClick={() => router.push("/register")}
-                className="text-[#C17A3A] hover:underline font-bold"
-              >
-                Sign Up
-              </button>
-            </p>
-          </div>
         </div>
       </div>
     </div>

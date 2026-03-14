@@ -1,19 +1,46 @@
 """
-Supabase-based Authentication module
-Replaces manual JWT handling with Supabase Auth
-Enhanced with role and farm context for multi-role model
+Self-managed JWT Authentication module
+Uses bcrypt for password hashing and python-jose for JWT tokens.
 """
-from typing import Optional, List
-from uuid import UUID
-from fastapi import Depends, HTTPException, status, Request, Header
-from app.supabase_client import get_supabase, get_supabase_admin
+from datetime import datetime, timedelta, timezone
+from typing import Optional
+
+from fastapi import Depends, HTTPException, status, Request
+from jose import JWTError, jwt
+from passlib.context import CryptContext
+
+from app.config import get_settings
+from app.supabase_client import get_supabase_admin
 from app.logging_config import logger
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return pwd_context.verify(plain_password, hashed_password)
+
+
+def hash_password(password: str) -> str:
+    return pwd_context.hash(password)
+
+
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+    settings = get_settings()
+    to_encode = data.copy()
+    expire = datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=settings.JWT_EXPIRATION_MINUTES))
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+
+
+def decode_token(token: str) -> dict:
+    settings = get_settings()
+    return jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
 
 
 async def get_current_user(request: Request) -> dict:
     """
-    Extract and verify the Supabase JWT from the Authorization header.
-    Returns the authenticated user object with role and farm context.
+    Extract and verify JWT from the Authorization header.
+    Returns the authenticated user dict with role and farm context.
     """
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
@@ -26,32 +53,35 @@ async def get_current_user(request: Request) -> dict:
     token = auth_header.split(" ")[1]
 
     try:
-        supabase = get_supabase()
-        user_response = supabase.auth.get_user(token)
-        if user_response is None or user_response.user is None:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid or expired token",
-            )
+        payload = decode_token(token)
+        user_id = payload.get("sub")
+        if not user_id:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+    except JWTError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token")
 
-        user_id = user_response.user.id
+    try:
+        admin = get_supabase_admin()
 
-        # Fetch user profile to get role
-        profile_response = get_supabase_admin().from_("user_profiles").select("*").eq("id", user_id).execute()
-        profile = profile_response.data[0] if profile_response.data else {"role": "farm_employee", "full_name": None}
+        # Fetch user from users table
+        user_response = admin.from_("users").select("*").eq("id", user_id).eq("is_active", True).execute()
+        if not user_response.data:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found or inactive")
+
+        user = user_response.data[0]
 
         # Get farms owned by user
-        owned_farms_response = get_supabase_admin().from_("farms").select("id").eq("owner_id", user_id).execute()
+        owned_farms_response = admin.from_("farms").select("id").eq("owner_id", user_id).execute()
         owned_farm_ids = [farm["id"] for farm in owned_farms_response.data] if owned_farms_response.data else []
 
         # Get farms where user is a member
-        membership_response = get_supabase_admin().from_("farm_memberships").select("farm_id").eq("user_id", user_id).eq("is_active", True).execute()
+        membership_response = admin.from_("farm_memberships").select("farm_id").eq("user_id", user_id).eq("is_active", True).execute()
         member_farm_ids = [m["farm_id"] for m in membership_response.data] if membership_response.data else []
 
         # Combine all farm IDs (owned + member)
         all_farm_ids = list(set(owned_farm_ids + member_farm_ids))
 
-        # Determine active farm
+        # Determine active farm from X-Farm-ID header
         x_farm_id = request.headers.get("X-Farm-ID")
         active_farm_id = None
         if x_farm_id and x_farm_id in all_farm_ids:
@@ -60,11 +90,11 @@ async def get_current_user(request: Request) -> dict:
             active_farm_id = all_farm_ids[0]
 
         return {
-            "id": user_id,
-            "email": user_response.user.email,
-            "role": profile.get("role", "farm_employee"),
-            "full_name": profile.get("full_name"),
-            "user_metadata": user_response.user.user_metadata,
+            "id": user["id"],
+            "username": user["username"],
+            "role": user["role"],
+            "full_name": user.get("full_name"),
+            "phone": user.get("phone"),
             "farm_ids": all_farm_ids,
             "owned_farm_ids": owned_farm_ids,
             "active_farm_id": active_farm_id,
@@ -73,18 +103,11 @@ async def get_current_user(request: Request) -> dict:
         raise
     except Exception as e:
         logger.error(f"Auth error: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials",
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Could not validate credentials")
 
 
 def get_current_farm_id(request: Request, current_user: dict = Depends(get_current_user)) -> str:
-    """
-    Resolve the farm_id from the request.
-    Uses the already-validated active_farm_id from get_current_user (which checked
-    the X-Farm-ID header against the user's farm list). Falls back to first farm.
-    """
+    """Resolve the farm_id from the request."""
     if current_user.get("active_farm_id"):
         return current_user["active_farm_id"]
 
@@ -95,14 +118,12 @@ def get_current_farm_id(request: Request, current_user: dict = Depends(get_curre
 
 
 def _extract_farm_id(user: dict) -> Optional[str]:
-    """Extract active farm_id from user context dict (for use inside route handlers)."""
+    """Extract active farm_id from user context dict."""
     return user.get("active_farm_id") or (user.get("farm_ids") or [None])[0]
 
 
 def require_farm_owner(current_user: dict = Depends(get_current_user)) -> dict:
-    """
-    Dependency that requires the current user to be a farm owner.
-    """
+    """Dependency that requires the current user to be a farm owner."""
     if current_user.get("role") != "farm_owner":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -111,10 +132,18 @@ def require_farm_owner(current_user: dict = Depends(get_current_user)) -> dict:
     return current_user
 
 
+def require_superadmin(current_user: dict = Depends(get_current_user)) -> dict:
+    """Dependency that requires the current user to be a superadmin."""
+    if current_user.get("role") != "superadmin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This action requires superadmin privileges",
+        )
+    return current_user
+
+
 def require_farm_access(farm_id: str, current_user: dict = Depends(get_current_user)) -> dict:
-    """
-    Dependency that checks if the user has access to the specified farm.
-    """
+    """Dependency that checks if the user has access to the specified farm."""
     if farm_id not in current_user.get("farm_ids", []):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -124,16 +153,13 @@ def require_farm_access(farm_id: str, current_user: dict = Depends(get_current_u
 
 
 class OptionalFarm:
-    """
-    Dependency that optionally gets the farm_id from header.
-    Returns None if no farm is specified.
-    """
+    """Dependency that optionally gets the farm_id from header."""
     def __init__(self, required: bool = False):
         self.required = required
-    
+
     def __call__(self, request: Request, current_user: dict = Depends(get_current_user)) -> Optional[str]:
         x_farm_id = request.headers.get("X-Farm-ID")
-        
+
         if x_farm_id:
             if x_farm_id not in current_user.get("farm_ids", []):
                 raise HTTPException(
@@ -141,7 +167,7 @@ class OptionalFarm:
                     detail="You don't have access to this farm",
                 )
             return x_farm_id
-        
+
         if self.required:
             if not current_user.get("active_farm_id"):
                 raise HTTPException(
@@ -149,5 +175,5 @@ class OptionalFarm:
                     detail="No farm selected. Provide X-Farm-ID header or join/create a farm.",
                 )
             return current_user["active_farm_id"]
-        
+
         return current_user.get("active_farm_id")

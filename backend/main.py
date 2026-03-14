@@ -1,6 +1,6 @@
 """
 SoussFlow Backend — FastAPI application
-Modules: Auth (Supabase), WhatsApp (Wassender), IoT, Predictions, AI (OpenAI)
+Modules: Auth (JWT), WhatsApp (Wassender), IoT, Predictions, AI (OpenAI)
 License: MIT
 """
 import json
@@ -20,6 +20,7 @@ import asyncio
 from app.logging_config import logger
 from app.routes import (
     auth_router,
+    admin_router,
     whatsapp_router,
     iot_router,
     prediction_router,
@@ -122,6 +123,7 @@ app.add_middleware(
 
 # Include routers (each router defines its own /api/* prefix)
 app.include_router(auth_router)
+app.include_router(admin_router)
 app.include_router(whatsapp_router)
 app.include_router(iot_router)
 app.include_router(prediction_router)

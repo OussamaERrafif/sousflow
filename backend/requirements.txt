@@ -7,8 +7,12 @@ pydantic>=2.0.0
 pydantic-settings>=2.0.0
 python-dotenv>=1.0.0
 
-# Supabase
+# Supabase (database only)
 supabase>=2.0.0
+
+# Auth (self-managed JWT)
+passlib[bcrypt]>=1.7.4
+python-jose[cryptography]>=3.3.0
 
 # HTTP client (for Wassender API)
 httpx>=0.25.0
@@ -35,4 +39,3 @@ flake8>=7.0.0
 mypy>=1.8.0
 
 
-pydantic[email]

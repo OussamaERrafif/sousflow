@@ -4,7 +4,7 @@ import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 
 interface User {
   id: string;
-  email: string;
+  username: string;
   full_name?: string | null;
   phone?: string | null;
   role?: string | null;
@@ -15,7 +15,7 @@ interface AuthState {
   token: string | null;
   isAuthenticated: boolean;
   // Role & farm context — populated after calling GET /api/auth/profile
-  role: "farm_owner" | "farm_employee" | null;
+  role: "superadmin" | "farm_owner" | "farm_employee" | null;
   activeFarmId: string | null;
   farmIds: string[];
   ownedFarmIds: string[];
@@ -46,7 +46,7 @@ const authSlice = createSlice({
     setProfile: (
       state,
       action: PayloadAction<{
-        role: "farm_owner" | "farm_employee";
+        role: "superadmin" | "farm_owner" | "farm_employee";
         farmIds: string[];
         ownedFarmIds: string[];
         activeFarmId: string | null;
