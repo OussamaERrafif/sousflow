@@ -1,13 +1,16 @@
 """
-IoT Simulator Service — Generates continuous sensor data like real IoT devices
-Runs in background, generates readings at configurable intervals, stores to database.
-Farm-scoped version (farm_id instead of user_id).
+IoT Simulator Service — Realistic sensor data for olive farms in Agadir, Morocco
+=================================================================================
+Uses real current time, Agadir climate patterns, and time-scaled physics.
+Each reading uses datetime.now() so timestamps are real.
+Weather follows seasonal (month) and diurnal (hour) cycles specific to Agadir.
+All physical processes (soil moisture loss, reservoir drain, etc.) are scaled
+to the actual time elapsed between readings.
 """
 import asyncio
 import math
 import random
-import time
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Dict, List, Optional
 
 from app.logging_config import logger
@@ -15,6 +18,31 @@ from app.supabase_client import get_supabase_admin
 from app.services.iot_service import ingest_batch, check_alert_rules
 
 TABLE = "iot_readings"
+
+# ── Agadir climate baseline (monthly averages) ──────────────────
+# Source: historical climate data for Agadir, Morocco (30.42°N, -9.60°W)
+# temp_avg, temp_range (diurnal swing), humidity_avg, precip_chance, cloud_avg
+AGADIR_MONTHLY = {
+    1:  {"temp": 13.5, "swing": 6.0, "hum": 72, "precip_chance": 0.12, "cloud": 40},
+    2:  {"temp": 14.5, "swing": 6.5, "hum": 68, "precip_chance": 0.10, "cloud": 38},
+    3:  {"temp": 16.0, "swing": 7.0, "hum": 65, "precip_chance": 0.08, "cloud": 35},
+    4:  {"temp": 17.5, "swing": 7.0, "hum": 62, "precip_chance": 0.05, "cloud": 30},
+    5:  {"temp": 19.5, "swing": 7.5, "hum": 60, "precip_chance": 0.03, "cloud": 25},
+    6:  {"temp": 21.5, "swing": 8.0, "hum": 58, "precip_chance": 0.01, "cloud": 15},
+    7:  {"temp": 24.0, "swing": 8.5, "hum": 55, "precip_chance": 0.005, "cloud": 10},
+    8:  {"temp": 24.5, "swing": 8.5, "hum": 58, "precip_chance": 0.005, "cloud": 12},
+    9:  {"temp": 23.0, "swing": 7.5, "hum": 62, "precip_chance": 0.02, "cloud": 18},
+    10: {"temp": 20.5, "swing": 7.0, "hum": 65, "precip_chance": 0.06, "cloud": 28},
+    11: {"temp": 17.0, "swing": 6.5, "hum": 68, "precip_chance": 0.10, "cloud": 35},
+    12: {"temp": 14.0, "swing": 6.0, "hum": 72, "precip_chance": 0.12, "cloud": 42},
+}
+
+# Sunrise/sunset hours by month for Agadir (~30°N)
+AGADIR_SUN = {
+    1:  (7.5, 17.8),  2: (7.2, 18.3),  3:  (6.7, 18.7),  4:  (6.2, 19.2),
+    5:  (5.8, 19.6),  6: (5.6, 19.9),   7:  (5.7, 19.9),  8:  (6.0, 19.5),
+    9:  (6.4, 18.9),  10: (6.8, 18.2), 11: (7.2, 17.7), 12: (7.5, 17.5),
+}
 
 OLIVE_PROFILE = {
     "name": "Olive (Olea europaea)",
@@ -40,7 +68,7 @@ class IoTSimulator:
         self,
         farm_id: str,
         n_zones: int = 4,
-        interval_seconds: float = 5.0,
+        interval_seconds: float = 300.0,
         anomaly_rate: float = 0.03,
         seed: int = 42,
     ):
@@ -55,15 +83,23 @@ class IoTSimulator:
         random.seed(seed)
         self.profile = OLIVE_PROFILE
 
+        # Persistent state
         self.reservoir = random.uniform(70, 90)
         self.filter_st = 0
         self.zone_soil = {z: random.uniform(*self.profile["soil_moisture_optimal"])
                          for z in range(1, n_zones + 1)}
         self.zone_irrig = {z: False for z in range(1, n_zones + 1)}
+        # Per-zone soil characteristic offset (some zones drain faster/slower)
         self.zone_char = {z: random.gauss(0, 2.5) for z in range(1, n_zones + 1)}
-        self.start_time = datetime.now()
-        self.step = 0
+        # Weather continuity state — smoothed values to avoid jumps
+        self._prev_cloud: Optional[float] = None
+        self._prev_pressure: float = 1013.0
+        self._prev_wind: float = 3.0
         self._last_readings: list = []
+        self._injected_anomalies: Dict[int, dict] = {}
+        self.step = 0
+
+    # ── Utilities ────────────────────────────────────────────────
 
     def clamp(self, v, lo, hi):
         return max(lo, min(hi, v))
@@ -71,25 +107,124 @@ class IoTSimulator:
     def noise(self, v, pct=0.02):
         return v + random.gauss(0, abs(v) * pct + 1e-6)
 
+    def smooth(self, prev, target, alpha=0.3):
+        """Exponential smoothing to avoid abrupt value jumps."""
+        return prev + alpha * (target - prev) + random.gauss(0, abs(target - prev) * 0.05 + 0.01)
+
     def rad_to_lux(self, wm2):
         return max(0.0, wm2 * 120)
 
+    # ── Time-scaled factor ───────────────────────────────────────
+    # All rates in the physics model are calibrated for 1-hour steps.
+    # This factor scales them to the actual interval.
+
+    @property
+    def time_scale(self) -> float:
+        """Scale factor: interval_seconds / 3600 (rates are per-hour)."""
+        return self.interval / 3600.0
+
+    # ── Agadir weather model ─────────────────────────────────────
+
+    def generate_weather(self, dt: datetime) -> dict:
+        """
+        Generate realistic weather for the current moment in Agadir.
+        Uses monthly climate baselines with smooth diurnal cycles.
+        """
+        month = dt.month
+        hour = dt.hour + dt.minute / 60.0
+        climate = AGADIR_MONTHLY[month]
+        sunrise, sunset = AGADIR_SUN[month]
+
+        # Temperature: smooth diurnal curve
+        # Peak around 14:00-15:00, trough around sunrise
+        temp_min = climate["temp"] - climate["swing"] / 2
+        temp_max = climate["temp"] + climate["swing"] / 2
+        # Sinusoidal: min at sunrise, max at ~14:30
+        peak_hour = 14.5
+        phase = 2 * math.pi * (hour - (sunrise - 2)) / 24.0
+        temp_frac = 0.5 * (1 - math.cos(phase))  # 0..1
+        # Shift so peak aligns with ~14:30
+        peak_phase = 2 * math.pi * (peak_hour - (sunrise - 2)) / 24.0
+        peak_frac = 0.5 * (1 - math.cos(peak_phase))
+        if peak_frac > 0:
+            temp_frac = min(1.0, temp_frac / peak_frac)
+        raw_temp = temp_min + (temp_max - temp_min) * temp_frac
+        raw_temp += random.gauss(0, 0.4)  # small natural variation
+
+        # Humidity: inverse of temperature (higher at night, lower midday)
+        base_hum = climate["hum"]
+        hum_swing = 15  # +/- from base across day
+        raw_hum = base_hum + hum_swing * (1 - temp_frac) - hum_swing * temp_frac * 0.3
+        raw_hum += random.gauss(0, 2.0)
+
+        # Pressure: slow drift with small random walk
+        self._prev_pressure = self.smooth(self._prev_pressure, 1013.0 + random.gauss(0, 1.5), 0.1)
+        raw_pres = self._prev_pressure
+
+        # Cloud cover: smoothed, higher chance of clouds in winter months
+        target_cloud = climate["cloud"] + random.gauss(0, 10)
+        target_cloud = self.clamp(target_cloud, 0, 100)
+        if self._prev_cloud is None:
+            self._prev_cloud = target_cloud
+        self._prev_cloud = self.smooth(self._prev_cloud, target_cloud, 0.15)
+        cloud = self.clamp(self._prev_cloud, 0, 100)
+
+        # Solar radiation: based on sun angle and cloud cover
+        if sunrise <= hour <= sunset:
+            day_frac = (hour - sunrise) / (sunset - sunrise)
+            sun_angle = math.pi * day_frac
+            # Peak radiation ~900 W/m² at solar noon in Agadir
+            peak_rad = 850 + 100 * math.sin(math.pi * (month - 3) / 6)  # higher in summer
+            raw_rad = peak_rad * math.sin(sun_angle) * (1 - cloud / 150)
+        else:
+            raw_rad = 0.0
+        raw_rad = max(0.0, raw_rad)
+
+        # Precipitation: realistic for Agadir (very dry in summer, some rain in winter)
+        precip_chance = climate["precip_chance"]
+        if cloud > 60:
+            precip_chance *= 2.0  # more likely when cloudy
+        if random.random() < precip_chance * self.time_scale:
+            raw_precip = random.uniform(0.1, 3.0) * (cloud / 50)
+        else:
+            raw_precip = 0.0
+
+        # Wind: smoothed random walk, slightly higher in afternoon
+        wind_base = 3.0 + 2.0 * temp_frac  # windier midday
+        self._prev_wind = self.smooth(self._prev_wind, wind_base, 0.2)
+        raw_wind = max(0, self._prev_wind + random.gauss(0, 0.3))
+
+        return {
+            "temp": raw_temp,
+            "hum": raw_hum,
+            "pres": raw_pres,
+            "cloud": cloud,
+            "rad": raw_rad,
+            "precip": raw_precip,
+            "wind": raw_wind,
+        }
+
+    # ── Infrastructure simulation ────────────────────────────────
+
     def sim_reservoir(self, prev_pct, total_flow_lpm, precip_mm):
-        drain = total_flow_lpm * (1 / 60) * 0.15
+        """Reservoir drains with irrigation flow, refills with rain. Time-scaled."""
+        drain = total_flow_lpm * self.time_scale * 0.15
         refill = precip_mm * 0.08
-        manual = random.uniform(0, 0.5) if random.random() < 0.003 else 0
-        return round(self.clamp(self.noise(prev_pct - drain + refill + manual, 0.005), 5, 100), 2)
+        # Occasional manual refill (scaled to interval)
+        manual = random.uniform(0, 0.5) if random.random() < 0.003 * self.time_scale else 0
+        return round(self.clamp(self.noise(prev_pct - drain + refill + manual, 0.003), 5, 100), 2)
 
     def sim_main_pressure(self, reservoir_pct, any_valve_open, filter_status):
         base = 0.18 if any_valve_open else 0.05
         base *= (reservoir_pct / 100) ** 0.4
         clog_loss = filter_status * 0.03
-        return round(self.clamp(base - clog_loss + random.gauss(0, 0.003), 0.0, 0.5), 4)
+        return round(self.clamp(base - clog_loss + random.gauss(0, 0.002), 0.0, 0.5), 4)
 
     def sim_filter_status(self, prev, hour):
-        if hour == 0 and random.random() < 0.6:
+        """Filter degrades slowly, cleaned roughly at midnight. Time-scaled."""
+        if 0 <= hour < 1 and random.random() < 0.6 * self.time_scale:
             return 0
-        if prev < 2 and random.random() < 0.0015:
+        if prev < 2 and random.random() < 0.0015 * self.time_scale:
             return prev + 1
         return prev
 
@@ -105,25 +240,32 @@ class IoTSimulator:
     def sim_zone_flow(self, valve_open, main_pressure, fault):
         if not valve_open:
             return 0.0
-        base = 1.6 * math.sqrt(max(0, main_pressure / 0.18)) + random.gauss(0, 0.06)
+        base = 1.6 * math.sqrt(max(0, main_pressure / 0.18)) + random.gauss(0, 0.04)
         if fault:
             base = random.choice([0.0, base * random.uniform(2.0, 3.5)])
         return round(self.clamp(base, 0, 6), 3)
 
     def sim_zone_pressure(self, valve_open, main_pressure, zone_flow, fault):
         if not valve_open:
-            return round(self.clamp(self.noise(main_pressure * 0.95, 0.01), 0, 0.5), 4)
+            return round(self.clamp(self.noise(main_pressure * 0.95, 0.008), 0, 0.5), 4)
         drop = 0.015 * zone_flow
-        val = main_pressure - drop + random.gauss(0, 0.003)
+        val = main_pressure - drop + random.gauss(0, 0.002)
         if fault:
             val *= random.choice([0.1, 2.5])
         return round(self.clamp(val, 0.0, 0.5), 4)
 
     def sim_soil_moisture(self, prev, valve_open, temp, rad, precip):
-        et = 0.10 + 0.007 * max(0, temp - 20) + 0.0003 * rad
-        rain = min(precip * 1.4, 8.0)
-        irr = 3.0 if valve_open else 0.0
-        return round(self.clamp(prev - et + rain + irr + random.gauss(0, 0.2), 5, 99), 2)
+        """
+        Soil moisture dynamics, time-scaled.
+        ET (evapotranspiration) and irrigation gains are per-hour rates.
+        """
+        ts = self.time_scale
+        et = (0.10 + 0.007 * max(0, temp - 20) + 0.0003 * rad) * ts
+        rain = min(precip * 1.4, 8.0)  # precip is already time-scaled from weather
+        irr = (3.0 * ts) if valve_open else 0.0
+        return round(self.clamp(prev - et + rain + irr + random.gauss(0, 0.1 * ts), 5, 99), 2)
+
+    # ── Plant stress / health ────────────────────────────────────
 
     def compute_stress(self, temp, hum, lux, soil):
         p = self.profile
@@ -158,34 +300,114 @@ class IoTSimulator:
     def compute_health(self, temp, hum, lux, soil, month):
         s = self.compute_stress(temp, hum, lux, soil)
         g = self.profile["growth_phases"].get(month, 0.5)
-        return round(self.clamp(self.noise((1 - s) * 8 + g * 2, 0.015), 0, 10), 2)
+        return round(self.clamp(self.noise((1 - s) * 8 + g * 2, 0.01), 0, 10), 2)
+
+    # ── Injection controls (for demo/prototyping) ──────────────────
+
+    def inject_anomaly(self, zone_id: int, anomaly_type: str, duration_steps: int = 3):
+        """
+        Force anomalies into a specific zone for the next N readings.
+        Types: sensor_fault, pipe_burst, pressure_drop, flow_spike
+        """
+        self._injected_anomalies[zone_id] = {
+            "type": anomaly_type,
+            "remaining": duration_steps,
+        }
+        logger.info("Anomaly injected", zone=zone_id, type=anomaly_type, duration=duration_steps)
+
+    def inject_irrigation(self, zone_id: int, action: str):
+        """Force irrigation on/off for a zone. action: 'start' or 'stop'"""
+        if 1 <= zone_id <= self.n_zones:
+            self.zone_irrig[zone_id] = (action == "start")
+            logger.info("Irrigation forced", zone=zone_id, action=action)
+
+    def inject_reservoir(self, level: float):
+        """Override reservoir level (0-100)."""
+        self.reservoir = self.clamp(level, 5, 100)
+        logger.info("Reservoir level set", level=self.reservoir)
+
+    def inject_filter(self, status: int):
+        """Override filter status (0=clean, 1=partial, 2=clogged)."""
+        self.filter_st = self.clamp(status, 0, 2)
+        logger.info("Filter status set", status=self.filter_st)
+
+    def inject_soil_moisture(self, zone_id: int, moisture: float):
+        """Override soil moisture for a zone."""
+        if 1 <= zone_id <= self.n_zones:
+            self.zone_soil[zone_id] = self.clamp(moisture, 5, 99)
+            logger.info("Soil moisture set", zone=zone_id, moisture=self.zone_soil[zone_id])
+
+    def _apply_injected_anomaly(self, zone_id: int, reading: dict) -> dict:
+        """Apply any injected anomaly to a reading, decrement counter."""
+        if zone_id not in self._injected_anomalies:
+            return reading
+
+        inj = self._injected_anomalies[zone_id]
+        atype = inj["type"]
+        reading["is_anomaly"] = 1
+
+        if atype == "sensor_fault":
+            reading["air_temperature_c"] = round(random.uniform(55, 70), 2)
+            reading["air_humidity_pct"] = round(random.uniform(0, 5), 2)
+        elif atype == "pipe_burst":
+            reading["zone_flow_lpm"] = round(random.uniform(4.5, 6.0), 3)
+            reading["zone_pressure_mpa"] = round(random.uniform(0.0, 0.02), 4)
+        elif atype == "pressure_drop":
+            reading["main_pressure_mpa"] = round(random.uniform(0.0, 0.01), 4)
+            reading["zone_pressure_mpa"] = round(random.uniform(0.0, 0.005), 4)
+        elif atype == "flow_spike":
+            reading["zone_flow_lpm"] = round(random.uniform(5.0, 6.0), 3)
+
+        # Recompute stress/health with corrupted values
+        reading["stress_score"] = self.compute_stress(
+            reading["air_temperature_c"], reading["air_humidity_pct"],
+            reading["light_intensity_lux"], reading["soil_moisture_pct"]
+        )
+        reading["stress_class"] = self.stress_class(reading["stress_score"])
+        reading["health_score"] = self.compute_health(
+            reading["air_temperature_c"], reading["air_humidity_pct"],
+            reading["light_intensity_lux"], reading["soil_moisture_pct"],
+            reading["month"]
+        )
+
+        inj["remaining"] -= 1
+        if inj["remaining"] <= 0:
+            del self._injected_anomalies[zone_id]
+
+        return reading
+
+    # ── Main reading generation ──────────────────────────────────
 
     def generate_reading(self):
-        elapsed = self.step * self.interval
-        dt = self.start_time + timedelta(seconds=elapsed)
-        dt_str = dt.strftime("%Y-%m-%dT%H:%M")
+        """
+        Generate one batch of readings (one per zone) using real current time
+        and Agadir-specific weather patterns.
+        """
+        dt = datetime.now()
+        dt_str = dt.strftime("%Y-%m-%dT%H:%M:%S")
         month = dt.month
         hour = dt.hour
 
-        seasonal = 8 * math.cos(math.pi * (month - 7) / 6)
-        diurnal = 7 * math.sin(math.pi * (hour - 6) / 12)
-        base_temp = 21.0
-        raw_temp = base_temp + seasonal + diurnal + random.gauss(0, 0.8)
-        raw_hum = 55 - 0.5 * (raw_temp - base_temp) + random.gauss(0, 4)
-        raw_pres = random.gauss(1013, 2.5)
-        cloud = max(0, min(100, random.gauss(25, 20)))
-        angle = math.pi * (hour - 6) / 14 if 6 <= hour <= 20 else 0
-        raw_rad = max(0, 900 * math.sin(angle) * (1 - cloud / 150))
-        raw_precip = random.choices([0.0, random.uniform(0.1, 4.0)], weights=[0.94, 0.06])[0]
-        raw_wind = abs(random.gauss(3, 2))
+        # Generate realistic Agadir weather for this moment
+        weather = self.generate_weather(dt)
+        raw_temp = weather["temp"]
+        raw_hum = weather["hum"]
+        raw_pres = weather["pres"]
+        raw_rad = weather["rad"]
+        raw_precip = weather["precip"]
+        raw_wind = weather["wind"]
+        cloud = weather["cloud"]
 
-        temp = round(self.clamp(self.noise(raw_temp, 0.01), -10, 60), 2)
-        hum = round(self.clamp(self.noise(raw_hum, 0.01), 10, 99), 2)
-        pres = round(self.clamp(self.noise(raw_pres, 0.002), 960, 1060), 2)
+        # Apply sensor noise (simulating real sensor readings)
+        temp = round(self.clamp(self.noise(raw_temp, 0.005), -5, 55), 2)
+        hum = round(self.clamp(self.noise(raw_hum, 0.008), 10, 99), 2)
+        pres = round(self.clamp(self.noise(raw_pres, 0.001), 960, 1060), 2)
         lux = round(self.rad_to_lux(raw_rad * max(0, 1 - cloud / 100)), 1)
 
+        # Filter status update
         self.filter_st = self.sim_filter_status(self.filter_st, hour)
 
+        # Update valve decisions for each zone
         for z in range(1, self.n_zones + 1):
             if self.zone_needs_water(self.zone_soil[z], self.reservoir, 0.10, self.filter_st):
                 self.zone_irrig[z] = True
@@ -244,11 +466,15 @@ class IoTSimulator:
                 "health_score": h_score,
                 "irrigation_needed": irr_need,
             }
+            # Apply any injected anomalies for demo purposes
+            reading = self._apply_injected_anomaly(z, reading)
             readings.append(reading)
 
         self.reservoir = self.sim_reservoir(self.reservoir, total_flow, raw_precip)
         self.step += 1
         return readings
+
+    # ── Async runner ─────────────────────────────────────────────
 
     async def run(self):
         self.running = True
@@ -256,7 +482,7 @@ class IoTSimulator:
             "IoT Simulator started",
             farm=self.farm_id[:8],
             zones=self.n_zones,
-            interval=self.interval
+            interval_min=self.interval / 60,
         )
 
         while self.running:
@@ -268,12 +494,12 @@ class IoTSimulator:
                     logger.debug(
                         "IoT batch stored",
                         zones=len(readings),
-                        timestamp=readings[0]["timestamp"]
+                        timestamp=readings[0]["timestamp"],
                     )
                 await asyncio.sleep(self.interval)
             except Exception as e:
                 logger.error("IoT Simulator error", error=str(e))
-                await asyncio.sleep(5)
+                await asyncio.sleep(30)
 
         logger.info("IoT Simulator stopped")
 
@@ -289,6 +515,8 @@ class IoTSimulator:
             except asyncio.CancelledError:
                 pass
 
+
+# ── Module-level singleton ───────────────────────────────────────
 
 _simulator: Optional[IoTSimulator] = None
 
@@ -308,7 +536,7 @@ async def get_default_farm_id() -> str:
 
 async def start_iot_simulator(
     n_zones: int = 4,
-    interval_seconds: float = 5.0,
+    interval_seconds: float = 300.0,
     farm_id: Optional[str] = None,
 ):
     """Start the IoT simulator in the background"""
@@ -331,8 +559,8 @@ async def start_iot_simulator(
     logger.info(
         "IoT Simulator started",
         zones=n_zones,
-        interval=interval_seconds,
-        farm=farm_id[:8]
+        interval_min=interval_seconds / 60,
+        farm=farm_id[:8],
     )
 
 
@@ -355,3 +583,8 @@ def get_latest_readings() -> list:
     if _simulator is None or not _simulator.running:
         return []
     return _simulator._last_readings
+
+
+def get_simulator() -> Optional[IoTSimulator]:
+    """Get the running simulator instance for injection controls."""
+    return _simulator

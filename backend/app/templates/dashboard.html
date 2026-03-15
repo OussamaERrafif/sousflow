@@ -323,6 +323,11 @@
                 </button>
             </li>
             <li class="nav-item">
+                <button class="nav-link" onclick="switchTab('simulation', this)">
+                    <i class="bi bi-sliders me-1"></i> Simulation
+                </button>
+            </li>
+            <li class="nav-item">
                 <button class="nav-link" onclick="switchTab('users', this)">
                     <i class="bi bi-people me-1"></i> Farm Owners
                 </button>
@@ -425,6 +430,249 @@
                         <div class="card-body">
                             <h6 class="text-secondary mb-3" style="font-size: 0.85rem;"><i class="bi bi-tree me-1"></i> Farms</h6>
                             <div id="ownerFarmsList"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============ SIMULATION TAB ============ -->
+        <div id="tab-simulation" class="d-none">
+            <!-- Simulator Status & Control -->
+            <div class="row mb-3">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <span><i class="bi bi-cpu me-2"></i>Simulator Control</span>
+                            <span class="badge bg-secondary" id="sim-tab-status">Checking...</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="row g-3 align-items-end">
+                                <div class="col-md-2">
+                                    <label class="form-label">Zones</label>
+                                    <input type="number" class="form-control" id="simZones" value="4" min="1" max="20">
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label">Interval (sec)</label>
+                                    <input type="number" class="form-control" id="simInterval" value="300" min="1" max="600">
+                                </div>
+                                <div class="col-md-4">
+                                    <button class="btn btn-success me-2" onclick="simAction('start')" id="simStartBtn" style="border-radius: 10px;">
+                                        <i class="bi bi-play-fill me-1"></i>Start Simulator
+                                    </button>
+                                    <button class="btn btn-outline-danger" onclick="simAction('stop')" id="simStopBtn" style="border-radius: 10px;">
+                                        <i class="bi bi-stop-fill me-1"></i>Stop
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Injection Controls -->
+            <div class="row mb-3">
+                <!-- Anomaly Injection -->
+                <div class="col-lg-6 mb-3 mb-lg-0">
+                    <div class="card h-100">
+                        <div class="card-header">
+                            <i class="bi bi-bug me-2"></i>Inject Anomaly
+                        </div>
+                        <div class="card-body">
+                            <p class="text-secondary mb-3" style="font-size: 0.85rem;">
+                                Force a fault into a specific zone. The anomaly will appear in the next readings and trigger alerts on the frontend dashboard.
+                            </p>
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <label class="form-label">Zone</label>
+                                    <select class="form-select" id="anomalyZone">
+                                        <option value="1">Zone 1</option>
+                                        <option value="2">Zone 2</option>
+                                        <option value="3">Zone 3</option>
+                                        <option value="4">Zone 4</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Anomaly Type</label>
+                                    <select class="form-select" id="anomalyType">
+                                        <option value="sensor_fault">Sensor Fault</option>
+                                        <option value="pipe_burst">Pipe Burst</option>
+                                        <option value="pressure_drop">Pressure Drop</option>
+                                        <option value="flow_spike">Flow Spike</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Duration (readings)</label>
+                                    <input type="number" class="form-control" id="anomalyDuration" value="3" min="1" max="20">
+                                </div>
+                                <div class="col-12">
+                                    <button class="btn btn-danger w-100" onclick="injectAnomaly()" style="border-radius: 10px;">
+                                        <i class="bi bi-exclamation-triangle me-2"></i>Inject Anomaly
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Quick Anomaly Buttons -->
+                            <hr class="border-secondary opacity-25 my-3">
+                            <p class="text-secondary mb-2" style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px;">Quick Inject (All Zones)</p>
+                            <div class="d-flex flex-wrap gap-2">
+                                <button class="btn btn-sm btn-outline-danger" onclick="quickAnomaly('sensor_fault')" style="border-radius: 8px;">
+                                    <i class="bi bi-thermometer-high me-1"></i>Sensor Fault
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger" onclick="quickAnomaly('pipe_burst')" style="border-radius: 8px;">
+                                    <i class="bi bi-droplet-fill me-1"></i>Pipe Burst
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger" onclick="quickAnomaly('pressure_drop')" style="border-radius: 8px;">
+                                    <i class="bi bi-arrow-down-circle me-1"></i>Pressure Drop
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger" onclick="quickAnomaly('flow_spike')" style="border-radius: 8px;">
+                                    <i class="bi bi-graph-up-arrow me-1"></i>Flow Spike
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Irrigation Control -->
+                <div class="col-lg-6">
+                    <div class="card h-100">
+                        <div class="card-header">
+                            <i class="bi bi-moisture me-2"></i>Irrigation Control
+                        </div>
+                        <div class="card-body">
+                            <p class="text-secondary mb-3" style="font-size: 0.85rem;">
+                                Force irrigation on or off for a zone. Useful for demonstrating real-time valve state changes.
+                            </p>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">Zone</label>
+                                    <select class="form-select" id="irrigZone">
+                                        <option value="1">Zone 1</option>
+                                        <option value="2">Zone 2</option>
+                                        <option value="3">Zone 3</option>
+                                        <option value="4">Zone 4</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6 d-flex align-items-end gap-2">
+                                    <button class="btn btn-success flex-fill" onclick="injectIrrigation('start')" style="border-radius: 10px;">
+                                        <i class="bi bi-play-fill me-1"></i>Start
+                                    </button>
+                                    <button class="btn btn-outline-secondary flex-fill" onclick="injectIrrigation('stop')" style="border-radius: 10px;">
+                                        <i class="bi bi-stop-fill me-1"></i>Stop
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Quick Irrigation Buttons -->
+                            <hr class="border-secondary opacity-25 my-3">
+                            <div class="d-flex flex-wrap gap-2">
+                                <button class="btn btn-sm btn-outline-success" onclick="allIrrigation('start')" style="border-radius: 8px;">
+                                    <i class="bi bi-moisture me-1"></i>All Zones ON
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary" onclick="allIrrigation('stop')" style="border-radius: 8px;">
+                                    <i class="bi bi-x-circle me-1"></i>All Zones OFF
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Infrastructure Overrides -->
+            <div class="row mb-3">
+                <div class="col-lg-4 mb-3 mb-lg-0">
+                    <div class="card h-100">
+                        <div class="card-header">
+                            <i class="bi bi-water me-2"></i>Reservoir Level
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <input type="range" class="form-range" id="reservoirSlider" min="5" max="100" value="75" oninput="document.getElementById('reservoirVal').textContent = this.value + '%'">
+                                <div class="text-center fw-bold fs-4" id="reservoirVal">75%</div>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-sm btn-outline-danger flex-fill" onclick="setReservoir(10)" style="border-radius: 8px;">Critical (10%)</button>
+                                <button class="btn btn-sm btn-outline-warning flex-fill" onclick="setReservoir(35)" style="border-radius: 8px;">Low (35%)</button>
+                                <button class="btn btn-sm btn-outline-success flex-fill" onclick="setReservoir(85)" style="border-radius: 8px;">Full (85%)</button>
+                            </div>
+                            <button class="btn btn-primary w-100 mt-3" onclick="applyReservoir()" style="border-radius: 10px;">
+                                <i class="bi bi-check-lg me-1"></i>Apply
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-4 mb-3 mb-lg-0">
+                    <div class="card h-100">
+                        <div class="card-header">
+                            <i class="bi bi-funnel me-2"></i>Filter Status
+                        </div>
+                        <div class="card-body d-flex flex-column justify-content-center">
+                            <div class="d-grid gap-2">
+                                <button class="btn btn-outline-success" onclick="setFilter(0)" style="border-radius: 10px;">
+                                    <i class="bi bi-check2-circle me-2"></i>Clean (0)
+                                </button>
+                                <button class="btn btn-outline-warning" onclick="setFilter(1)" style="border-radius: 10px;">
+                                    <i class="bi bi-exclamation-circle me-2"></i>Partial Clog (1)
+                                </button>
+                                <button class="btn btn-outline-danger" onclick="setFilter(2)" style="border-radius: 10px;">
+                                    <i class="bi bi-x-circle me-2"></i>Fully Clogged (2)
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-4">
+                    <div class="card h-100">
+                        <div class="card-header">
+                            <i class="bi bi-droplet me-2"></i>Soil Moisture Override
+                        </div>
+                        <div class="card-body">
+                            <div class="row g-3">
+                                <div class="col-6">
+                                    <label class="form-label">Zone</label>
+                                    <select class="form-select" id="soilZone">
+                                        <option value="1">Zone 1</option>
+                                        <option value="2">Zone 2</option>
+                                        <option value="3">Zone 3</option>
+                                        <option value="4">Zone 4</option>
+                                    </select>
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label">Moisture %</label>
+                                    <input type="number" class="form-control" id="soilValue" value="30" min="5" max="99">
+                                </div>
+                            </div>
+                            <div class="d-flex gap-2 mt-3">
+                                <button class="btn btn-sm btn-outline-danger flex-fill" onclick="setSoilPreset(15)" style="border-radius: 8px;">Dry (15%)</button>
+                                <button class="btn btn-sm btn-outline-success flex-fill" onclick="setSoilPreset(45)" style="border-radius: 8px;">Optimal (45%)</button>
+                                <button class="btn btn-sm btn-outline-info flex-fill" onclick="setSoilPreset(80)" style="border-radius: 8px;">Wet (80%)</button>
+                            </div>
+                            <button class="btn btn-primary w-100 mt-3" onclick="applySoil()" style="border-radius: 10px;">
+                                <i class="bi bi-check-lg me-1"></i>Apply
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Injection Log -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <span><i class="bi bi-journal-text me-2"></i>Injection Log</span>
+                            <button class="btn btn-sm btn-outline-custom" onclick="document.getElementById('injectionLog').innerHTML = ''">
+                                <i class="bi bi-trash3"></i> Clear
+                            </button>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="log-container-wrapper">
+                                <div class="scrollable-log" id="injectionLog" style="min-height: 100px; max-height: 200px;">
+                                    <div class="text-center text-secondary py-4">No injections yet. Use the controls above to inject events.</div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -891,10 +1139,12 @@
         function switchTab(tabId, btn) {
             document.getElementById('tab-monitoring').classList.add('d-none');
             document.getElementById('tab-users').classList.add('d-none');
+            document.getElementById('tab-simulation').classList.add('d-none');
             document.getElementById('tab-' + tabId).classList.remove('d-none');
             document.querySelectorAll('#mainTabs .nav-link').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             if (tabId === 'users') loadOwners();
+            if (tabId === 'simulation') checkSimStatus();
         }
 
         async function apiFetch(url, options = {}) {
@@ -1039,6 +1289,139 @@
                 btn.innerHTML = '<i class="bi bi-plus-circle me-2"></i>Create Owner & Farm';
             }
         });
+        // ═══════ Simulation Controls ═══════
+
+        function simLog(message, type = 'info') {
+            const log = document.getElementById('injectionLog');
+            const time = new Date().toLocaleTimeString();
+            const colors = { info: 'var(--accent-blue)', success: 'var(--accent-green)', error: 'var(--accent-red)', warn: 'var(--accent-yellow)' };
+            const icons = { info: 'info-circle', success: 'check-circle', error: 'x-circle', warn: 'exclamation-triangle' };
+            // Clear placeholder text on first log
+            if (log.querySelector('.text-center')) log.innerHTML = '';
+            log.innerHTML += `<div class="log-entry" style="padding: 6px 12px;"><span class="log-timestamp">[${time}]</span> <span style="color:${colors[type]}"><i class="bi bi-${icons[type]} me-1"></i>${message}</span></div>`;
+            log.scrollTop = log.scrollHeight;
+        }
+
+        async function simApiFetch(url, method = 'POST') {
+            try {
+                const res = await apiFetch(url, { method });
+                if (!res) return null;
+                if (!res.ok) {
+                    const err = await res.json();
+                    throw new Error(err.detail || 'Request failed');
+                }
+                return await res.json();
+            } catch (err) {
+                simLog(err.message, 'error');
+                showToast(err.message, 'error');
+                return null;
+            }
+        }
+
+        async function checkSimStatus() {
+            const data = await simApiFetch('/api/iot/simulator/status', 'GET');
+            if (!data) return;
+            const badge = document.getElementById('sim-tab-status');
+            if (data.running) {
+                badge.className = 'badge bg-success';
+                badge.textContent = 'Running';
+            } else {
+                badge.className = 'badge bg-secondary';
+                badge.textContent = 'Stopped';
+            }
+        }
+
+        async function simAction(action) {
+            if (action === 'start') {
+                const zones = document.getElementById('simZones').value;
+                const interval = document.getElementById('simInterval').value;
+                const data = await simApiFetch(`/api/iot/simulator/start?zones=${zones}&interval=${interval}`);
+                if (data) {
+                    simLog(`Simulator started: ${zones} zones, ${interval}s interval`, 'success');
+                    showToast('Simulator started', 'success');
+                    // Update zone selectors dynamically
+                    updateZoneSelectors(parseInt(zones));
+                }
+            } else {
+                const data = await simApiFetch('/api/iot/simulator/stop');
+                if (data) {
+                    simLog('Simulator stopped', 'warn');
+                    showToast('Simulator stopped', 'success');
+                }
+            }
+            checkSimStatus();
+        }
+
+        function updateZoneSelectors(n) {
+            const selects = ['anomalyZone', 'irrigZone', 'soilZone'];
+            selects.forEach(id => {
+                const sel = document.getElementById(id);
+                sel.innerHTML = '';
+                for (let i = 1; i <= n; i++) {
+                    sel.innerHTML += `<option value="${i}">Zone ${i}</option>`;
+                }
+            });
+        }
+
+        async function injectAnomaly() {
+            const zone = document.getElementById('anomalyZone').value;
+            const type = document.getElementById('anomalyType').value;
+            const dur = document.getElementById('anomalyDuration').value;
+            const data = await simApiFetch(`/api/iot/simulator/inject/anomaly?zone_id=${zone}&anomaly_type=${type}&duration=${dur}`);
+            if (data) simLog(`Anomaly injected: Zone ${zone} — ${type} (${dur} readings)`, 'warn');
+        }
+
+        async function quickAnomaly(type) {
+            const selects = document.getElementById('anomalyZone');
+            const nZones = selects.options.length;
+            for (let z = 1; z <= nZones; z++) {
+                await simApiFetch(`/api/iot/simulator/inject/anomaly?zone_id=${z}&anomaly_type=${type}&duration=3`);
+            }
+            simLog(`Quick anomaly: ${type} injected into all ${nZones} zones`, 'warn');
+        }
+
+        async function injectIrrigation(action) {
+            const zone = document.getElementById('irrigZone').value;
+            const data = await simApiFetch(`/api/iot/simulator/inject/irrigation?zone_id=${zone}&action=${action}`);
+            if (data) simLog(`Irrigation ${action}: Zone ${zone}`, action === 'start' ? 'success' : 'info');
+        }
+
+        async function allIrrigation(action) {
+            const selects = document.getElementById('irrigZone');
+            const nZones = selects.options.length;
+            for (let z = 1; z <= nZones; z++) {
+                await simApiFetch(`/api/iot/simulator/inject/irrigation?zone_id=${z}&action=${action}`);
+            }
+            simLog(`All zones irrigation: ${action}`, action === 'start' ? 'success' : 'info');
+        }
+
+        function setReservoir(level) {
+            document.getElementById('reservoirSlider').value = level;
+            document.getElementById('reservoirVal').textContent = level + '%';
+        }
+
+        async function applyReservoir() {
+            const level = document.getElementById('reservoirSlider').value;
+            const data = await simApiFetch(`/api/iot/simulator/inject/reservoir?level=${level}`);
+            if (data) simLog(`Reservoir set to ${data.reservoir_level_pct}%`, 'success');
+        }
+
+        async function setFilter(status) {
+            const labels = ['Clean', 'Partial Clog', 'Fully Clogged'];
+            const data = await simApiFetch(`/api/iot/simulator/inject/filter?status=${status}`);
+            if (data) simLog(`Filter set to: ${labels[status]}`, status === 0 ? 'success' : status === 1 ? 'warn' : 'error');
+        }
+
+        function setSoilPreset(val) {
+            document.getElementById('soilValue').value = val;
+        }
+
+        async function applySoil() {
+            const zone = document.getElementById('soilZone').value;
+            const moisture = document.getElementById('soilValue').value;
+            const data = await simApiFetch(`/api/iot/simulator/inject/soil?zone_id=${zone}&moisture=${moisture}`);
+            if (data) simLog(`Soil moisture set: Zone ${zone} = ${data.soil_moisture_pct}%`, 'success');
+        }
     </script>
 </body>
 </html>

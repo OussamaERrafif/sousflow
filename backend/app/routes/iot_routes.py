@@ -15,6 +15,7 @@ from app.services.iot_simulator import (
     start_iot_simulator,
     stop_iot_simulator,
     is_simulator_running,
+    get_simulator,
 )
 
 router = APIRouter(prefix="/api/iot", tags=["IoT — Olive Irrigation"])
@@ -154,7 +155,7 @@ async def get_simulator_status(user=Depends(get_current_user)):
 @router.post("/simulator/start", summary="Start IoT simulator")
 async def start_simulator(
     zones: int = Query(4, ge=1, le=20, description="Number of zones"),
-    interval: float = Query(5.0, ge=0.5, le=60, description="Seconds between readings"),
+    interval: float = Query(300.0, ge=1, le=600, description="Seconds between readings"),
     user=Depends(get_current_user),
 ):
     """Start the IoT data simulator"""
@@ -174,3 +175,80 @@ async def stop_simulator(user=Depends(get_current_user)):
     """Stop the IoT data simulator"""
     await stop_iot_simulator()
     return {"status": "stopped"}
+
+
+# ─── Simulator Injection (Demo/Prototype Controls) ──────────────
+
+@router.post("/simulator/inject/anomaly", summary="Inject anomaly into a zone")
+async def inject_anomaly(
+    zone_id: int = Query(1, ge=1, le=20, description="Target zone"),
+    anomaly_type: str = Query("sensor_fault", description="Type: sensor_fault, pipe_burst, pressure_drop, flow_spike"),
+    duration: int = Query(3, ge=1, le=20, description="How many readings the anomaly lasts"),
+    user=Depends(get_current_user),
+):
+    sim = get_simulator()
+    if not sim or not sim.running:
+        raise HTTPException(400, "Simulator is not running")
+    if zone_id > sim.n_zones:
+        raise HTTPException(400, f"Zone {zone_id} does not exist (max: {sim.n_zones})")
+    valid_types = ["sensor_fault", "pipe_burst", "pressure_drop", "flow_spike"]
+    if anomaly_type not in valid_types:
+        raise HTTPException(400, f"Invalid type. Valid: {valid_types}")
+    sim.inject_anomaly(zone_id, anomaly_type, duration)
+    return {"status": "injected", "zone_id": zone_id, "type": anomaly_type, "duration": duration}
+
+
+@router.post("/simulator/inject/irrigation", summary="Force irrigation on/off")
+async def inject_irrigation(
+    zone_id: int = Query(1, ge=1, le=20, description="Target zone"),
+    action: str = Query("start", description="start or stop"),
+    user=Depends(get_current_user),
+):
+    sim = get_simulator()
+    if not sim or not sim.running:
+        raise HTTPException(400, "Simulator is not running")
+    if zone_id > sim.n_zones:
+        raise HTTPException(400, f"Zone {zone_id} does not exist (max: {sim.n_zones})")
+    if action not in ("start", "stop"):
+        raise HTTPException(400, "Action must be 'start' or 'stop'")
+    sim.inject_irrigation(zone_id, action)
+    return {"status": "ok", "zone_id": zone_id, "irrigation": action}
+
+
+@router.post("/simulator/inject/reservoir", summary="Set reservoir level")
+async def inject_reservoir(
+    level: float = Query(50.0, ge=0, le=100, description="Reservoir level %"),
+    user=Depends(get_current_user),
+):
+    sim = get_simulator()
+    if not sim or not sim.running:
+        raise HTTPException(400, "Simulator is not running")
+    sim.inject_reservoir(level)
+    return {"status": "ok", "reservoir_level_pct": sim.reservoir}
+
+
+@router.post("/simulator/inject/filter", summary="Set filter status")
+async def inject_filter(
+    status: int = Query(0, ge=0, le=2, description="0=clean, 1=partial, 2=clogged"),
+    user=Depends(get_current_user),
+):
+    sim = get_simulator()
+    if not sim or not sim.running:
+        raise HTTPException(400, "Simulator is not running")
+    sim.inject_filter(status)
+    return {"status": "ok", "filter_status": sim.filter_st}
+
+
+@router.post("/simulator/inject/soil", summary="Set soil moisture for a zone")
+async def inject_soil(
+    zone_id: int = Query(1, ge=1, le=20, description="Target zone"),
+    moisture: float = Query(30.0, ge=5, le=99, description="Soil moisture %"),
+    user=Depends(get_current_user),
+):
+    sim = get_simulator()
+    if not sim or not sim.running:
+        raise HTTPException(400, "Simulator is not running")
+    if zone_id > sim.n_zones:
+        raise HTTPException(400, f"Zone {zone_id} does not exist (max: {sim.n_zones})")
+    sim.inject_soil_moisture(zone_id, moisture)
+    return {"status": "ok", "zone_id": zone_id, "soil_moisture_pct": sim.zone_soil[zone_id]}
