@@ -49,6 +49,7 @@
         "optimal": "Optimal",
         "pressure": "Pression",
         "flow": "Débit",
+        "reservoir": "Niveau du réservoir",
         "start": "Démarrer",
         "stop": "Arrêter",
         "details": "Détails",
@@ -128,6 +129,10 @@
         "tipsTitle": "Conseils utiles",
         "tip1": "Demandez l'état d'humidité par secteur",
         "tip2": "Obtenez des recommandations d'irrigation",
-        "tip3": "Renseignez-vous sur les problèmes de pression"
+        "tip3": "Renseignez-vous sur les problèmes de pression",
+        "history": "Historique",
+        "newChat": "Nouveau chat",
+        "noConversations": "Aucune conversation précédente",
+        "confirmDelete": "Voulez-vous supprimer cette conversation?"
     }
 }

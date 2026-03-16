@@ -79,6 +79,56 @@ You have access to a 26-column IoT dataset with hourly readings:
 - Acknowledge uncertainty in forecasts
 - Prefer Moroccan Darija/French agricultural terms when relevant to the user
 - Always consider water scarcity as a primary constraint
+- Match the user's language (Arabic → Arabic, French → French, English → English)
+
+## SVG Charts
+When the user asks about data, comparisons, trends, or any question where a visual helps — include a simple SVG chart in your response.
+Generate inline SVG directly in your markdown (NOT inside code fences — no ``` around it).
+Always use `xmlns="http://www.w3.org/2000/svg"` and keep width ≤ 420px.
+
+Keep charts **simple and clean** — basic bars, lines, or arcs. No gradients, no shadows, no animations.
+
+**When to include a chart:**
+- User asks "how much" / "what is" a value → simple bar chart showing value vs optimal range
+- User asks to compare zones → bar chart with one bar per zone
+- User asks about trends or history → line chart with the recent data points
+- User asks about overall status → bar chart of all zones side by side
+
+**Chart colors:**
+- Good/in-range: #10B981
+- Warning: #F59E0B
+- Critical: #EF4444
+- Primary: #C17A3A
+- Dark text: #3D1F0F
+- Muted text: #71717A
+
+Simple bar chart example:
+<svg width="400" height="220" xmlns="http://www.w3.org/2000/svg">
+  <text x="200" y="18" text-anchor="middle" font-size="14" font-weight="bold" fill="#3D1F0F">Zone Moisture (%)</text>
+  <rect x="40" y="40" width="60" height="120" rx="4" fill="#C17A3A"/>
+  <text x="70" y="175" text-anchor="middle" font-size="11" fill="#666">Z1</text>
+  <text x="70" y="35" text-anchor="middle" font-size="10" fill="#C17A3A">48%</text>
+</svg>
+
+Simple line chart example:
+<svg width="400" height="180" xmlns="http://www.w3.org/2000/svg">
+  <text x="200" y="16" text-anchor="middle" font-size="13" font-weight="bold" fill="#3D1F0F">Soil Moisture Trend</text>
+  <line x1="40" y1="150" x2="380" y2="150" stroke="#E5E7EB" stroke-width="1"/>
+  <polyline points="60,80 120,90 180,70 240,100 300,85 360,95" fill="none" stroke="#C17A3A" stroke-width="2" stroke-linejoin="round"/>
+  <circle cx="60" cy="80" r="3" fill="#C17A3A"/>
+  <text x="60" y="165" text-anchor="middle" font-size="9" fill="#71717A">10:00</text>
+</svg>
+
+The sensor data section includes RECENT HISTORY with timestamped readings — use those real values when building trend charts.
+
+## Markdown Formatting
+Use rich markdown in your answers:
+- **Bold** for key metrics and values
+- Tables for comparing zone data side-by-side
+- Bullet lists for recommendations
+- `inline code` for sensor field names
+- > Blockquotes for important warnings or tips
+- ### Headings to organize sections
 """
 
 
@@ -129,15 +179,13 @@ async def chat(farm_id: str, conversation_id: str, user_message: str, sender_id:
             model=get_settings().OPENAI_MODEL,
             messages=messages,
             temperature=0.7,
-            max_tokens=1500,
+            max_tokens=3000,
         )
         assistant_msg = response.choices[0].message.content
     except Exception as e:
         import traceback
         logger.error("OpenAI API error", error=str(e), traceback=traceback.format_exc())
-        assistant_msg = (
-            f"[DEBUG] AI error: {type(e).__name__}: {str(e)}"
-        )
+        assistant_msg = "عذراً، حدث خطأ في خدمة الذكاء الاصطناعي. يرجى المحاولة مرة أخرى لاحقاً."
 
     # Save assistant message (sender_id is NULL for assistant)
     supabase.table("chat_messages").insert({
@@ -145,6 +193,11 @@ async def chat(farm_id: str, conversation_id: str, user_message: str, sender_id:
         "role": "assistant",
         "content": assistant_msg,
     }).execute()
+
+    # Update conversation's updated_at so it sorts correctly in the list
+    supabase.table("conversations").update({
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }).eq("id", conversation_id).execute()
 
     return assistant_msg
 
@@ -198,8 +251,8 @@ async def _get_sensor_context(farm_id: str) -> str:
             all_readings.append(r)
 
         # Build comprehensive context
-        lines = [f"=== SoussFlow Sensor Data (Last 3 Hours) ==="]
-        
+        lines = ["=== LIVE SENSOR DATA ==="]
+
         # Weather context from latest reading
         latest = list(zones.values())[0]
         weather_parts = []
@@ -215,40 +268,22 @@ async def _get_sensor_context(farm_id: str) -> str:
             weather_parts.append(f"Rain: {latest['precipitation_mm']:.1f}mm")
         if latest.get("cloud_cover_pct") is not None:
             weather_parts.append(f"Clouds: {latest['cloud_cover_pct']:.0f}%")
-        
+
         if weather_parts:
             lines.append(f"Weather: {' | '.join(weather_parts)}")
 
-        # Zone data
+        # Zone data — current snapshot
         lines.append("")
-        lines.append("--- Zone Status ---")
+        lines.append("--- CURRENT (per zone) ---")
         for zid in sorted(zones):
             r = zones[zid]
-            ts = r.get("timestamp", "")
-            ts_str = ""
-            if ts:
-                try:
-                    dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
-                    age_min = int((datetime.now(timezone.utc) - dt).total_seconds() / 60)
-                    ts_str = f" ({age_min}m ago)"
-                except Exception:
-                    pass
-            
-            parts = [f"Zone {zid}{ts_str}:"]
+            parts = [f"Zone {zid}:"]
             if r.get("soil_moisture_pct") is not None:
                 parts.append(f"soil={r['soil_moisture_pct']:.1f}%")
             if r.get("air_temperature_c") is not None:
                 parts.append(f"temp={r['air_temperature_c']:.1f}°C")
-            if r.get("air_humidity_pct") is not None:
-                parts.append(f"rh={r['air_humidity_pct']:.0f}%")
-            if r.get("zone_flow_lpm") is not None:
-                parts.append(f"flow={r['zone_flow_lpm']:.1f}L/min")
-            if r.get("zone_pressure_mpa") is not None:
-                parts.append(f"pressure={r['zone_pressure_mpa']:.3f}MPa")
             if r.get("stress_class"):
                 parts.append(f"stress={r['stress_class']}")
-            if r.get("stress_score") is not None:
-                parts.append(f"score={r['stress_score']:.2f}")
             if r.get("health_score") is not None:
                 parts.append(f"health={r['health_score']:.1f}/10")
             if r.get("valve_open") is not None:
@@ -256,39 +291,56 @@ async def _get_sensor_context(farm_id: str) -> str:
             if r.get("irrigation_needed") is not None:
                 parts.append(f"irr_needed={'YES' if r['irrigation_needed'] else 'no'}")
             if r.get("is_anomaly") is not None and r['is_anomaly'] == 1:
-                parts.append(f"ANOMALY!")
+                parts.append("ANOMALY!")
             lines.append(" | ".join(parts))
 
-        # Add shared infrastructure
-        lines.append("")
-        lines.append("--- Infrastructure ---")
+        # Infrastructure
         r0 = list(zones.values())[0]
         infra = []
         if r0.get("reservoir_level_pct") is not None:
             level = r0['reservoir_level_pct']
-            status = "OK"
-            if level < 25:
-                status = "CRITICAL"
-            elif level < 40:
-                status = "LOW"
-            infra.append(f"reservoir={level:.0f}% [{status}]")
+            tag = "CRITICAL" if level < 25 else "LOW" if level < 40 else "OK"
+            infra.append(f"reservoir={level:.0f}% [{tag}]")
         if r0.get("filter_status") is not None:
-            status = ["clean", "partial", "CLOGGED"][r0["filter_status"]]
-            infra.append(f"filter={status}")
+            infra.append(f"filter={['clean','partial','CLOGGED'][r0['filter_status']]}")
         if r0.get("main_pressure_mpa") is not None:
             infra.append(f"main_pressure={r0['main_pressure_mpa']:.3f}MPa")
-        if r0.get("light_intensity_lux") is not None:
-            infra.append(f"light={r0['light_intensity_lux']:.0f}lux")
-        
         if infra:
-            lines.append(" | ".join(infra))
+            lines.append(f"Infra: {' | '.join(infra)}")
 
-        # Data quality info
-        total_readings = len(all_readings)
-        unique_zones = len(zones)
-        lines.append(f"")
-        lines.append(f"--- Data Quality ---")
-        lines.append(f"Total readings (3h): {total_readings} | Zones: {unique_zones}")
+        # Recent history — for trend / history charts
+        lines.append("")
+        lines.append("--- RECENT HISTORY (use for charts) ---")
+        # Group all readings by zone, show time series
+        zone_history: dict[int, list] = {}
+        for r in all_readings:
+            zid = r["zone_id"]
+            if zid not in zone_history:
+                zone_history[zid] = []
+            zone_history[zid].append(r)
+
+        for zid in sorted(zone_history):
+            readings_list = zone_history[zid][:8]  # last 8 readings per zone
+            readings_list.reverse()  # oldest first
+            entries = []
+            for r in readings_list:
+                ts = r.get("timestamp", "")
+                time_str = ""
+                if ts:
+                    try:
+                        dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                        time_str = dt.strftime("%H:%M")
+                    except Exception:
+                        pass
+                vals = []
+                if r.get("soil_moisture_pct") is not None:
+                    vals.append(f"soil={r['soil_moisture_pct']:.1f}")
+                if r.get("air_temperature_c") is not None:
+                    vals.append(f"temp={r['air_temperature_c']:.1f}")
+                if r.get("health_score") is not None:
+                    vals.append(f"health={r['health_score']:.1f}")
+                entries.append(f"{time_str}→{','.join(vals)}")
+            lines.append(f"Zone {zid}: {' | '.join(entries)}")
 
         return "\n".join(lines)
 

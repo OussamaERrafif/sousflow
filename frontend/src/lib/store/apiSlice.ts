@@ -2,21 +2,46 @@
 
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 import { setCredentials, logout } from "./slices/authSlice";
+import { API_URLS } from "../apiConfig";
+
+async function baseQueryWithFallback(args: any, api: any, extraOptions: any) {
+  let lastError: Error | null = null;
+
+  for (const baseUrl of API_URLS) {
+    try {
+      const result = await fetchBaseQuery({
+        baseUrl: baseUrl.replace(/\/$/, ""),
+        prepareHeaders: (headers, { endpoint, getState }) => {
+          if (endpoint !== 'signIn') {
+            const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+            if (token) {
+              headers.set("authorization", `Bearer ${token}`);
+            }
+            const state = getState() as any;
+            const farmId = state?.auth?.activeFarmId;
+            if (farmId) {
+              headers.set("X-Farm-ID", farmId);
+            }
+          }
+          return headers;
+        },
+      })(args, api, extraOptions);
+
+      if (result.data || result.error?.status === 401 || result.error?.status === 403) {
+        return result;
+      }
+      lastError = new Error(`Request failed with status ${result.error?.status}`);
+    } catch (err) {
+      lastError = err as Error;
+    }
+  }
+
+  return { error: { status: 500, data: { message: lastError?.message || "All API endpoints failed" } } };
+}
 
 export const apiSlice = createApi({
   reducerPath: "api",
-  baseQuery: fetchBaseQuery({
-    baseUrl: (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/$/, ""),
-    prepareHeaders: (headers, { endpoint }) => {
-      if (endpoint !== 'signIn') {
-        const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-        if (token) {
-          headers.set("authorization", `Bearer ${token}`);
-        }
-      }
-      return headers;
-    },
-  }),
+  baseQuery: baseQueryWithFallback,
   tagTypes: ["IoT", "Alerts", "Auth", "Predictions", "WhatsApp"],
   endpoints: () => ({}),
 });

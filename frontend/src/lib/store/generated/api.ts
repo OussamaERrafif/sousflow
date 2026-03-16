@@ -1,6 +1,14 @@
 import { apiSlice as api } from "../apiSlice";
 const injectedRtkApi = api.injectEndpoints({
   endpoints: (build) => ({
+    debugUserApiAuthDebugUserUsernameGet: build.query<
+      DebugUserApiAuthDebugUserUsernameGetApiResponse,
+      DebugUserApiAuthDebugUserUsernameGetApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/auth/debug-user/${queryArg.username}`,
+      }),
+    }),
     signInApiAuthSigninPost: build.mutation<
       SignInApiAuthSigninPostApiResponse,
       SignInApiAuthSigninPostApiArg
@@ -223,6 +231,70 @@ const injectedRtkApi = api.injectEndpoints({
     >({
       query: () => ({ url: `/api/iot/simulator/stop`, method: "POST" }),
     }),
+    injectAnomalyApiIotSimulatorInjectAnomalyPost: build.mutation<
+      InjectAnomalyApiIotSimulatorInjectAnomalyPostApiResponse,
+      InjectAnomalyApiIotSimulatorInjectAnomalyPostApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/iot/simulator/inject/anomaly`,
+        method: "POST",
+        params: {
+          zone_id: queryArg.zoneId,
+          anomaly_type: queryArg.anomalyType,
+          duration: queryArg.duration,
+        },
+      }),
+    }),
+    injectIrrigationApiIotSimulatorInjectIrrigationPost: build.mutation<
+      InjectIrrigationApiIotSimulatorInjectIrrigationPostApiResponse,
+      InjectIrrigationApiIotSimulatorInjectIrrigationPostApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/iot/simulator/inject/irrigation`,
+        method: "POST",
+        params: {
+          zone_id: queryArg.zoneId,
+          action: queryArg.action,
+        },
+      }),
+    }),
+    injectReservoirApiIotSimulatorInjectReservoirPost: build.mutation<
+      InjectReservoirApiIotSimulatorInjectReservoirPostApiResponse,
+      InjectReservoirApiIotSimulatorInjectReservoirPostApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/iot/simulator/inject/reservoir`,
+        method: "POST",
+        params: {
+          level: queryArg.level,
+        },
+      }),
+    }),
+    injectFilterApiIotSimulatorInjectFilterPost: build.mutation<
+      InjectFilterApiIotSimulatorInjectFilterPostApiResponse,
+      InjectFilterApiIotSimulatorInjectFilterPostApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/iot/simulator/inject/filter`,
+        method: "POST",
+        params: {
+          status: queryArg.status,
+        },
+      }),
+    }),
+    injectSoilApiIotSimulatorInjectSoilPost: build.mutation<
+      InjectSoilApiIotSimulatorInjectSoilPostApiResponse,
+      InjectSoilApiIotSimulatorInjectSoilPostApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/iot/simulator/inject/soil`,
+        method: "POST",
+        params: {
+          zone_id: queryArg.zoneId,
+          moisture: queryArg.moisture,
+        },
+      }),
+    }),
     forecastApiPredictionsForecastPost: build.mutation<
       ForecastApiPredictionsForecastPostApiResponse,
       ForecastApiPredictionsForecastPostApiArg
@@ -444,17 +516,11 @@ const injectedRtkApi = api.injectEndpoints({
     >({
       query: () => ({ url: `/dashboard/logout` }),
     }),
-    signinPageSigninGet: build.query<
-      SigninPageSigninGetApiResponse,
-      SigninPageSigninGetApiArg
+    loginPageLoginGet: build.query<
+      LoginPageLoginGetApiResponse,
+      LoginPageLoginGetApiArg
     >({
-      query: () => ({ url: `/signin` }),
-    }),
-    signinPageArArSigninGet: build.query<
-      SigninPageArArSigninGetApiResponse,
-      SigninPageArArSigninGetApiArg
-    >({
-      query: () => ({ url: `/ar/signin` }),
+      query: () => ({ url: `/login` }),
     }),
     usersPageUsersGet: build.query<
       UsersPageUsersGetApiResponse,
@@ -484,6 +550,11 @@ const injectedRtkApi = api.injectEndpoints({
   overrideExisting: false,
 });
 export { injectedRtkApi as enhancedApi };
+export type DebugUserApiAuthDebugUserUsernameGetApiResponse =
+  /** status 200 Successful Response */ any;
+export type DebugUserApiAuthDebugUserUsernameGetApiArg = {
+  username: string;
+};
 export type SignInApiAuthSigninPostApiResponse =
   /** status 200 Successful Response */ AuthResponse;
 export type SignInApiAuthSigninPostApiArg = {
@@ -610,6 +681,44 @@ export type StartSimulatorApiIotSimulatorStartPostApiArg = {
 export type StopSimulatorApiIotSimulatorStopPostApiResponse =
   /** status 200 Successful Response */ any;
 export type StopSimulatorApiIotSimulatorStopPostApiArg = void;
+export type InjectAnomalyApiIotSimulatorInjectAnomalyPostApiResponse =
+  /** status 200 Successful Response */ any;
+export type InjectAnomalyApiIotSimulatorInjectAnomalyPostApiArg = {
+  /** Target zone */
+  zoneId?: number;
+  /** Type: sensor_fault, pipe_burst, pressure_drop, flow_spike */
+  anomalyType?: string;
+  /** How many readings the anomaly lasts */
+  duration?: number;
+};
+export type InjectIrrigationApiIotSimulatorInjectIrrigationPostApiResponse =
+  /** status 200 Successful Response */ any;
+export type InjectIrrigationApiIotSimulatorInjectIrrigationPostApiArg = {
+  /** Target zone */
+  zoneId?: number;
+  /** start or stop */
+  action?: string;
+};
+export type InjectReservoirApiIotSimulatorInjectReservoirPostApiResponse =
+  /** status 200 Successful Response */ any;
+export type InjectReservoirApiIotSimulatorInjectReservoirPostApiArg = {
+  /** Reservoir level % */
+  level?: number;
+};
+export type InjectFilterApiIotSimulatorInjectFilterPostApiResponse =
+  /** status 200 Successful Response */ any;
+export type InjectFilterApiIotSimulatorInjectFilterPostApiArg = {
+  /** 0=clean, 1=partial, 2=clogged */
+  status?: number;
+};
+export type InjectSoilApiIotSimulatorInjectSoilPostApiResponse =
+  /** status 200 Successful Response */ any;
+export type InjectSoilApiIotSimulatorInjectSoilPostApiArg = {
+  /** Target zone */
+  zoneId?: number;
+  /** Soil moisture % */
+  moisture?: number;
+};
 export type ForecastApiPredictionsForecastPostApiResponse =
   /** status 200 Successful Response */ ForecastResponse;
 export type ForecastApiPredictionsForecastPostApiArg = {
@@ -738,10 +847,8 @@ export type DashboardLoginDashboardLoginGetApiArg = void;
 export type DashboardLogoutDashboardLogoutGetApiResponse =
   /** status 200 Successful Response */ any;
 export type DashboardLogoutDashboardLogoutGetApiArg = void;
-export type SigninPageSigninGetApiResponse = unknown;
-export type SigninPageSigninGetApiArg = void;
-export type SigninPageArArSigninGetApiResponse = unknown;
-export type SigninPageArArSigninGetApiArg = void;
+export type LoginPageLoginGetApiResponse = unknown;
+export type LoginPageLoginGetApiArg = void;
 export type UsersPageUsersGetApiResponse = unknown;
 export type UsersPageUsersGetApiArg = void;
 export type DashboardDashboardGetApiResponse = unknown;
@@ -752,13 +859,6 @@ export type GetLatestApiLatestGetApiArg = void;
 export type SseEventsApiEventsGetApiResponse =
   /** status 200 Successful Response */ any;
 export type SseEventsApiEventsGetApiArg = void;
-export type AuthResponse = {
-  access_token: string;
-  token_type?: string;
-  user: {
-    [key: string]: any;
-  };
-};
 export type ValidationError = {
   loc: (string | number)[];
   msg: string;
@@ -768,6 +868,13 @@ export type ValidationError = {
 };
 export type HttpValidationError = {
   detail?: ValidationError[];
+};
+export type AuthResponse = {
+  access_token: string;
+  token_type?: string;
+  user: {
+    [key: string]: any;
+  };
 };
 export type SignInRequest = {
   username: string;
@@ -1067,6 +1174,7 @@ export type ChatMessageResponse = {
   created_at: string;
 };
 export const {
+  useDebugUserApiAuthDebugUserUsernameGetQuery,
   useSignInApiAuthSigninPostMutation,
   useGetProfileApiAuthProfileGetQuery,
   useChangePasswordApiAuthChangePasswordPostMutation,
@@ -1092,6 +1200,11 @@ export const {
   useGetSimulatorStatusApiIotSimulatorStatusGetQuery,
   useStartSimulatorApiIotSimulatorStartPostMutation,
   useStopSimulatorApiIotSimulatorStopPostMutation,
+  useInjectAnomalyApiIotSimulatorInjectAnomalyPostMutation,
+  useInjectIrrigationApiIotSimulatorInjectIrrigationPostMutation,
+  useInjectReservoirApiIotSimulatorInjectReservoirPostMutation,
+  useInjectFilterApiIotSimulatorInjectFilterPostMutation,
+  useInjectSoilApiIotSimulatorInjectSoilPostMutation,
   useForecastApiPredictionsForecastPostMutation,
   useDetectAnomaliesApiPredictionsAnomaliesPostMutation,
   useGetHistoryApiPredictionsHistoryGetQuery,
@@ -1118,8 +1231,7 @@ export const {
   useHealthCheckHealthGetQuery,
   useDashboardLoginDashboardLoginGetQuery,
   useDashboardLogoutDashboardLogoutGetQuery,
-  useSigninPageSigninGetQuery,
-  useSigninPageArArSigninGetQuery,
+  useLoginPageLoginGetQuery,
   useUsersPageUsersGetQuery,
   useDashboardDashboardGetQuery,
   useGetLatestApiLatestGetQuery,

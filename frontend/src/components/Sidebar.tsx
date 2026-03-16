@@ -55,112 +55,120 @@ export default function Sidebar({ activePage, setActivePage }: { activePage: str
         return (
             <button
                 onClick={() => setActivePage(id)}
-                className={`w-full flex items-center px-5 py-3.5 transition-all rounded-xl mx-2 my-1 ${isActive
-                    ? "bg-[#3D1F0F] text-[#C17A3A]"
-                    : "text-[#8B7355] hover:bg-[#3D1F0F]/50 hover:text-white"
-                    }`}
+                className={`w-full flex items-center px-4 py-2.5 transition-all duration-200 rounded-xl mx-2 my-0.5 group ${
+                    isActive
+                        ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                        : "text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
+                }`}
                 style={{ width: "calc(100% - 16px)" }}
             >
                 <div className="relative">
-                    <Icon className="w-5 h-5 shrink-0" />
+                    <Icon className={`w-5 h-5 shrink-0 transition-colors ${isActive ? "text-primary" : "group-hover:text-primary"}`} />
                     {badge && (
-                        <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full flex items-center justify-center min-w-[20px] h-5">
+                        <span className="absolute -top-1.5 -right-1.5 bg-destructive text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full flex items-center justify-center min-w-[18px] h-[18px]">
                             {badge}
                         </span>
                     )}
                 </div>
-                <div className="rtl:mr-4 ltr:ml-4 flex-1 text-start">
-                    <span className="font-bold text-sm leading-tight">{label}</span>
+                <div className="rtl:mr-3 ltr:ml-3 flex-1 text-start">
+                    <span className={`font-medium text-sm leading-tight ${isActive ? "text-sidebar-foreground" : ""}`}>{label}</span>
                 </div>
-                {/* Active Indicator replacing the old full-height border */}
                 {isActive && (
-                    <div className="w-1.5 h-1.5 rounded-full bg-[#C17A3A] rtl:mr-2 ltr:ml-2"></div>
+                    <div className="w-1.5 h-1.5 rounded-full bg-primary rtl:mr-2 ltr:ml-2"></div>
                 )}
             </button>
         );
     };
 
+    const renderSectionHeader = (label: string) => (
+        <div className="px-5 mb-2 mt-4">
+            <p className="text-[11px] font-semibold text-sidebar-foreground/40 uppercase tracking-widest mx-2">{label}</p>
+        </div>
+    );
+
     return (
         <>
-            <aside className="hidden md:flex flex-col w-60 fixed top-0 ltr:left-0 rtl:right-0 h-screen bg-[#2C1810] text-[#F5F0E8] rtl:border-l ltr:border-r border-[#4A2C1A] overflow-y-auto z-50">
-                <div className="p-5 border-b border-[#4A2C1A] flex justify-between items-start">
-                    <div>
-                        <h1 className="text-2xl font-black text-white">{t("title")}</h1>
-                        <p className="text-[#8B7355] text-[11px] mt-1 uppercase tracking-wider">{t("subtitle")}</p>
+            <aside className="hidden md:flex flex-col w-64 fixed top-0 ltr:left-0 rtl:right-0 h-screen bg-sidebar text-sidebar-foreground border-r border-sidebar-border overflow-hidden z-50">
+                {/* Logo Section */}
+                <div className="p-5 border-b border-sidebar-border">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-lg shadow-primary/20">
+                            <Leaf className="w-5 h-5 text-primary-foreground" />
+                        </div>
+                        <div>
+                            <h1 className="text-lg font-bold text-foreground">{t("title")}</h1>
+                            <p className="text-[11px] text-muted-foreground uppercase tracking-wider">{t("subtitle")}</p>
+                        </div>
                     </div>
                 </div>
 
-                <div className="p-5 border-b border-[#4A2C1A]">
-                    <div className="bg-[#3D1F0F]/30 p-3 rounded-xl border border-[#4A2C1A]/50">
-                        <p className="text-white font-bold text-sm tracking-wide">{t("farmName")}</p>
-                        <p className="text-[#8B7355] text-xs mt-1">{t("farmInfo")}</p>
+                {/* Farm Info Card */}
+                <div className="p-4 border-b border-sidebar-border">
+                    <div className="bg-sidebar-accent/50 p-3 rounded-xl border border-sidebar-border">
+                        <p className="text-foreground font-semibold text-sm">{t("farmName")}</p>
+                        <p className="text-muted-foreground text-xs mt-1">{t("farmInfo")}</p>
                     </div>
                 </div>
 
-                <nav className="flex-1 py-4 flex flex-col gap-2">
-                    <div className="mb-2">
+                {/* Navigation */}
+                <nav className="flex-1 py-4 overflow-y-auto">
+                    {/* Main Section */}
+                    <div className="mb-1">
                         {renderMenuButton("dashboard", Home, t("nav_dashboard"))}
                     </div>
 
-                    <div className="px-5 mb-1 mt-2 border-t border-[#4A2C1A] pt-4">
-                        <p className="text-[10px] font-bold text-[#8B7355] uppercase tracking-wider mx-2">العمليات</p>
-                    </div>
+                    {renderSectionHeader("العمليات")}
                     {renderMenuButton("zones", Leaf, t("nav_zones"))}
                     {renderMenuButton("pumps", Settings, t("nav_pumps"))}
 
-                    <div className="px-5 mb-1 mt-2 border-t border-[#4A2C1A] pt-4">
-                        <p className="text-[10px] font-bold text-[#8B7355] uppercase tracking-wider mx-2">النظام</p>
-                    </div>
-                    {renderMenuButton("ai_assistant", Sparkles, t("nav_ai_assistant"))}
+                    {renderSectionHeader("المراقبة")}
                     {renderMenuButton("alerts", Bell, t("nav_alerts"), 2)}
                     {renderMenuButton("reports", FileText, t("nav_reports"))}
 
-                    <div className="mt-auto px-5 mb-1 pt-4">
-                        {renderMenuButton("settings", Activity, t("nav_settings"))}
-                    </div>
+                    {renderSectionHeader("النظام")}
+                    {renderMenuButton("ai_assistant", Sparkles, t("nav_ai_assistant"))}
+                    {renderMenuButton("settings", Activity, t("nav_settings"))}
                 </nav>
 
-                <div className="p-5 border-t border-[#4A2C1A]">
+                {/* User Section */}
+                <div className="p-4 border-t border-sidebar-border">
                     {isAuthenticated && user ? (
-                        <div className="flex items-center justify-between mb-3">
-                            <div className="flex items-center gap-2">
-                                <div className="w-8 h-8 bg-[#C17A3A] rounded-full flex items-center justify-center">
-                                    <User className="w-4 h-4 text-white" />
-                                </div>
-                                <div className="overflow-hidden">
-                                    <p className="text-white font-bold text-sm truncate">{user.full_name || user.username}</p>
-                                    <p className="text-[#8B7355] text-xs truncate">{user.username}</p>
-                                </div>
+                        <div className="flex items-center gap-3 mb-3">
+                            <div className="w-9 h-9 bg-primary rounded-full flex items-center justify-center shrink-0">
+                                <User className="w-4 h-4 text-primary-foreground" />
+                            </div>
+                            <div className="overflow-hidden">
+                                <p className="text-foreground font-semibold text-sm truncate">{user.full_name || user.username}</p>
+                                <p className="text-muted-foreground text-xs truncate">{user.username}</p>
                             </div>
                         </div>
                     ) : null}
-                    <div className="flex justify-between items-center">
+                    <div className="flex items-center justify-between">
                         {isAuthenticated ? (
                             <div className="flex items-center">
-                                <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse shrink-0"></div>
-                                <p className="rtl:mr-2 ltr:ml-2 text-emerald-400 text-xs font-bold uppercase tracking-wider">{t("status")}</p>
+                                <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse shrink-0"></div>
+                                <p className="rtl:mr-2 ltr:ml-2 text-emerald-500 text-xs font-semibold uppercase tracking-wider">{t("status")}</p>
                             </div>
                         ) : (
                             <div className="flex items-center">
-                                <div className="w-2 h-2 bg-zinc-400 rounded-full shrink-0"></div>
-                                <p className="rtl:mr-2 ltr:ml-2 text-zinc-400 text-xs font-bold uppercase tracking-wider">Not logged in</p>
+                                <div className="w-2 h-2 bg-muted-foreground/40 rounded-full shrink-0"></div>
+                                <p className="rtl:mr-2 ltr:ml-2 text-muted-foreground text-xs font-semibold uppercase tracking-wider">Not logged in</p>
                             </div>
                         )}
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5">
                             <button
                                 onClick={switchLocale}
-                                className="p-1.5 bg-[#3D1F0F] rounded-lg text-[#8B7355] hover:text-white transition-colors flex items-center gap-1.5"
+                                className="p-2 bg-sidebar-accent rounded-lg text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/70 transition-colors"
                                 title="Switch Language"
                             >
-                                <Globe className="w-3.5 h-3.5" />
-                                <span className="text-[10px] font-bold uppercase">{locale === 'ar' ? 'FR' : 'AR'}</span>
+                                <Globe className="w-4 h-4" />
                             </button>
                             <button
                                 onClick={handleAuthClick}
-                                className="p-1.5 bg-[#3D1F0F] rounded-lg text-[#8B7355] hover:text-white transition-colors flex items-center gap-1.5"
+                                className="p-2 bg-sidebar-accent rounded-lg text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/70 transition-colors"
                                 title={isAuthenticated ? "Sign Out" : "Sign In"}
                             >
-                                {isAuthenticated ? <LogOut className="w-3.5 h-3.5" /> : <LogIn className="w-3.5 h-3.5" />}
+                                {isAuthenticated ? <LogOut className="w-4 h-4" /> : <LogIn className="w-4 h-4" />}
                             </button>
                         </div>
                     </div>
@@ -168,7 +176,7 @@ export default function Sidebar({ activePage, setActivePage }: { activePage: str
             </aside>
 
             {/* Mobile Bottom Navigation */}
-            <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-[#2C1810] border-t border-[#4A2C1A] z-50 px-2 pb-safe pt-1 shadow-[0_-8px_30px_rgb(0,0,0,0.12)]">
+            <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-sidebar border-t border-sidebar-border z-50 px-2 pb-safe pt-2 shadow-xl">
                 <ul className="flex justify-between items-center h-16">
                     {[
                         { id: "dashboard", icon: Home, label: t("nav_dashboard") },
@@ -179,14 +187,18 @@ export default function Sidebar({ activePage, setActivePage }: { activePage: str
                         <li key={item.id} className="flex-1 h-full">
                             <button
                                 onClick={() => setActivePage(item.id)}
-                                className="w-full h-full flex flex-col items-center justify-center relative rounded-xl hover:bg-[#3D1F0F]/50 transition-colors"
+                                className={`w-full h-full flex flex-col items-center justify-center relative rounded-xl transition-colors ${
+                                    activePage === item.id 
+                                        ? "text-primary" 
+                                        : "text-muted-foreground hover:text-foreground"
+                                }`}
                             >
-                                <item.icon className={`w-5 h-5 ${activePage === item.id ? "text-[#C17A3A]" : "text-[#8B7355]"}`} />
-                                <span className={`text-[10px] mt-1 font-bold ${activePage === item.id ? "text-[#C17A3A]" : "text-[#8B7355]"}`}>
+                                <item.icon className={`w-5 h-5 ${activePage === item.id ? "text-primary" : ""}`} />
+                                <span className={`text-[10px] mt-1.5 font-medium ${activePage === item.id ? "text-primary" : ""}`}>
                                     {item.label}
                                 </span>
                                 {item.badge && (
-                                    <span className="absolute top-1 right-2 bg-red-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                                    <span className="absolute top-1 right-2 bg-destructive text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
                                         {item.badge}
                                     </span>
                                 )}
@@ -196,12 +208,14 @@ export default function Sidebar({ activePage, setActivePage }: { activePage: str
                     <li className="flex-1 h-full">
                         <button
                             onClick={() => setShowMore(!showMore)}
-                            className="w-full h-full flex flex-col items-center justify-center relative rounded-xl hover:bg-[#3D1F0F]/50 transition-colors"
+                            className={`w-full h-full flex flex-col items-center justify-center relative rounded-xl transition-colors ${
+                                showMore ? "text-primary" : "text-muted-foreground hover:text-foreground"
+                            }`}
                         >
-                            <div className={`w-5 h-5 flex items-center justify-center text-[14px] font-bold transition-transform duration-300 ${showMore ? "rotate-45 text-[#C17A3A]" : "text-[#8B7355]"}`}>
+                            <div className={`w-5 h-5 flex items-center justify-center text-[18px] font-bold transition-transform duration-300 ${showMore ? "rotate-45 text-primary" : ""}`}>
                                 +
                             </div>
-                            <span className={`text-[10px] mt-1 font-bold transition-colors duration-300 ${showMore ? "text-[#C17A3A]" : "text-[#8B7355]"}`}>
+                            <span className={`text-[10px] mt-1.5 font-medium transition-colors duration-300 ${showMore ? "text-primary" : ""}`}>
                                 {showMore ? "إغلاق" : "المزيد"}
                             </span>
                         </button>
@@ -209,7 +223,7 @@ export default function Sidebar({ activePage, setActivePage }: { activePage: str
                 </ul>
 
                 {/* More Menu Dropdown */}
-                <div className={`absolute bottom-16 left-2 right-2 bg-[#2C1810] border border-[#4A2C1A] rounded-xl p-2 shadow-lg transition-all duration-300 ease-out ${showMore ? "opacity-100 translate-y-0 scale-100" : "opacity-0 translate-y-2 scale-95 pointer-events-none"}`}>
+                <div className={`absolute bottom-16 left-2 right-2 bg-popover border border-border rounded-2xl p-2 shadow-2xl transition-all duration-300 ease-out ${showMore ? "opacity-100 translate-y-0 scale-100" : "opacity-0 translate-y-2 scale-95 pointer-events-none"}`}>
                     {[
                         { id: "pumps", icon: Settings, label: t("nav_pumps") },
                         { id: "ai_assistant", icon: Sparkles, label: t("nav_ai_assistant") },
@@ -221,20 +235,24 @@ export default function Sidebar({ activePage, setActivePage }: { activePage: str
                                 setActivePage(item.id);
                                 setShowMore(false);
                             }}
-                            className={`w-full flex items-center px-4 py-3 rounded-xl transition-all duration-200 ${activePage === item.id ? "bg-[#3D1F0F] text-[#C17A3A]" : "text-[#8B7355] hover:bg-[#3D1F0F]/50"}`}
+                            className={`w-full flex items-center px-4 py-3 rounded-xl transition-all duration-200 ${
+                                activePage === item.id 
+                                    ? "bg-primary/10 text-primary" 
+                                    : "text-foreground hover:bg-accent"
+                            }`}
                             style={{ transitionDelay: showMore ? `${idx * 50}ms` : '0ms' }}
                         >
                             <item.icon className="w-5 h-5" />
-                            <span className="mr-3 font-bold text-sm">{item.label}</span>
+                            <span className="mr-3 font-medium text-sm">{item.label}</span>
                         </button>
                     ))}
-                    <div className="border-t border-[#4A2C1A] my-2"></div>
+                    <div className="border-t border-border my-2"></div>
                     <button
                         onClick={switchLocale}
-                        className="w-full flex items-center px-4 py-3 rounded-xl text-[#8B7355] hover:bg-[#3D1F0F]/50 transition-all duration-200"
+                        className="w-full flex items-center px-4 py-3 rounded-xl text-muted-foreground hover:bg-accent hover:text-foreground transition-all duration-200"
                     >
                         <Globe className="w-5 h-5" />
-                        <span className="mr-3 font-bold text-sm">{locale === 'ar' ? 'العربية' : 'Français'}</span>
+                        <span className="mr-3 font-medium text-sm">{locale === 'ar' ? 'العربية' : 'Français'}</span>
                     </button>
                 </div>
             </nav>

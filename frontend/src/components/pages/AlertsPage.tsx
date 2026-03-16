@@ -105,21 +105,42 @@ export default function AlertsPage() {
     };
 
     const alertTypeStyle = (type: "critical" | "warning" | "info") => ({
-        critical: { bg: "bg-red-50 border-red-200", icon: <AlertOctagon className="w-5 h-5 text-red-500" />, badge: "bg-red-100 text-red-700" },
-        warning: { bg: "bg-amber-50 border-amber-200", icon: <AlertTriangle className="w-5 h-5 text-amber-500" />, badge: "bg-amber-100 text-amber-700" },
-        info: { bg: "bg-sky-50 border-sky-200", icon: <Info className="w-5 h-5 text-sky-500" />, badge: "bg-sky-100 text-sky-700" },
+        critical: { 
+            bg: "bg-red-500/5 border-red-500/20", 
+            iconBg: "bg-red-500/10", 
+            icon: <AlertOctagon className="w-5 h-5 text-red-500" />, 
+            badge: "bg-red-500/10 text-red-500",
+            text: "text-red-500"
+        },
+        warning: { 
+            bg: "bg-amber-500/5 border-amber-500/20", 
+            iconBg: "bg-amber-500/10", 
+            icon: <AlertTriangle className="w-5 h-5 text-amber-500" />, 
+            badge: "bg-amber-500/10 text-amber-500",
+            text: "text-amber-500"
+        },
+        info: { 
+            bg: "bg-blue-500/5 border-blue-500/20", 
+            iconBg: "bg-blue-500/10", 
+            icon: <Info className="w-5 h-5 text-blue-500" />, 
+            badge: "bg-blue-500/10 text-blue-500",
+            text: "text-blue-500"
+        },
     })[type];
+
+    const [filter, setFilter] = useState<"all" | "critical" | "warning" | "info">("all");
+    const filteredAlerts = filter === "all" ? liveAlerts : liveAlerts.filter(a => a.type === filter);
 
     return (
         <div className="w-full">
             <div className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-black text-zinc-800 tracking-tight">{t("nav_alerts")}</h1>
-                    <p className="text-zinc-500 font-bold mt-1">Alert rules and live notifications</p>
+                    <h1 className="text-2xl font-bold text-foreground">{t("nav_alerts")}</h1>
+                    <p className="text-muted-foreground mt-1">Alert rules and live notifications</p>
                 </div>
                 <button
                     onClick={() => setIsCreating(true)}
-                    className="flex items-center gap-2 bg-[#3D1F0F] text-white hover:bg-[#4A2C1A] px-5 py-2.5 rounded-xl font-bold transition-colors"
+                    className="flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary/90 px-5 py-2.5 rounded-xl font-semibold transition-colors"
                 >
                     <Plus className="w-5 h-5" />
                     Create Rule
@@ -128,30 +149,30 @@ export default function AlertsPage() {
 
             {/* Create Rule Form */}
             {isCreating && (
-                <div className="mb-6 p-5 rounded-2xl bg-white border border-[#C17A3A] shadow-lg">
-                    <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-lg font-black text-zinc-800">New Alert Rule</h3>
-                        <button onClick={() => setIsCreating(false)} className="p-2 hover:bg-zinc-100 rounded-lg">
-                            <X className="w-5 h-5 text-zinc-400" />
+                <div className="mb-6 p-6 rounded-2xl bg-card border border-border shadow-xl">
+                    <div className="flex justify-between items-center mb-5">
+                        <h3 className="text-lg font-bold text-foreground">New Alert Rule</h3>
+                        <button onClick={() => setIsCreating(false)} className="p-2 hover:bg-accent rounded-lg transition-colors">
+                            <X className="w-5 h-5 text-muted-foreground" />
                         </button>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-sm font-bold text-zinc-600 mb-1">Rule Name</label>
+                            <label className="block text-sm font-medium text-muted-foreground mb-2">Rule Name</label>
                             <input
                                 type="text"
                                 value={newRule.name}
                                 onChange={(e) => setNewRule({ ...newRule, name: e.target.value })}
-                                className="w-full px-4 py-2.5 rounded-xl border border-zinc-200 focus:border-[#C17A3A] focus:outline-none font-bold"
+                                className="w-full px-4 py-2.5 rounded-xl border border-input bg-background focus:border-primary focus:outline-none font-medium"
                                 placeholder="e.g., Low Moisture Alert"
                             />
                         </div>
                         <div>
-                            <label className="block text-sm font-bold text-zinc-600 mb-1">Target Sensor</label>
+                            <label className="block text-sm font-medium text-muted-foreground mb-2">Target Sensor</label>
                             <select
                                 value={newRule.target_column}
                                 onChange={(e) => setNewRule({ ...newRule, target_column: e.target.value })}
-                                className="w-full px-4 py-2.5 rounded-xl border border-zinc-200 focus:border-[#C17A3A] focus:outline-none font-bold"
+                                className="w-full px-4 py-2.5 rounded-xl border border-input bg-background focus:border-primary focus:outline-none font-medium"
                             >
                                 <option value="soil_moisture_pct">Soil Moisture</option>
                                 <option value="zone_pressure_mpa">Zone Pressure</option>
@@ -161,11 +182,11 @@ export default function AlertsPage() {
                             </select>
                         </div>
                         <div>
-                            <label className="block text-sm font-bold text-zinc-600 mb-1">Condition</label>
+                            <label className="block text-sm font-medium text-muted-foreground mb-2">Condition</label>
                             <select
                                 value={newRule.condition}
                                 onChange={(e) => setNewRule({ ...newRule, condition: e.target.value as "above" | "below" | "equals" })}
-                                className="w-full px-4 py-2.5 rounded-xl border border-zinc-200 focus:border-[#C17A3A] focus:outline-none font-bold"
+                                className="w-full px-4 py-2.5 rounded-xl border border-input bg-background focus:border-primary focus:outline-none font-medium"
                             >
                                 <option value="below">Below</option>
                                 <option value="above">Above</option>
@@ -173,20 +194,20 @@ export default function AlertsPage() {
                             </select>
                         </div>
                         <div>
-                            <label className="block text-sm font-bold text-zinc-600 mb-1">Threshold</label>
+                            <label className="block text-sm font-medium text-muted-foreground mb-2">Threshold</label>
                             <input
                                 type="number"
                                 value={newRule.threshold}
                                 onChange={(e) => setNewRule({ ...newRule, threshold: Number(e.target.value) })}
-                                className="w-full px-4 py-2.5 rounded-xl border border-zinc-200 focus:border-[#C17A3A] focus:outline-none font-bold"
+                                className="w-full px-4 py-2.5 rounded-xl border border-input bg-background focus:border-primary focus:outline-none font-medium"
                             />
                         </div>
                         <div>
-                            <label className="block text-sm font-bold text-zinc-600 mb-1">Zone (optional)</label>
+                            <label className="block text-sm font-medium text-muted-foreground mb-2">Zone (optional)</label>
                             <select
                                 value={newRule.zone_id ?? ""}
                                 onChange={(e) => setNewRule({ ...newRule, zone_id: e.target.value ? Number(e.target.value) : null })}
-                                className="w-full px-4 py-2.5 rounded-xl border border-zinc-200 focus:border-[#C17A3A] focus:outline-none font-bold"
+                                className="w-full px-4 py-2.5 rounded-xl border border-input bg-background focus:border-primary focus:outline-none font-medium"
                             >
                                 <option value="">All Zones</option>
                                 {[1, 2, 3, 4, 5, 6, 7, 8].map(n => (
@@ -200,34 +221,34 @@ export default function AlertsPage() {
                                 id="whatsapp"
                                 checked={newRule.notify_whatsapp}
                                 onChange={(e) => setNewRule({ ...newRule, notify_whatsapp: e.target.checked })}
-                                className="w-5 h-5 rounded border-zinc-300"
+                                className="w-5 h-5 rounded border-input"
                             />
-                            <label htmlFor="whatsapp" className="text-sm font-bold text-zinc-600">Notify via WhatsApp</label>
+                            <label htmlFor="whatsapp" className="text-sm font-medium text-muted-foreground">Notify via WhatsApp</label>
                         </div>
                     </div>
                     {newRule.notify_whatsapp && (
                         <div className="mt-4">
-                            <label className="block text-sm font-bold text-zinc-600 mb-1">Phone Number</label>
+                            <label className="block text-sm font-medium text-muted-foreground mb-2">Phone Number</label>
                             <input
                                 type="text"
                                 value={newRule.phone}
                                 onChange={(e) => setNewRule({ ...newRule, phone: e.target.value })}
-                                className="w-full md:w-1/2 px-4 py-2.5 rounded-xl border border-zinc-200 focus:border-[#C17A3A] focus:outline-none font-bold"
+                                className="w-full md:w-1/2 px-4 py-2.5 rounded-xl border border-input bg-background focus:border-primary focus:outline-none font-medium"
                                 placeholder="+212612345678"
                             />
                         </div>
                     )}
-                    <div className="mt-4 flex gap-3">
+                    <div className="mt-5 flex gap-3">
                         <button
                             onClick={handleCreateRule}
                             disabled={isCreatingRule || !newRule.name}
-                            className="bg-[#3D1F0F] text-white hover:bg-[#4A2C1A] px-5 py-2.5 rounded-xl font-bold transition-colors disabled:opacity-50"
+                            className="bg-primary text-primary-foreground hover:bg-primary/90 px-5 py-2.5 rounded-xl font-semibold transition-colors disabled:opacity-50"
                         >
                             {isCreatingRule ? "Creating..." : "Create Rule"}
                         </button>
                         <button
                             onClick={() => setIsCreating(false)}
-                            className="bg-zinc-100 text-zinc-600 hover:bg-zinc-200 px-5 py-2.5 rounded-xl font-bold transition-colors"
+                            className="bg-muted text-muted-foreground hover:bg-accent px-5 py-2.5 rounded-xl font-semibold transition-colors"
                         >
                             Cancel
                         </button>
@@ -237,44 +258,44 @@ export default function AlertsPage() {
 
             {/* Alert Rules */}
             <div className="mb-8">
-                <h2 className="text-xl font-black text-zinc-800 mb-4">Alert Rules</h2>
+                <h2 className="text-lg font-semibold text-foreground mb-4">Alert Rules</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                     {isLoading ? (
-                        [1, 2, 3].map(i => <div key={i} className="h-24 bg-zinc-200 rounded-2xl animate-pulse" />)
+                        [1, 2, 3].map(i => <div key={i} className="h-24 bg-muted rounded-2xl animate-pulse" />)
                     ) : alertRules && alertRules.length > 0 ? (
                         alertRules.map((rule) => (
-                            <div key={rule.id} className="p-4 rounded-2xl bg-white border border-zinc-200 shadow-sm">
+                            <div key={rule.id} className="p-4 rounded-2xl bg-card border border-border shadow-sm hover:shadow-md transition-shadow">
                                 <div className="flex justify-between items-start mb-3">
                                     <div>
-                                        <h3 className="font-black text-zinc-800">{rule.name}</h3>
-                                        <p className="text-xs text-zinc-500 font-bold mt-1">
+                                        <h3 className="font-semibold text-foreground">{rule.name}</h3>
+                                        <p className="text-xs text-muted-foreground mt-1">
                                             {rule.target_column} {rule.condition} {rule.threshold}
                                             {rule.zone_id != null && ` — Zone ${rule.zone_id}`}
                                         </p>
                                     </div>
                                     <div className="flex gap-1">
-                                        <button className="p-2 hover:bg-zinc-100 rounded-lg">
-                                            <Edit className="w-4 h-4 text-zinc-400" />
+                                        <button className="p-2 hover:bg-accent rounded-lg transition-colors">
+                                            <Edit className="w-4 h-4 text-muted-foreground" />
                                         </button>
-                                        <button onClick={() => handleDeleteRule(rule.id)} className="p-2 hover:bg-red-50 rounded-lg">
-                                            <Trash2 className="w-4 h-4 text-red-400" />
+                                        <button onClick={() => handleDeleteRule(rule.id)} className="p-2 hover:bg-destructive/10 rounded-lg transition-colors">
+                                            <Trash2 className="w-4 h-4 text-destructive" />
                                         </button>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <span className={`w-2 h-2 rounded-full ${rule.is_active ? "bg-emerald-500" : "bg-zinc-300"}`}></span>
-                                    <span className="text-xs font-bold text-zinc-500">{rule.is_active ? "Active" : "Inactive"}</span>
+                                    <span className={`w-2 h-2 rounded-full ${rule.is_active ? "bg-emerald-500" : "bg-muted-foreground/30"}`}></span>
+                                    <span className="text-xs font-medium text-muted-foreground">{rule.is_active ? "Active" : "Inactive"}</span>
                                     {rule.notify_whatsapp && (
-                                        <span className="text-xs font-bold text-emerald-600 ml-auto">WhatsApp</span>
+                                        <span className="text-xs font-medium text-emerald-500 ml-auto">WhatsApp</span>
                                     )}
                                 </div>
                             </div>
                         ))
                     ) : (
-                        <div className="col-span-full p-8 text-center bg-zinc-50 rounded-2xl border border-zinc-200">
-                            <Bell className="w-12 h-12 text-zinc-300 mx-auto mb-3" />
-                            <p className="text-zinc-500 font-bold">No alert rules configured</p>
-                            <p className="text-zinc-400 text-sm">Create your first alert rule to get started</p>
+                        <div className="col-span-full p-8 text-center bg-muted/30 rounded-2xl border border-dashed border-border">
+                            <Bell className="w-12 h-12 text-muted-foreground/40 mx-auto mb-3" />
+                            <p className="text-muted-foreground font-medium">No alert rules configured</p>
+                            <p className="text-muted-foreground/60 text-sm">Create your first alert rule to get started</p>
                         </div>
                     )}
                 </div>
@@ -282,42 +303,66 @@ export default function AlertsPage() {
 
             {/* Live Alerts */}
             <div>
-                <div className="flex items-center gap-3 mb-4">
-                    <h2 className="text-xl font-black text-zinc-800">Live Alerts</h2>
-                    {connected && (
-                        <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
-                            <Wifi className="w-3 h-3" />
-                            Real-time
-                        </span>
+                <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                        <h2 className="text-lg font-semibold text-foreground">Live Alerts</h2>
+                        {connected && (
+                            <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-500 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20">
+                                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                                Real-time
+                            </span>
+                        )}
+                    </div>
+                    {/* Filter Buttons */}
+                    {liveAlerts.length > 0 && (
+                        <div className="flex gap-1 bg-muted/50 p-1 rounded-lg">
+                            {(["all", "critical", "warning", "info"] as const).map((f) => (
+                                <button
+                                    key={f}
+                                    onClick={() => setFilter(f)}
+                                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                                        filter === f 
+                                            ? "bg-card shadow-sm text-foreground" 
+                                            : "text-muted-foreground hover:text-foreground"
+                                    }`}
+                                >
+                                    {f.charAt(0).toUpperCase() + f.slice(1)}
+                                </button>
+                            ))}
+                        </div>
                     )}
                 </div>
 
                 {!hasLiveData ? (
-                    <div className="p-8 text-center bg-zinc-50 rounded-2xl border border-zinc-200">
-                        <p className="text-zinc-500 font-bold">No live data. Start the simulator to see real-time alerts.</p>
+                    <div className="p-8 text-center bg-muted/30 rounded-2xl border border-dashed border-border">
+                        <p className="text-muted-foreground font-medium">No live data. Start the simulator to see real-time alerts.</p>
                     </div>
-                ) : liveAlerts.length === 0 ? (
-                    <div className="p-8 text-center bg-emerald-50 rounded-2xl border border-emerald-200">
-                        <CheckCircle2 className="w-12 h-12 text-emerald-400 mx-auto mb-3" />
-                        <p className="text-emerald-700 font-bold">All zones are healthy — no active alerts</p>
+                ) : filteredAlerts.length === 0 ? (
+                    <div className="p-8 text-center bg-emerald-500/5 rounded-2xl border border-emerald-500/20">
+                        <CheckCircle2 className="w-12 h-12 text-emerald-500/50 mx-auto mb-3" />
+                        <p className="text-emerald-500 font-semibold">All zones are healthy — no active alerts</p>
                     </div>
                 ) : (
                     <div className="space-y-3">
-                        {liveAlerts.map((alert) => {
+                        {filteredAlerts.map((alert) => {
                             const style = alertTypeStyle(alert.type);
                             return (
-                                <div key={alert.id} className={`p-4 rounded-2xl border ${style.bg}`}>
-                                    <div className="flex items-start gap-3">
-                                        <div className="shrink-0 mt-0.5">{style.icon}</div>
-                                        <div className="flex-1">
+                                <div key={alert.id} className={`p-4 rounded-2xl border ${style.bg} hover:shadow-md transition-all`}>
+                                    <div className="flex items-start gap-4">
+                                        <div className={`shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${style.iconBg}`}>
+                                            {style.icon}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
                                             <div className="flex items-start justify-between gap-2">
-                                                <div>
-                                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full mr-2 ${style.badge}`}>{alert.type.toUpperCase()}</span>
-                                                    <span className="font-black text-zinc-800">{alert.title}</span>
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <span className={`text-[10px] font-semibold px-2 py-1 rounded-full ${style.badge}`}>
+                                                        {alert.type.toUpperCase()}
+                                                    </span>
+                                                    <span className="font-semibold text-foreground">{alert.title}</span>
                                                 </div>
-                                                <span className="text-xs text-zinc-400 font-bold shrink-0 whitespace-nowrap" dir="ltr">{alert.time}</span>
+                                                <span className="text-xs text-muted-foreground shrink-0" dir="ltr">{alert.time}</span>
                                             </div>
-                                            <p className="text-sm text-zinc-600 font-bold mt-1">{alert.message}</p>
+                                            <p className="text-sm text-muted-foreground mt-2">{alert.message}</p>
                                         </div>
                                     </div>
                                 </div>
