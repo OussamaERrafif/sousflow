@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     # Application
     APP_NAME: str = "SoussFlow Backend"
     DEBUG: bool = True
+    DEBUG_MODE: bool = False  # Debug mode for detailed logging
     HOST: str = "0.0.0.0"
     PORT: int = 8000
 
@@ -29,11 +30,12 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRATION_MINUTES: int = 480  # 8 hours
 
-    # Wassender (WhatsApp)
+    # WaSenderAPI (WhatsApp)
     WASSENDER_ENABLED: bool = False
-    WASSENDER_API_URL: str = "https://api.wassenger.com/v1"
+    WASSENDER_API_URL: str = "https://www.wasenderapi.com"
     WASSENDER_API_KEY: str = ""
     WASSENDER_DEVICE_ID: str = ""
+    WASSENDER_WEBHOOK_SECRET: str = ""
 
     # OpenAI
     OPENAI_API_KEY: str = ""

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter, usePathname } from "@/i18n/routing";
 import { useLocale } from "next-intl";
@@ -8,7 +8,8 @@ import { useGetProfileApiAuthProfileGetQuery, useSignOutApiAuthSignoutPostMutati
 import { useAppDispatch, useAppSelector } from "@/lib/store/hooks";
 import { logout } from "@/lib/store/slices/authSlice";
 import { useTheme } from "@/components/ThemeProvider";
-import { User, Bell, Lock, Wifi, Globe, Moon, Sun, Save, RefreshCw, LogOut, Smartphone, CheckCircle, AlertCircle } from "lucide-react";
+import { isDebugMode, setDebugMode, debugLog } from "@/lib/debug";
+import { Bug, User, Bell, Lock, Wifi, Globe, Moon, Sun, Save, RefreshCw, LogOut, Smartphone, CheckCircle, AlertCircle } from "lucide-react";
 
 const BASE_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/$/, "");
 
@@ -31,6 +32,11 @@ export default function SettingsPage() {
     const [passwordSuccess, setPasswordSuccess] = useState(false);
     const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
     const [connectionTestResult, setConnectionTestResult] = useState<"idle" | "testing" | "success" | "error">("idle");
+    const [debugEnabled, setDebugEnabled] = useState(false);
+
+    useEffect(() => {
+        setDebugEnabled(isDebugMode());
+    }, []);
 
     const { data: profile, isLoading } = useGetProfileApiAuthProfileGetQuery();
     const [signOut] = useSignOutApiAuthSignoutPostMutation();
@@ -91,11 +97,19 @@ export default function SettingsPage() {
         setTwoFactorEnabled(true);
     };
 
+    const handleToggleDebug = () => {
+        const newValue = !debugEnabled;
+        setDebugMode(newValue);
+        setDebugEnabled(newValue);
+        debugLog(`Debug mode ${newValue ? "enabled" : "disabled"}`);
+    };
+
     const tabs = [
         { id: "profile", icon: User, label: "Profile" },
         { id: "notifications", icon: Bell, label: "Notifications" },
         { id: "security", icon: Lock, label: "Security" },
         { id: "connection", icon: Wifi, label: "Connection" },
+        { id: "debug", icon: Bug, label: "Developer" },
     ];
 
     return (
@@ -427,6 +441,52 @@ export default function SettingsPage() {
                                     <LogOut className="w-5 h-5" />
                                     Sign Out
                                 </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Debug */}
+                    {activeTab === "debug" && (
+                        <div className="bg-white dark:bg-zinc-800 rounded-2xl border border-zinc-200 dark:border-zinc-700 p-6">
+                            <h2 className="text-xl font-black text-zinc-800 dark:text-zinc-100 mb-6">Developer Settings</h2>
+                            
+                            <div className="space-y-4">
+                                <div className="p-4 border border-zinc-200 dark:border-zinc-700 rounded-xl">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <Bug className="w-5 h-5 text-zinc-400" />
+                                            <div>
+                                                <h3 className="font-bold text-zinc-800 dark:text-zinc-100">Debug Mode</h3>
+                                                <p className="text-xs text-zinc-500 dark:text-zinc-400">Enable detailed console logging for troubleshooting</p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={handleToggleDebug}
+                                            className={`w-12 h-6 rounded-full transition-colors relative ${debugEnabled ? "bg-amber-500" : "bg-zinc-300 dark:bg-zinc-500"}`}
+                                        >
+                                            <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transform transition-transform ${debugEnabled ? "translate-x-6" : "translate-x-0.5"}`}></div>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {debugEnabled && (
+                                    <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl">
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                                            <span className="font-bold text-amber-800 dark:text-amber-200 text-sm">Debug Mode Active</span>
+                                        </div>
+                                        <p className="text-xs text-amber-700 dark:text-amber-300">
+                                            Debug logging is now enabled. Open the browser console (F12) to see detailed logs about:
+                                        </p>
+                                        <ul className="mt-2 text-xs text-amber-700 dark:text-amber-300 space-y-1 list-disc list-inside">
+                                            <li>API requests and responses</li>
+                                            <li>State changes in Redux store</li>
+                                            <li>SSE events and connections</li>
+                                            <li>IoT readings and sensor data</li>
+                                            <li>Component renders and updates</li>
+                                        </ul>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}

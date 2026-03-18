@@ -6,7 +6,7 @@ trend analysis with olive-specific recommendations.
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from app.supabase_client import get_supabase_admin
-from app.logging_config import logger
+from app.logging_config import logger, debug, debug_service_call
 
 # Column units for display
 COLUMN_UNITS = {
@@ -66,6 +66,7 @@ async def forecast(
     forecast_hours: int,
 ) -> dict:
     """Linear regression forecast on a time-series column"""
+    debug(f"[Prediction Service] Forecast request: farm={farm_id[:8]}, column={target_column}, zone={zone_id}, lookback={lookback_hours}h, forecast={forecast_hours}h")
     supabase = get_supabase_admin()
     since = (datetime.now(timezone.utc) - timedelta(hours=lookback_hours)).isoformat()
 
@@ -83,6 +84,7 @@ async def forecast(
 
     result = query.execute()
     rows = [r for r in (result.data or []) if r.get(target_column) is not None]
+    debug(f"[Prediction Service] Fetched {len(rows)} rows for forecast")
 
     if len(rows) < 6:
         return {
@@ -193,6 +195,7 @@ async def forecast(
     except Exception as e:
         logger.error("Failed to save prediction", error=str(e))
 
+    debug(f"[Prediction Service] Forecast complete: trend={trend}, r2={r2:.4f}, slope={slope:.6f}, current={ys[-1]:.4f}, forecast_points={len(forecast_points)}")
     return {
         "target_column": target_column,
         "zone_id": zone_id,
@@ -214,6 +217,7 @@ async def detect_anomalies(
     z_threshold: float,
 ) -> dict:
     """Z-score anomaly detection"""
+    debug(f"[Prediction Service] Anomaly detection: farm={farm_id[:8]}, column={target_column}, zone={zone_id}, lookback={lookback_hours}h, z_threshold={z_threshold}")
     supabase = get_supabase_admin()
     since = (datetime.now(timezone.utc) - timedelta(hours=lookback_hours)).isoformat()
 
@@ -231,6 +235,7 @@ async def detect_anomalies(
 
     result = query.execute()
     rows = [r for r in (result.data or []) if r.get(target_column) is not None]
+    debug(f"[Prediction Service] Fetched {len(rows)} rows for anomaly detection")
 
     if len(rows) < 10:
         return {

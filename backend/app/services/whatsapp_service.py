@@ -1,17 +1,17 @@
 """
-WhatsApp integration service via Wassender API
-https://app.wassenger.com/docs/api
+WhatsApp integration service via WaSenderAPI
+https://wasenderapi.com/api-docs
 """
 import httpx
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone
 from app.config import get_settings
 from app.supabase_client import get_supabase_admin
-from app.logging_config import logger
+from app.logging_config import logger, debug
 
 
 class WhatsAppService:
-    """Service for sending and receiving WhatsApp messages via Wassender"""
+    """Service for sending and receiving WhatsApp messages via WaSenderAPI"""
 
     def __init__(self):
         settings = get_settings()
@@ -19,29 +19,32 @@ class WhatsAppService:
         self.api_url = settings.WASSENDER_API_URL if self.enabled else None
         self.api_key = settings.WASSENDER_API_KEY if self.enabled else None
         self.device_id = settings.WASSENDER_DEVICE_ID if self.enabled else None
+        self.webhook_secret = settings.WASSENDER_WEBHOOK_SECRET if self.enabled else None
         self.headers = {
             "Content-Type": "application/json",
-            "Token": self.api_key or "",
+            "Authorization": f"Bearer {self.api_key}" if self.api_key else "",
         }
 
     async def send_message(self, phone: str, message: str) -> Dict[str, Any]:
-        """Send a text message via WhatsApp"""
+        """Send a text message via WhatsApp using WaSenderAPI"""
+        debug(f"[WhatsApp Service] Sending message to {phone}, msg_len={len(message)}")
         if not self.enabled:
+            debug("[WhatsApp Service] WhatsApp is disabled")
             return {
                 "success": False,
                 "status": "disabled",
                 "detail": "WhatsApp integration is disabled",
             }
-        
+
         payload = {
-            "phone": phone,
-            "message": message,
+            "to": phone,
+            "text": message,
         }
 
         async with httpx.AsyncClient() as client:
             try:
                 response = await client.post(
-                    f"{self.api_url}/messages",
+                    f"{self.api_url}/api/send-message",
                     json=payload,
                     headers=self.headers,
                     timeout=30.0,
@@ -50,22 +53,27 @@ class WhatsAppService:
                 result = response.json()
 
                 # Log to Supabase
+                msg_id = None
+                if isinstance(result, dict):
+                    data = result.get("data", {})
+                    msg_id = str(data.get("msgId", "")) if isinstance(data, dict) else None
+
                 await self._log_message(
                     phone=phone,
                     message=message,
                     direction="outbound",
                     status="sent",
-                    external_id=result.get("id"),
+                    external_id=msg_id,
                 )
 
                 logger.info(f"WhatsApp message sent to {phone}")
                 return {
                     "success": True,
-                    "message_id": result.get("id"),
+                    "message_id": msg_id,
                     "status": "sent",
                 }
             except httpx.HTTPStatusError as e:
-                logger.error(f"Wassender API error: {e.response.status_code} - {e.response.text}")
+                logger.error(f"WaSenderAPI error: {e.response.status_code} - {e.response.text}")
                 return {
                     "success": False,
                     "status": "failed",
@@ -106,14 +114,14 @@ class WhatsAppService:
         }
 
     async def get_device_status(self) -> Dict[str, Any]:
-        """Check WhatsApp device connection status"""
+        """Check WhatsApp device connection status via WaSenderAPI"""
         if not self.enabled:
             return {"status": "disabled", "detail": "WhatsApp integration is disabled"}
-        
+
         async with httpx.AsyncClient() as client:
             try:
                 response = await client.get(
-                    f"{self.api_url}/devices/{self.device_id}",
+                    f"{self.api_url}/api/whatsapp-sessions/{self.device_id}",
                     headers=self.headers,
                     timeout=15.0,
                 )
@@ -171,6 +179,192 @@ class WhatsAppService:
         lines.append(f"Time: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
 
         return "\n".join(lines)
+
+    # ─── AI WhatsApp Assistant ───────────────────────────────────
+
+    async def handle_incoming_message(self, sender_phone: str, message_body: str) -> None:
+        """
+        Handle an incoming WhatsApp message with AI assistant flow:
+        1. If no session exists → ask for farm name
+        2. If awaiting farm name → look up farm, connect
+        3. If connected → route to OpenAI with farm context
+        """
+        debug(f"[WhatsApp AI] Incoming from {sender_phone}: {message_body}")
+
+        # Log inbound message
+        await self._log_message(
+            phone=sender_phone,
+            message=message_body,
+            direction="inbound",
+            status="received",
+        )
+
+        # Get or create AI session for this phone
+        session = await self._get_ai_session(sender_phone)
+
+        if session is None:
+            # New user — create session, ask for farm name
+            await self._create_ai_session(sender_phone)
+            await self.send_message(
+                sender_phone,
+                "🌿 *مرحبا بك في SoussFlow!*\n\n"
+                "أنا مساعدك الذكي لإدارة الري.\n"
+                "من فضلك، أخبرني باسم مزرعتك للبدء.\n\n"
+                "🇫🇷 _Bienvenue sur SoussFlow! Quel est le nom de votre ferme?_"
+            )
+        elif session["state"] == "awaiting_farm_name":
+            # User is responding with farm name
+            await self._handle_farm_lookup(sender_phone, message_body, session)
+        elif session["state"] == "connected":
+            # User is connected — route to AI
+            await self._handle_ai_chat(sender_phone, message_body, session)
+        else:
+            # Unknown state — reset
+            await self._update_ai_session(session["id"], state="awaiting_farm_name", farm_id=None, conversation_id=None)
+            await self.send_message(
+                sender_phone,
+                "من فضلك، أخبرني باسم مزرعتك.\n_Quel est le nom de votre ferme?_"
+            )
+
+    async def _handle_farm_lookup(self, phone: str, farm_name: str, session: dict) -> None:
+        """Look up farm by name and connect the user"""
+        supabase = get_supabase_admin()
+        farm_name_clean = farm_name.strip()
+
+        # Search for farm by name (case-insensitive via ilike)
+        result = supabase.table("farms").select("id, name").ilike("name", f"%{farm_name_clean}%").execute()
+
+        if not result.data:
+            await self.send_message(
+                phone,
+                f"❌ لم أجد مزرعة باسم *\"{farm_name_clean}\"*.\n"
+                "حاول مرة أخرى بالاسم الصحيح.\n\n"
+                f"_Ferme \"{farm_name_clean}\" introuvable. Réessayez._"
+            )
+            return
+
+        if len(result.data) > 1:
+            # Multiple matches — let user pick
+            farm_list = "\n".join([f"• {f['name']}" for f in result.data[:5]])
+            await self.send_message(
+                phone,
+                f"🔍 وجدت عدة مزارع:\n{farm_list}\n\n"
+                "من فضلك أرسل الاسم الدقيق.\n"
+                "_Plusieurs fermes trouvées. Envoyez le nom exact._"
+            )
+            return
+
+        farm = result.data[0]
+        farm_id = farm["id"]
+
+        # Create a conversation for this WhatsApp session
+        conv_result = supabase.table("conversations").insert({
+            "farm_id": farm_id,
+            "title": f"WhatsApp - {phone}",
+        }).execute()
+        conversation_id = conv_result.data[0]["id"]
+
+        # Update session to connected
+        await self._update_ai_session(
+            session["id"],
+            state="connected",
+            farm_id=farm_id,
+            conversation_id=conversation_id,
+        )
+
+        await self.send_message(
+            phone,
+            f"✅ تم الاتصال بمزرعة *{farm['name']}*!\n\n"
+            "يمكنك الآن سؤالي عن:\n"
+            "• 💧 حالة الري والتربة\n"
+            "• 🌡️ الطقس والمناخ\n"
+            "• 📊 بيانات المستشعرات\n"
+            "• 🌿 نصائح زراعة الزيتون\n\n"
+            "أرسل *\"تغيير المزرعة\"* للتبديل لمزرعة أخرى.\n\n"
+            f"_Connecté à {farm['name']}! Posez vos questions._"
+        )
+
+    async def _handle_ai_chat(self, phone: str, message: str, session: dict) -> None:
+        """Route message to OpenAI with farm context"""
+        # Check for farm switch command
+        msg_lower = message.strip().lower()
+        if msg_lower in ("تغيير المزرعة", "changer ferme", "switch farm", "تغيير"):
+            await self._update_ai_session(session["id"], state="awaiting_farm_name", farm_id=None, conversation_id=None)
+            await self.send_message(
+                phone,
+                "🔄 من فضلك، أخبرني باسم المزرعة الجديدة.\n_Quel est le nom de la nouvelle ferme?_"
+            )
+            return
+
+        farm_id = session["farm_id"]
+        conversation_id = session["conversation_id"]
+
+        try:
+            from app.services.openai_service import chat
+            ai_response = await chat(
+                farm_id=farm_id,
+                conversation_id=conversation_id,
+                user_message=message,
+            )
+
+            # WhatsApp has a 4096 char limit — truncate if needed
+            if len(ai_response) > 4000:
+                ai_response = ai_response[:3990] + "\n..."
+
+            # Strip SVG tags (not renderable in WhatsApp)
+            import re
+            ai_response = re.sub(r'<svg[\s\S]*?</svg>', '[chart - visible in app]', ai_response)
+
+            await self.send_message(phone, ai_response)
+
+        except Exception as e:
+            logger.error(f"WhatsApp AI chat error: {e}")
+            await self.send_message(
+                phone,
+                "⚠️ عذراً، حدث خطأ. حاول مرة أخرى.\n_Erreur, réessayez._"
+            )
+
+    # ─── AI Session Management (Supabase) ────────────────────────
+
+    async def _get_ai_session(self, phone: str) -> Optional[dict]:
+        """Get the AI session for a phone number"""
+        supabase = get_supabase_admin()
+        result = supabase.table("whatsapp_ai_sessions").select("*").eq("phone", phone).execute()
+        return result.data[0] if result.data else None
+
+    async def _create_ai_session(self, phone: str) -> dict:
+        """Create a new AI session for a phone number"""
+        supabase = get_supabase_admin()
+        result = supabase.table("whatsapp_ai_sessions").insert({
+            "phone": phone,
+            "state": "awaiting_farm_name",
+        }).execute()
+        return result.data[0]
+
+    async def _update_ai_session(
+        self,
+        session_id: str,
+        state: Optional[str] = None,
+        farm_id: Optional[str] = None,
+        conversation_id: Optional[str] = None,
+    ) -> None:
+        """Update an AI session"""
+        supabase = get_supabase_admin()
+        update_data = {"updated_at": datetime.now(timezone.utc).isoformat()}
+        if state is not None:
+            update_data["state"] = state
+        if farm_id is not None:
+            update_data["farm_id"] = farm_id
+        elif state == "awaiting_farm_name":
+            update_data["farm_id"] = None
+        if conversation_id is not None:
+            update_data["conversation_id"] = conversation_id
+        elif state == "awaiting_farm_name":
+            update_data["conversation_id"] = None
+
+        supabase.table("whatsapp_ai_sessions").update(update_data).eq("id", session_id).execute()
+
+    # ─── Message Logging ─────────────────────────────────────────
 
     async def _log_message(
         self,

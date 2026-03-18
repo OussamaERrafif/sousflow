@@ -10,6 +10,7 @@ import type { BranchReading, ZoneReading } from "@/lib/store/slices/iotSlice";
 import { CheckCircle2, AlertTriangle, AlertOctagon, PauseCircle, Wifi, WifiOff, Droplets, Gauge, Activity, Thermometer } from "lucide-react";
 import { BranchCard } from "../BranchCard";
 import { WaterConsumptionChart } from "../WaterConsumptionChart";
+import { useDebugLog } from "@/lib/debug";
 
 function MoistureBar({ level, status }: { level: number; status: string }) {
     const t = useTranslations("ZoneGrid");
@@ -44,6 +45,12 @@ export default function ZonesPage() {
 
     const { zones: sseZones, environment, infrastructure, simulatorRunning, connected, lastUpdate } = useAppSelector((state) => state.iot);
     const hasLiveData = connected && sseZones && sseZones.length > 0;
+
+    useDebugLog("ZonesPage - sseZones", sseZones);
+    useDebugLog("ZonesPage - environment", environment);
+    useDebugLog("ZonesPage - infrastructure", infrastructure);
+    useDebugLog("ZonesPage - connected", connected);
+    useDebugLog("ZonesPage - simulatorRunning", simulatorRunning);
 
     const { data: simulatorStatus } = useGetSimulatorStatusApiIotSimulatorStatusGetQuery();
 

@@ -299,6 +299,12 @@
                 SoussFlow Analytics
             </span>
             <span class="text-end d-flex align-items-center gap-3">
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="debugModeToggle" {% if debug_mode %}checked{% endif %} onchange="toggleDebugMode()">
+                    <label class="form-check-label text-warning" for="debugModeToggle">
+                        <i class="bi bi-bug"></i> Debug
+                    </label>
+                </div>
                 <small class="text-secondary">
                     <i class="bi bi-person-circle me-1"></i>{{ admin_user.full_name or admin_user.username }}
                 </small>
@@ -908,6 +914,11 @@
                                 </button>
                             </li>
                             <li class="nav-item">
+                                <button class="nav-link" id="debug-logs-tab" data-bs-toggle="tab" data-bs-target="#debug-logs" type="button">
+                                    <i class="bi bi-bug me-2"></i>Debug Logs
+                                </button>
+                            </li>
+                            <li class="nav-item">
                                 <button class="nav-link" id="errors-tab" data-bs-toggle="tab" data-bs-target="#errors" type="button">
                                     <i class="bi bi-shield-exclamation me-2"></i>Error Diagnostics
                                 </button>
@@ -916,7 +927,7 @@
                     </div>
                     <div class="card-body p-0">
                         <div class="tab-content" id="logTabsContent">
-                            <div class="tab-pane fade show active" id="all-logs">
+                            <div class="tab-pane fade" id="all-logs">
                                 <div class="d-flex justify-content-between align-items-center px-4 py-3 border-bottom border-secondary border-opacity-25">
                                     <span class="text-secondary small fw-medium">{{ logs|length }} entries total</span>
                                     <div class="btn-group btn-group-sm">
@@ -943,6 +954,27 @@
                                         {% if logs|length == 0 %}
                                         <div class="text-center text-secondary py-5">System logs are empty.</div>
                                         {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="tab-pane fade" id="debug-logs">
+                                <div class="d-flex justify-content-between align-items-center px-4 py-3 border-bottom border-secondary border-opacity-25">
+                                    <span class="text-secondary small fw-medium" id="debugLogsCount">0 entries</span>
+                                    <div class="btn-group btn-group-sm">
+                                        <button class="btn btn-outline-custom" onclick="refreshDebugLogs()" title="Refresh">
+                                            <i class="bi bi-arrow-clockwise"></i>
+                                        </button>
+                                        <button class="btn btn-outline-custom" onclick="clearDebugLogs()" title="Clear">
+                                            <i class="bi bi-trash3"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="log-container-wrapper">
+                                    <div class="scrollable-log" id="debugLogContainer">
+                                        <div class="text-center text-secondary py-5">
+                                            <i class="bi bi-bug fs-1 d-block mb-2"></i>
+                                            Enable debug mode to see debug logs.
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -1096,7 +1128,6 @@
             };
         }
 
-        // Log filtering
         function filterLogs(level, btn) {
             // Update button states
             const buttons = btn.parentElement.querySelectorAll('.btn');
@@ -1112,6 +1143,88 @@
                     entry.style.display = 'none';
                 }
             });
+        }
+
+        // ═══════ Debug Mode ═══════
+
+        let debugModeEnabled = {{ 'true' if debug_mode else 'false' }};
+        let debugLogsInterval = null;
+
+        async function toggleDebugMode() {
+            try {
+                const res = await apiFetch('/api/debug/toggle', { method: 'POST' });
+                if (!res) return;
+                const data = await res.json();
+                debugModeEnabled = data.debug_mode;
+                showToast('Debug mode ' + (debugModeEnabled ? 'enabled' : 'disabled'), 'success');
+                
+                // Update toggle switch
+                document.getElementById('debugModeToggle').checked = debugModeEnabled;
+                
+                // Refresh debug logs if enabled
+                if (debugModeEnabled) {
+                    refreshDebugLogs();
+                    // Auto-refresh debug logs every 2 seconds
+                    if (debugLogsInterval) clearInterval(debugLogsInterval);
+                    debugLogsInterval = setInterval(refreshDebugLogs, 2000);
+                } else {
+                    if (debugLogsInterval) {
+                        clearInterval(debugLogsInterval);
+                        debugLogsInterval = null;
+                    }
+                }
+            } catch (err) {
+                showToast('Failed to toggle debug mode', 'error');
+            }
+        }
+
+        async function refreshDebugLogs() {
+            if (!debugModeEnabled) return;
+            
+            try {
+                const res = await apiFetch('/api/debug/logs');
+                if (!res) return;
+                const data = await res.json();
+                const logs = data.logs || [];
+                
+                const container = document.getElementById('debugLogContainer');
+                const countEl = document.getElementById('debugLogsCount');
+                
+                if (!logs || logs.length === 0) {
+                    container.innerHTML = '<div class="text-center text-secondary py-5"><i class="bi bi-bug fs-1 d-block mb-2"></i>No debug logs yet.</div>';
+                    countEl.textContent = '0 entries';
+                    return;
+                }
+                
+                countEl.textContent = logs.length + ' entries';
+                container.innerHTML = logs.map(log => `
+                    <div class="log-entry" data-level="${log.level || 'DEBUG'}">
+                        <span class="log-timestamp">[${log.timestamp || ''}]</span>
+                        <span class="log-level log-level-DEBUG">DEBUG</span>
+                        <span class="log-message">
+                            ${log.message || JSON.stringify(log)}
+                            ${log.module ? '<span class="text-secondary ms-2" style="font-size: 0.8em;">in ' + log.module + '</span>' : ''}
+                        </span>
+                    </div>
+                `).join('');
+                
+                // Auto-scroll to bottom
+                container.scrollTop = container.scrollHeight;
+            } catch (err) {
+                console.error('Failed to fetch debug logs:', err);
+            }
+        }
+
+        function clearDebugLogs() {
+            const container = document.getElementById('debugLogContainer');
+            container.innerHTML = '<div class="text-center text-secondary py-5"><i class="bi bi-bug fs-1 d-block mb-2"></i>Debug logs cleared.</div>';
+            document.getElementById('debugLogsCount').textContent = '0 entries';
+        }
+
+        // Initialize debug logs if debug mode is already enabled
+        if (debugModeEnabled) {
+            refreshDebugLogs();
+            debugLogsInterval = setInterval(refreshDebugLogs, 2000);
         }
 
         // Initialize
@@ -1422,6 +1535,629 @@
             const data = await simApiFetch(`/api/iot/simulator/inject/soil?zone_id=${zone}&moisture=${moisture}`);
             if (data) simLog(`Soil moisture set: Zone ${zone} = ${data.soil_moisture_pct}%`, 'success');
         }
+    </script>
+
+    <!-- ═══════ Floating Debug Panel ═══════ -->
+    <style>
+        #debug-fab {
+            position: fixed; top: 16px; right: 16px; z-index: 99999;
+            display: flex; align-items: center; gap: 8px;
+            background: #09090b; color: #a1a1aa; border: 1px solid #3f3f46;
+            padding: 8px 14px; border-radius: 12px; cursor: pointer;
+            font-size: 13px; font-weight: 700; font-family: 'Inter', sans-serif;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,.5);
+            transition: all .15s;
+        }
+        #debug-fab:hover { color: #fff; border-color: #52525b; }
+        #debug-fab .pulse-dot {
+            width: 8px; height: 8px; border-radius: 50%; background: #10b981;
+            animation: pulse 2s cubic-bezier(.4,0,.6,1) infinite;
+        }
+
+        #debug-panel {
+            position: fixed; top: 16px; right: 16px; z-index: 99999;
+            width: 520px; max-height: 70vh;
+            background: #09090b; border: 1px solid #3f3f46; border-radius: 16px;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,.5);
+            font-family: 'JetBrains Mono','Consolas','Monaco',monospace;
+            font-size: 11px; color: #d4d4d8;
+            display: flex; flex-direction: column; overflow: hidden;
+        }
+        #debug-panel.hidden { display: none; }
+        #debug-panel.minimized { width: auto; max-height: none; }
+
+        .dp-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 8px 12px; background: #18181b; border-bottom: 1px solid #27272a;
+        }
+        .dp-header-left { display: flex; align-items: center; gap: 8px; }
+        .dp-header-left svg { width: 16px; height: 16px; color: #f59e0b; }
+        .dp-header-left span { font-weight: 700; font-size: 13px; color: #e4e4e7; font-family: 'Inter',sans-serif; }
+        .dp-indicator { width: 8px; height: 8px; border-radius: 50%; }
+        .dp-indicator.on { background: #f59e0b; animation: pulse 2s cubic-bezier(.4,0,.6,1) infinite; }
+        .dp-indicator.off { background: #52525b; }
+        .dp-header-right { display: flex; align-items: center; gap: 4px; }
+        .dp-header-right button { background: none; border: none; color: #71717a; cursor: pointer; padding: 4px; border-radius: 4px; }
+        .dp-header-right button:hover { color: #d4d4d8; }
+        .dp-btn-toggle {
+            padding: 2px 8px !important; border-radius: 4px; font-size: 10px; font-weight: 700;
+            font-family: 'Inter',sans-serif;
+        }
+        .dp-btn-toggle.on { background: rgba(245,158,11,.2); color: #f59e0b; }
+        .dp-btn-toggle.off { background: #27272a; color: #71717a; }
+
+        .dp-tabs {
+            display: flex; border-bottom: 1px solid #27272a; background: rgba(24,24,27,.5);
+        }
+        .dp-tab {
+            flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
+            padding: 8px 4px; font-size: 11px; font-weight: 700;
+            color: #71717a; cursor: pointer; border: none; background: none;
+            border-bottom: 2px solid transparent; transition: all .15s;
+            font-family: 'Inter',sans-serif;
+        }
+        .dp-tab:hover { color: #a1a1aa; }
+        .dp-tab.active { color: #f59e0b; border-bottom-color: #f59e0b; background: rgba(245,158,11,.03); }
+        .dp-tab svg { width: 14px; height: 14px; }
+
+        .dp-content { flex: 1; overflow: auto; min-height: 0; max-height: calc(70vh - 90px); }
+
+        /* Logs */
+        .dp-log-filters {
+            display: flex; align-items: center; gap: 4px;
+            padding: 6px 8px; border-bottom: 1px solid #27272a; background: rgba(24,24,27,.3);
+        }
+        .dp-filter-btn {
+            padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700;
+            background: none; border: none; color: #71717a; cursor: pointer;
+            font-family: 'Inter',sans-serif;
+        }
+        .dp-filter-btn.active { background: #3f3f46; color: #e4e4e7; }
+        .dp-filter-btn:hover:not(.active) { color: #a1a1aa; }
+        .dp-log-actions { margin-left: auto; display: flex; gap: 2px; }
+        .dp-log-actions button { background: none; border: none; color: #71717a; cursor: pointer; padding: 4px; }
+        .dp-log-actions button:hover { color: #d4d4d8; }
+
+        .dp-log-entry {
+            display: flex; align-items: flex-start; gap: 8px;
+            padding: 4px 8px; cursor: pointer; border-radius: 4px;
+        }
+        .dp-log-entry:hover { background: rgba(24,24,27,.5); }
+        .dp-log-ts { color: #52525b; white-space: nowrap; width: 64px; flex-shrink: 0; }
+        .dp-log-badge {
+            font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 4px;
+            border: 1px solid; white-space: nowrap; flex-shrink: 0;
+        }
+        .dp-badge-api { background: rgba(59,130,246,.15); color: #60a5fa; border-color: rgba(59,130,246,.3); }
+        .dp-badge-sse { background: rgba(16,185,129,.15); color: #34d399; border-color: rgba(16,185,129,.3); }
+        .dp-badge-req { background: rgba(168,85,247,.15); color: #c084fc; border-color: rgba(168,85,247,.3); }
+        .dp-badge-error { background: rgba(239,68,68,.15); color: #f87171; border-color: rgba(239,68,68,.3); }
+        .dp-badge-info { background: rgba(113,113,122,.15); color: #a1a1aa; border-color: rgba(113,113,122,.3); }
+        .dp-badge-debug { background: rgba(168,85,247,.15); color: #c084fc; border-color: rgba(168,85,247,.3); }
+        .dp-log-msg { flex: 1; word-break: break-all; }
+        .dp-log-msg.error { color: #f87171; }
+        .dp-log-detail {
+            margin-top: 4px; padding: 8px; background: #18181b; border-radius: 4px;
+            font-size: 10px; color: #71717a; overflow: auto; max-height: 160px;
+            border: 1px solid #27272a; white-space: pre-wrap;
+        }
+        .dp-empty { display: flex; align-items: center; justify-content: center; height: 128px; color: #52525b; }
+
+        /* Metrics */
+        .dp-metric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 12px; }
+        .dp-metric {
+            padding: 8px; background: #18181b; border-radius: 8px; border: 1px solid #27272a; text-align: center;
+        }
+        .dp-metric-label { color: #52525b; font-size: 10px; font-weight: 700; text-transform: uppercase; font-family: 'Inter',sans-serif; }
+        .dp-metric-value { font-weight: 700; font-size: 14px; color: #d4d4d8; }
+        .dp-metric-value.green { color: #34d399; }
+        .dp-metric-value.red { color: #f87171; }
+        .dp-metric-value.amber { color: #fbbf24; }
+
+        /* SSE zone rows */
+        .dp-zone-row {
+            display: flex; align-items: center; gap: 8px;
+            padding: 8px; background: #18181b; border-radius: 8px; border: 1px solid #27272a;
+            margin: 0 12px 4px;
+        }
+        .dp-zone-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+        .dp-zone-dot.good { background: #10b981; }
+        .dp-zone-dot.warn { background: #f59e0b; }
+        .dp-zone-dot.bad { background: #ef4444; }
+        .dp-zone-name { font-weight: 700; color: #d4d4d8; flex: 1; }
+        .dp-zone-stat { color: #71717a; }
+
+        /* Backend section */
+        .dp-section-pad { padding: 12px; }
+        .dp-backend-row {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 12px; background: #18181b; border-radius: 8px; border: 1px solid #27272a;
+        }
+        .dp-backend-row .left { display: flex; align-items: center; gap: 8px; }
+        .dp-backend-row .left svg { width: 16px; height: 16px; color: #71717a; }
+        .dp-backend-row .label { font-weight: 700; color: #d4d4d8; font-family: 'Inter',sans-serif; }
+        .dp-backend-row .sub { font-size: 10px; color: #52525b; }
+        .dp-link-row { display: flex; gap: 8px; margin-top: 12px; }
+        .dp-link {
+            flex: 1; text-align: center; padding: 8px; background: #18181b; border-radius: 8px;
+            border: 1px solid #27272a; color: #71717a; text-decoration: none; font-weight: 700;
+            font-size: 11px; transition: all .15s; font-family: 'Inter',sans-serif;
+        }
+        .dp-link:hover { color: #e4e4e7; border-color: #52525b; }
+
+        .dp-backend-log {
+            margin-top: 12px; max-height: 240px; overflow: auto;
+        }
+        .dp-backend-log-entry {
+            display: flex; align-items: flex-start; gap: 8px;
+            padding: 4px 8px; background: #18181b; border-radius: 4px; margin-bottom: 2px;
+            font-size: 10px;
+        }
+        .dp-backend-log-ts { color: #52525b; width: 64px; flex-shrink: 0; }
+        .dp-backend-log-level { font-weight: 700; width: 48px; flex-shrink: 0; }
+        .dp-backend-log-level.ERROR { color: #f87171; }
+        .dp-backend-log-level.WARNING { color: #fbbf24; }
+        .dp-backend-log-level.DEBUG { color: #c084fc; }
+        .dp-backend-log-level.INFO { color: #71717a; }
+        .dp-backend-log-msg { color: #a1a1aa; word-break: break-all; }
+
+        /* Connection box */
+        .dp-conn-box {
+            display: flex; align-items: center; gap: 12px; padding: 12px;
+            background: #18181b; border-radius: 8px; border: 1px solid #27272a; margin: 12px;
+        }
+        .dp-conn-box svg { width: 20px; height: 20px; }
+        .dp-conn-box .conn-label { font-weight: 700; font-family: 'Inter',sans-serif; }
+        .dp-conn-box .conn-url { font-size: 10px; color: #52525b; }
+        .dp-conn-box.connected .conn-label { color: #34d399; }
+        .dp-conn-box.connected svg { color: #34d399; }
+        .dp-conn-box.disconnected .conn-label { color: #f87171; }
+        .dp-conn-box.disconnected svg { color: #f87171; }
+
+        .dp-section-title {
+            font-size: 10px; font-weight: 700; text-transform: uppercase; color: #52525b;
+            padding: 4px 12px; font-family: 'Inter',sans-serif;
+        }
+
+        @media (max-width: 640px) {
+            #debug-panel { width: calc(100vw - 32px); }
+        }
+    </style>
+
+    <!-- FAB button (closed state) -->
+    <div id="debug-fab" onclick="dpOpen()">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m8 2 1.88 1.88"/><path d="M14.12 3.88 16 2"/><path d="M9 7.13v-1a3.003 3.003 0 1 1 6 0v1"/><path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6"/><path d="M12 20v-9"/><path d="M6.53 9C4.6 8.8 3 7.1 3 5"/><path d="M6 13H2"/><path d="M3 21c0-2.1 1.7-3.9 3.8-4"/><path d="M20.97 5c0 2.1-1.6 3.8-3.5 4"/><path d="M22 13h-4"/><path d="M17.2 17c2.1.1 3.8 1.9 3.8 4"/></svg>
+        Debug
+        <span class="pulse-dot" id="debug-fab-dot" style="display:none"></span>
+    </div>
+
+    <!-- Panel (hidden by default) -->
+    <div id="debug-panel" class="hidden">
+        <!-- Header -->
+        <div class="dp-header">
+            <div class="dp-header-left">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m8 2 1.88 1.88"/><path d="M14.12 3.88 16 2"/><path d="M9 7.13v-1a3.003 3.003 0 1 1 6 0v1"/><path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6"/><path d="M12 20v-9"/><path d="M6.53 9C4.6 8.8 3 7.1 3 5"/><path d="M6 13H2"/><path d="M3 21c0-2.1 1.7-3.9 3.8-4"/><path d="M20.97 5c0 2.1-1.6 3.8-3.5 4"/><path d="M22 13h-4"/><path d="M17.2 17c2.1.1 3.8 1.9 3.8 4"/></svg>
+                <span>Debug Panel</span>
+                <span class="dp-indicator" id="dp-indicator"></span>
+            </div>
+            <div class="dp-header-right">
+                <button class="dp-btn-toggle" id="dp-toggle-btn" onclick="dpToggleDebug()"></button>
+                <button onclick="dpMinimize()" title="Minimize">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/></svg>
+                </button>
+                <button onclick="dpClose()" style="color:#71717a" onmouseover="this.style.color='#f87171'" onmouseout="this.style.color='#71717a'">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="dp-tabs">
+            <button class="dp-tab active" data-tab="dp-logs" onclick="dpSwitchTab('dp-logs', this)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/></svg>
+                Logs
+            </button>
+            <button class="dp-tab" data-tab="dp-sse" onclick="dpSwitchTab('dp-sse', this)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h.01"/><path d="M2 8.82a15 15 0 0 1 20 0"/><path d="M5 12.859a10 10 0 0 1 14 0"/><path d="M8.5 16.429a5 5 0 0 1 7 0"/></svg>
+                SSE
+            </button>
+            <button class="dp-tab" data-tab="dp-system" onclick="dpSwitchTab('dp-system', this)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></svg>
+                System
+            </button>
+            <button class="dp-tab" data-tab="dp-backend-logs" onclick="dpSwitchTab('dp-backend-logs', this)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/></svg>
+                Backend
+            </button>
+        </div>
+
+        <!-- Content -->
+        <div class="dp-content">
+            <!-- LOGS TAB -->
+            <div id="dp-logs">
+                <div class="dp-log-filters">
+                    <button class="dp-filter-btn active" onclick="dpFilterLogs('all',this)">ALL</button>
+                    <button class="dp-filter-btn" onclick="dpFilterLogs('api',this)">API</button>
+                    <button class="dp-filter-btn" onclick="dpFilterLogs('sse',this)">SSE</button>
+                    <button class="dp-filter-btn" onclick="dpFilterLogs('error',this)">ERROR</button>
+                    <div class="dp-log-actions">
+                        <button onclick="dpCopyLogs()" title="Copy">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                        </button>
+                        <button onclick="dpClearLogs()" title="Clear" onmouseover="this.style.color='#f87171'" onmouseout="this.style.color='#71717a'">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                        </button>
+                    </div>
+                </div>
+                <div id="dp-logs-list" style="padding:4px"></div>
+            </div>
+
+            <!-- SSE TAB -->
+            <div id="dp-sse" style="display:none">
+                <div class="dp-conn-box" id="dp-sse-conn-box">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h.01"/><path d="M2 8.82a15 15 0 0 1 20 0"/><path d="M5 12.859a10 10 0 0 1 14 0"/><path d="M8.5 16.429a5 5 0 0 1 7 0"/></svg>
+                    <div>
+                        <div class="conn-label" id="dp-sse-label">Checking...</div>
+                        <div class="conn-url">/api/events</div>
+                    </div>
+                </div>
+                <div class="dp-metric-grid" id="dp-sse-metrics"></div>
+                <div class="dp-section-title">Live Zone Data</div>
+                <div id="dp-sse-zones" style="padding-bottom:8px"></div>
+            </div>
+
+            <!-- SYSTEM TAB -->
+            <div id="dp-system" style="display:none">
+                <div class="dp-metric-grid" id="dp-system-metrics"></div>
+            </div>
+
+            <!-- BACKEND LOGS TAB -->
+            <div id="dp-backend-logs" style="display:none">
+                <div class="dp-section-pad">
+                    <div class="dp-backend-row">
+                        <div class="left">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></svg>
+                            <div>
+                                <div class="label">Backend Debug Mode</div>
+                                <div class="sub" id="dp-backend-url"></div>
+                            </div>
+                        </div>
+                        <button class="dp-btn-toggle" id="dp-backend-toggle" onclick="dpToggleBackendDebug()"></button>
+                    </div>
+                    <div class="dp-link-row">
+                        <a href="/dashboard" class="dp-link">Admin Dashboard</a>
+                        <a href="/docs" target="_blank" class="dp-link">Swagger Docs</a>
+                    </div>
+                    <div class="dp-section-title" style="margin-top:12px">Backend Logs (last 50)</div>
+                    <div class="dp-backend-log" id="dp-backend-log-list">
+                        <div class="dp-empty">Enable backend debug to see logs</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // ═══════ Debug Panel State ═══════
+        const DP_KEY = 'sousflow_dp_debug';
+        let dpLogs = [];
+        let dpLogId = 0;
+        let dpFilter = 'all';
+        let dpDebugOn = localStorage.getItem(DP_KEY) === 'true';
+        let dpBackendDebugOn = debugModeEnabled; // from dashboard's existing var
+        let dpSseData = { connected: false, zones: [], environment: null, infrastructure: null, simulatorRunning: false, lastUpdate: null };
+        let dpExpandedLog = null;
+        let dpBackendPoll = null;
+        const MAX_DP_LOGS = 200;
+
+        // Expose to global
+        window.dpOpen = function() {
+            document.getElementById('debug-fab').style.display = 'none';
+            document.getElementById('debug-panel').classList.remove('hidden');
+            document.getElementById('debug-panel').classList.remove('minimized');
+        };
+        window.dpClose = function() {
+            document.getElementById('debug-panel').classList.add('hidden');
+            document.getElementById('debug-fab').style.display = 'flex';
+            if (dpBackendPoll) { clearInterval(dpBackendPoll); dpBackendPoll = null; }
+        };
+        window.dpMinimize = function() {
+            document.getElementById('debug-panel').classList.add('hidden');
+            document.getElementById('debug-fab').style.display = 'flex';
+        };
+
+        function dpAddLog(type, message, data) {
+            if (!dpDebugOn) return;
+            dpLogs.unshift({
+                id: ++dpLogId,
+                ts: new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+                type, message, data
+            });
+            if (dpLogs.length > MAX_DP_LOGS) dpLogs.length = MAX_DP_LOGS;
+            dpRenderLogs();
+        }
+
+        // Intercept SSE for debug panel
+        const origOnMessage = eventSource ? eventSource.onmessage : null;
+        function hookSSE() {
+            if (!eventSource) return;
+            const prev = eventSource.onmessage;
+            eventSource.onmessage = function(event) {
+                try {
+                    const d = JSON.parse(event.data);
+                    dpSseData.connected = true;
+                    dpSseData.lastUpdate = d.timestamp || new Date().toISOString();
+                    dpSseData.simulatorRunning = d.simulator_running || false;
+                    if (d.zones) dpSseData.zones = d.zones;
+                    if (d.environment) dpSseData.environment = d.environment;
+                    if (d.infrastructure) dpSseData.infrastructure = d.infrastructure;
+                    if (d.readings) dpSseData.zones = d.readings;
+
+                    dpAddLog('sse', `Update: ${(d.zones||d.readings||[]).length} zones, sim=${d.simulator_running?'on':'off'}`, {
+                        timestamp: d.timestamp,
+                        zones: (d.zones||d.readings||[]).map(z => ({
+                            id: z.zone_id, name: z.zone_name||('Zone '+z.zone_id),
+                            moisture: z.avg_moisture_pct || z.soil_moisture_pct
+                        }))
+                    });
+
+                    dpRenderSSE();
+                } catch(e) {}
+                if (prev) prev.call(eventSource, event);
+            };
+        }
+        hookSSE();
+        // Re-hook when SSE reconnects
+        const origConnect = window.connectSSE;
+        if (origConnect) {
+            window.connectSSE = function() {
+                origConnect();
+                setTimeout(hookSSE, 100);
+            };
+        }
+
+        // Intercept fetch for API logging
+        const _origFetch = window.fetch;
+        window.fetch = async function(...args) {
+            const url = typeof args[0] === 'string' ? args[0] : (args[0]?.url || '');
+            const method = (args[1]?.method || 'GET').toUpperCase();
+            const isApi = url.includes('/api/');
+
+            if (isApi && dpDebugOn && !url.includes('/api/events')) {
+                const start = performance.now();
+                try {
+                    const response = await _origFetch.apply(this, args);
+                    const dur = Math.round(performance.now() - start);
+                    dpAddLog('api', `${method} ${url} → ${response.status} (${dur}ms)`, { status: response.status, duration: dur });
+                    return response;
+                } catch(err) {
+                    const dur = Math.round(performance.now() - start);
+                    dpAddLog('error', `${method} ${url} FAILED (${dur}ms)`, { error: String(err) });
+                    throw err;
+                }
+            }
+            return _origFetch.apply(this, args);
+        };
+
+        // ═══════ Render Functions ═══════
+
+        function dpRenderLogs() {
+            const container = document.getElementById('dp-logs-list');
+            if (!container) return;
+            const filtered = dpFilter === 'all' ? dpLogs : dpLogs.filter(l => l.type === dpFilter);
+            if (filtered.length === 0) {
+                container.innerHTML = `<div class="dp-empty">${dpDebugOn ? 'Waiting for events...' : 'Enable debug mode to capture logs'}</div>`;
+                return;
+            }
+            container.innerHTML = filtered.map(l => {
+                const badgeCls = 'dp-badge-' + (l.type === 'api' ? 'api' : l.type === 'sse' ? 'sse' : l.type === 'error' ? 'error' : l.type === 'req' ? 'req' : 'info');
+                const msgCls = l.type === 'error' ? 'dp-log-msg error' : 'dp-log-msg';
+                const expanded = dpExpandedLog === l.id;
+                return `<div class="dp-log-entry" onclick="dpToggleLog(${l.id})">
+                    <span class="dp-log-ts">${l.ts}</span>
+                    <span class="dp-log-badge ${badgeCls}">${l.type.toUpperCase()}</span>
+                    <div style="flex:1;min-width:0">
+                        <span class="${msgCls}">${escHtml(l.message)}</span>
+                        ${expanded && l.data ? `<div class="dp-log-detail">${escHtml(JSON.stringify(l.data, null, 2))}</div>` : ''}
+                    </div>
+                    ${l.data ? `<span style="color:#52525b;flex-shrink:0">${expanded ? '▾' : '▸'}</span>` : ''}
+                </div>`;
+            }).join('');
+        }
+
+        window.dpToggleLog = function(id) {
+            dpExpandedLog = dpExpandedLog === id ? null : id;
+            dpRenderLogs();
+        };
+
+        function dpRenderSSE() {
+            const connBox = document.getElementById('dp-sse-conn-box');
+            const label = document.getElementById('dp-sse-label');
+            if (dpSseData.connected) {
+                connBox.className = 'dp-conn-box connected';
+                label.textContent = 'SSE Connected';
+            } else {
+                connBox.className = 'dp-conn-box disconnected';
+                label.textContent = 'SSE Disconnected';
+            }
+
+            const env = dpSseData.environment || {};
+            const infra = dpSseData.infrastructure || {};
+            document.getElementById('dp-sse-metrics').innerHTML = `
+                <div class="dp-metric"><div class="dp-metric-label">Zones</div><div class="dp-metric-value">${dpSseData.zones?.length||0}</div></div>
+                <div class="dp-metric"><div class="dp-metric-label">Simulator</div><div class="dp-metric-value ${dpSseData.simulatorRunning?'green':''}">
+                    ${dpSseData.simulatorRunning?'Running':'Stopped'}</div></div>
+                <div class="dp-metric"><div class="dp-metric-label">Last Update</div><div class="dp-metric-value">
+                    ${dpSseData.lastUpdate ? new Date(dpSseData.lastUpdate).toLocaleTimeString('en-US',{hour12:false}) : '—'}</div></div>
+                <div class="dp-metric"><div class="dp-metric-label">Env Temp</div><div class="dp-metric-value">
+                    ${env.air_temperature_c != null ? env.air_temperature_c.toFixed(1)+'°C' : '—'}</div></div>
+                <div class="dp-metric"><div class="dp-metric-label">Humidity</div><div class="dp-metric-value">
+                    ${env.air_humidity_pct != null ? env.air_humidity_pct.toFixed(0)+'%' : '—'}</div></div>
+                <div class="dp-metric"><div class="dp-metric-label">Reservoir</div><div class="dp-metric-value">
+                    ${infra.reservoir_level_pct != null ? infra.reservoir_level_pct.toFixed(0)+'%' : '—'}</div></div>
+                <div class="dp-metric"><div class="dp-metric-label">Pump Flow</div><div class="dp-metric-value">
+                    ${infra.main_pump_flow_lpm != null ? infra.main_pump_flow_lpm.toFixed(1)+' L/m' : '—'}</div></div>
+                <div class="dp-metric"><div class="dp-metric-label">Pressure</div><div class="dp-metric-value">
+                    ${infra.main_pressure_mpa != null ? infra.main_pressure_mpa.toFixed(2)+' MPa' : '—'}</div></div>
+            `;
+
+            const zonesContainer = document.getElementById('dp-sse-zones');
+            const zones = dpSseData.zones || [];
+            if (zones.length > 0) {
+                zonesContainer.innerHTML = zones.map(z => {
+                    const hs = z.health_score || 0;
+                    const dotCls = hs > 70 ? 'good' : hs > 40 ? 'warn' : 'bad';
+                    const name = z.zone_name || ('Zone ' + (z.zone_id || z.zone_number || '?'));
+                    const moist = z.avg_moisture_pct || z.soil_moisture_pct || 0;
+                    const leaks = z.leak_count || 0;
+                    return `<div class="dp-zone-row">
+                        <span class="dp-zone-dot ${dotCls}"></span>
+                        <span class="dp-zone-name">${escHtml(name)}</span>
+                        <span class="dp-zone-stat">${moist}%</span>
+                        <span style="color:#3f3f46">|</span>
+                        <span class="dp-zone-stat">${hs}hp</span>
+                        <span style="color:#3f3f46">|</span>
+                        <span style="font-size:10px;font-weight:700;color:${leaks>0?'#f87171':'#52525b'}">${leaks>0?leaks+' leaks':'ok'}</span>
+                    </div>`;
+                }).join('');
+            } else {
+                zonesContainer.innerHTML = '<div class="dp-empty">No zone data yet</div>';
+            }
+        }
+
+        function dpRenderSystem() {
+            const m = document.getElementById('dp-system-metrics');
+            m.innerHTML = `
+                <div class="dp-metric"><div class="dp-metric-label">Status</div><div class="dp-metric-value green">Healthy</div></div>
+                <div class="dp-metric"><div class="dp-metric-label">Version</div><div class="dp-metric-value">{{ health.version }}</div></div>
+                <div class="dp-metric"><div class="dp-metric-label">Uptime</div><div class="dp-metric-value" id="dp-sys-uptime">{{ health.uptime }}</div></div>
+                <div class="dp-metric"><div class="dp-metric-label">Server Time</div><div class="dp-metric-value" id="dp-sys-time">{{ health.current_time }}</div></div>
+                <div class="dp-metric"><div class="dp-metric-label">Modules</div><div class="dp-metric-value">{{ health.modules|length }}</div></div>
+                <div class="dp-metric"><div class="dp-metric-label">Simulator</div><div class="dp-metric-value ${dpSseData.simulatorRunning?'green':'amber'}" id="dp-sys-sim">
+                    ${dpSseData.simulatorRunning?'Running':'Stopped'}</div></div>
+                <div class="dp-metric"><div class="dp-metric-label">Debug Mode</div><div class="dp-metric-value ${dpDebugOn?'amber':''}" id="dp-sys-debug">
+                    ${dpDebugOn?'ON':'OFF'}</div></div>
+                <div class="dp-metric"><div class="dp-metric-label">SSE</div><div class="dp-metric-value ${dpSseData.connected?'green':'red'}">
+                    ${dpSseData.connected?'Connected':'Disconnected'}</div></div>
+            `;
+        }
+
+        async function dpFetchBackendLogs() {
+            try {
+                const res = await _origFetch('/api/debug/logs?max_lines=50');
+                const data = await res.json();
+                dpBackendDebugOn = data.debug_mode;
+                dpRenderBackendToggle();
+
+                const allLogs = [...(data.logs||[]), ...(data.backend_logs||[])];
+                allLogs.sort((a,b) => (b.timestamp||'').localeCompare(a.timestamp||''));
+                const logs = allLogs.slice(0, 50);
+
+                const container = document.getElementById('dp-backend-log-list');
+                if (logs.length === 0) {
+                    container.innerHTML = `<div class="dp-empty">${dpBackendDebugOn ? 'No backend logs yet' : 'Enable backend debug to see logs'}</div>`;
+                    return;
+                }
+                container.innerHTML = logs.map(l => `
+                    <div class="dp-backend-log-entry">
+                        <span class="dp-backend-log-ts">${l.timestamp ? new Date(l.timestamp).toLocaleTimeString('en-US',{hour12:false}) : ''}</span>
+                        <span class="dp-backend-log-level ${l.level||'INFO'}">${l.level||'INFO'}</span>
+                        <span class="dp-backend-log-msg">${escHtml(l.message||'')}</span>
+                    </div>
+                `).join('');
+            } catch(e) {}
+        }
+
+        // ═══════ Tab Switching ═══════
+
+        window.dpSwitchTab = function(tabId, btn) {
+            document.querySelectorAll('.dp-tab').forEach(t => t.classList.remove('active'));
+            btn.classList.add('active');
+            ['dp-logs','dp-sse','dp-system','dp-backend-logs'].forEach(id => {
+                document.getElementById(id).style.display = id === tabId ? '' : 'none';
+            });
+            if (tabId === 'dp-sse') dpRenderSSE();
+            if (tabId === 'dp-system') dpRenderSystem();
+            if (tabId === 'dp-backend-logs') {
+                dpFetchBackendLogs();
+                if (dpBackendPoll) clearInterval(dpBackendPoll);
+                dpBackendPoll = setInterval(dpFetchBackendLogs, 5000);
+            } else {
+                if (dpBackendPoll) { clearInterval(dpBackendPoll); dpBackendPoll = null; }
+            }
+        };
+
+        // ═══════ Actions ═══════
+
+        window.dpToggleDebug = function() {
+            dpDebugOn = !dpDebugOn;
+            localStorage.setItem(DP_KEY, dpDebugOn ? 'true' : 'false');
+            dpRenderToggle();
+            dpAddLog('info', 'Debug mode ' + (dpDebugOn ? 'enabled' : 'disabled'));
+        };
+
+        window.dpToggleBackendDebug = async function() {
+            try {
+                const res = await _origFetch('/api/debug/toggle', { method: 'POST' });
+                const data = await res.json();
+                dpBackendDebugOn = data.debug_mode;
+                debugModeEnabled = data.debug_mode;
+                document.getElementById('debugModeToggle').checked = dpBackendDebugOn;
+                dpRenderBackendToggle();
+                dpAddLog('info', 'Backend debug ' + (dpBackendDebugOn ? 'enabled' : 'disabled'));
+                if (dpBackendDebugOn) dpFetchBackendLogs();
+            } catch(e) {
+                dpAddLog('error', 'Failed to toggle backend debug');
+            }
+        };
+
+        window.dpFilterLogs = function(filter, btn) {
+            dpFilter = filter;
+            document.querySelectorAll('.dp-filter-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            dpRenderLogs();
+        };
+
+        window.dpCopyLogs = function() {
+            const text = dpLogs.map(l => `[${l.ts}] [${l.type}] ${l.message}${l.data?' '+JSON.stringify(l.data):''}`).join('\n');
+            navigator.clipboard.writeText(text);
+            dpAddLog('info', 'Logs copied to clipboard');
+        };
+
+        window.dpClearLogs = function() {
+            dpLogs = [];
+            dpRenderLogs();
+        };
+
+        function dpRenderToggle() {
+            const btn = document.getElementById('dp-toggle-btn');
+            const ind = document.getElementById('dp-indicator');
+            const dot = document.getElementById('debug-fab-dot');
+            btn.textContent = dpDebugOn ? 'ON' : 'OFF';
+            btn.className = 'dp-btn-toggle ' + (dpDebugOn ? 'on' : 'off');
+            ind.className = 'dp-indicator ' + (dpDebugOn ? 'on' : 'off');
+            dot.style.display = dpDebugOn ? '' : 'none';
+        }
+
+        function dpRenderBackendToggle() {
+            const btn = document.getElementById('dp-backend-toggle');
+            btn.textContent = dpBackendDebugOn ? 'ON' : 'OFF';
+            btn.className = 'dp-btn-toggle ' + (dpBackendDebugOn ? 'on' : 'off');
+        }
+
+        function escHtml(str) {
+            const d = document.createElement('div');
+            d.textContent = str;
+            return d.innerHTML;
+        }
+
+        // ═══════ Init ═══════
+        dpRenderToggle();
+        dpRenderBackendToggle();
+        dpRenderLogs();
+        document.getElementById('dp-backend-url').textContent = window.location.origin;
+    })();
     </script>
 </body>
 </html>

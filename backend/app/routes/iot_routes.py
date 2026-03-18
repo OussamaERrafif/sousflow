@@ -17,6 +17,7 @@ from app.services.iot_simulator import (
     is_simulator_running,
     get_simulator,
 )
+from app.logging_config import debug, debug_obj, debug_request, debug_response
 
 router = APIRouter(prefix="/api/iot", tags=["IoT — Olive Irrigation"])
 
@@ -25,13 +26,17 @@ router = APIRouter(prefix="/api/iot", tags=["IoT — Olive Irrigation"])
 
 @router.post("/readings", response_model=dict, summary="Ingest a single IoT reading")
 async def create_reading(reading: IoTReadingCreate, user=Depends(get_current_user)):
+    debug_request("POST", "/api/iot/readings")
     farm_id = _extract_farm_id(user)
     if not farm_id:
         raise HTTPException(400, "No active farm. Please select a farm first.")
+    
+    debug_obj("Reading input", reading.model_dump())
     result = await iot_service.ingest_reading(farm_id, reading.model_dump(mode="json"))
 
     # Check alert rules against this reading
     alerts = await iot_service.check_alert_rules(farm_id, reading.model_dump())
+    debug_response("POST", "/api/iot/readings", 200)
     return {"reading": result, "alerts_triggered": len(alerts), "alerts": alerts}
 
 
@@ -102,10 +107,14 @@ async def analyze_zone(
 
 @router.get("/dashboard", summary="Dashboard snapshot (all zones, 24h summary)")
 async def get_dashboard(user=Depends(get_current_user)):
+    debug_request("GET", "/api/iot/dashboard")
     farm_id = _extract_farm_id(user)
     if not farm_id:
         raise HTTPException(400, "No active farm. Please select a farm first.")
-    return await iot_service.get_dashboard(farm_id)
+    
+    result = await iot_service.get_dashboard(farm_id)
+    debug_response("GET", "/api/iot/dashboard", 200)
+    return result
 
 
 # ─── Alert Rules ────────────────────────────────────────────────

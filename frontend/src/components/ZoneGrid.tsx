@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { CheckCircle2, AlertTriangle, AlertOctagon, PauseCircle, Settings2, WifiOff, Droplets, Gauge, Activity } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useAppSelector } from "@/lib/store/hooks";
 import type { BranchReading, ZoneReading } from "@/lib/store/slices/iotSlice";
 import { ReservoirIndicator } from "./ReservoirIndicator";
 import { BranchCard } from "./BranchCard";
+import { isDebugMode, debugLog, useDebugLog } from "@/lib/debug";
 
 function MoistureBar({ level, status }: { level: number; status: string }) {
     const t = useTranslations("ZoneGrid");
@@ -62,6 +63,11 @@ export default function ZoneGrid() {
 
     const { zones: sseZones, environment, infrastructure, simulatorRunning, connected, lastUpdate } = useAppSelector((state) => state.iot);
     const hasLiveData = connected && sseZones && sseZones.length > 0;
+
+    useDebugLog("ZoneGrid - zones", sseZones);
+    useDebugLog("ZoneGrid - environment", environment);
+    useDebugLog("ZoneGrid - connected", connected);
+    useDebugLog("ZoneGrid - simulatorRunning", simulatorRunning);
 
     const getZoneStatus = (zone: ZoneReading) => {
         if (!zone) return "off";

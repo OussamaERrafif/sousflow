@@ -16,7 +16,8 @@ from fastapi.templating import Jinja2Templates
 from fastapi.requests import Request
 import asyncio
 
-from app.logging_config import logger
+from starlette.middleware.base import BaseHTTPMiddleware
+from app.logging_config import logger, is_debug_mode, set_debug_mode, toggle_debug_mode, debug, debug_request, debug_response, debug_db_query as debug_db
 from app.routes import (
     auth_router,
     admin_router,
@@ -240,6 +241,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+# Debug request/response logging middleware
+class DebugLoggingMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        if not is_debug_mode():
+            return await call_next(request)
+        # Skip SSE and static
+        if request.url.path in ("/api/events", "/favicon.ico"):
+            return await call_next(request)
+        start = time.time()
+        debug_request(request.method, request.url.path)
+        response = await call_next(request)
+        duration_ms = (time.time() - start) * 1000
+        debug_response(request.method, request.url.path, response.status_code, duration_ms)
+        return response
+
+app.add_middleware(DebugLoggingMiddleware)
+
 # Include routers (each router defines its own /api/* prefix)
 app.include_router(auth_router)
 app.include_router(admin_router)
@@ -356,15 +375,70 @@ async def dashboard(request: Request):
         "modules": ["auth", "whatsapp", "iot", "predictions", "ai"],
     }
 
+    debug_logs = read_logs("debug.log", 50) if is_debug_mode() else []
+
     return templates.TemplateResponse("dashboard.html", {
         "request": request,
         "health": health,
         "logs": logs,
         "error_logs": error_logs,
+        "debug_logs": debug_logs,
         "latest_readings": latest_readings,
         "simulator_running": simulator_running,
         "admin_user": admin_user,
+        "debug_mode": is_debug_mode(),
     })
+
+
+# ─── Debug Mode Endpoints ───────────────────────
+
+@app.get("/api/debug/status")
+async def debug_status():
+    """Get current debug mode status"""
+    return {
+        "debug_mode": is_debug_mode(),
+        "uptime": get_uptime(),
+        "version": "2.0.0",
+        "simulator_running": _simulator_status_cache.get("running", False),
+    }
+
+
+@app.post("/api/debug/toggle")
+async def debug_toggle():
+    """Toggle debug mode on/off"""
+    new_state = toggle_debug_mode()
+    logger.info(f"Debug mode toggled: {new_state}")
+    return {"debug_mode": new_state}
+
+
+@app.post("/api/debug/enable")
+async def debug_enable():
+    """Enable debug mode"""
+    set_debug_mode(True)
+    logger.info("Debug mode enabled")
+    return {"debug_mode": True}
+
+
+@app.post("/api/debug/disable")
+async def debug_disable():
+    """Disable debug mode"""
+    set_debug_mode(False)
+    logger.info("Debug mode disabled")
+    return {"debug_mode": False}
+
+
+@app.get("/api/debug/logs")
+async def debug_logs(max_lines: int = 100):
+    """Get debug logs"""
+    debug_log_entries = read_logs("debug.log", max_lines) if is_debug_mode() else []
+    backend_log_entries = read_logs("backend.log", max_lines)
+    error_log_entries = read_logs("backend_errors.log", max_lines)
+    return {
+        "debug_mode": is_debug_mode(),
+        "logs": debug_log_entries,
+        "backend_logs": backend_log_entries,
+        "error_logs": error_log_entries,
+    }
 
 
 @app.get("/api/latest")
@@ -409,13 +483,17 @@ async def sse_events():
                         readings = get_latest_readings() if running else []
                         update_readings_cache(readings, running)
                         data = json.dumps({
-                            "readings": readings,
+                            "environment": None,
+                            "infrastructure": None,
+                            "zones": [],
                             "simulator_running": running,
                             "timestamp": datetime.now().isoformat(),
                         })
                 else:
                     data = json.dumps({
-                        "readings": [],
+                        "environment": None,
+                        "infrastructure": None,
+                        "zones": [],
                         "simulator_running": False,
                         "timestamp": datetime.now().isoformat(),
                     })
@@ -473,9 +551,13 @@ async def get_farm_zones():
 
 if __name__ == "__main__":
     import uvicorn
+    from app.config import get_settings
+
+    settings = get_settings()
     uvicorn.run(
-        app,
-        host="0.0.0.0",
-        port=8000,
+        "main:app",
+        host=settings.HOST,
+        port=settings.PORT,
+        reload=settings.DEBUG,
         log_config=None,
     )

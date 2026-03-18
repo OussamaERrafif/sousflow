@@ -11,7 +11,7 @@ from app.schemas.auth import (
     OwnerWithFarmResponse,
     UserResponse,
 )
-from app.logging_config import logger
+from app.logging_config import logger, debug, debug_service_call
 
 router = APIRouter(prefix="/api/admin", tags=["Admin"])
 
@@ -22,11 +22,13 @@ async def create_owner_with_farm(
     current_user: dict = Depends(require_superadmin),
 ):
     """Create a new farm owner and their farm (superadmin only)"""
+    debug(f"[Admin Routes] Creating owner: username={request.username}, farm={request.farm_name}")
     admin = get_supabase_admin()
 
     # Check username uniqueness
     existing = admin.from_("users").select("id").eq("username", request.username).execute()
     if existing.data:
+        debug(f"[Admin Routes] Username already exists: {request.username}")
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Username already exists")
 
     # Create user
@@ -39,9 +41,11 @@ async def create_owner_with_farm(
     }
     user_resp = admin.from_("users").insert(user_data).execute()
     if not user_resp.data:
+        debug(f"[Admin Routes] Failed to create user: {request.username}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create user")
 
     user = user_resp.data[0]
+    debug(f"[Admin Routes] User created: id={user['id']}")
 
     # Create farm
     farm_data = {
@@ -55,9 +59,11 @@ async def create_owner_with_farm(
     if not farm_resp.data:
         # Rollback user creation
         admin.from_("users").delete().eq("id", user["id"]).execute()
+        debug(f"[Admin Routes] Failed to create farm for user: {user['id']}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create farm")
 
     farm = farm_resp.data[0]
+    debug(f"[Admin Routes] Farm created: id={farm['id']}")
 
     # Auto-create zones and branches for the farm
     total_zones = request.farm_total_zones or 4
@@ -90,6 +96,7 @@ async def create_owner_with_farm(
             logger.warning(f"Failed to create zone {zone_num} for farm {farm['id']}: {e}")
 
     logger.info(f"Superadmin created owner '{request.username}' with farm '{request.farm_name}' ({total_zones} zones, {branches_per_zone} branches each)")
+    debug(f"[Admin Routes] Owner creation complete: username={request.username}, farm={request.farm_name}, zones={total_zones}")
     return {
         "user": {
             "id": user["id"],

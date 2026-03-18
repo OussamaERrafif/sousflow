@@ -1,9 +1,12 @@
 """
-WhatsApp routes — send/receive messages via Wassender API
+WhatsApp routes — send/receive messages via WaSenderAPI
+Includes webhook endpoint for incoming messages (AI assistant)
 """
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+import asyncio
+from fastapi import APIRouter, Depends, HTTPException, Request, status, Query
 from typing import Optional
 from app.auth import get_current_user
+from app.config import get_settings
 from app.services.whatsapp_service import get_whatsapp_service
 from app.schemas.whatsapp import (
     SendMessageRequest,
@@ -11,7 +14,7 @@ from app.schemas.whatsapp import (
     WhatsAppMessagesListResponse,
     WhatsAppAlert,
 )
-from app.logging_config import logger
+from app.logging_config import logger, debug, debug_request, debug_response
 
 router = APIRouter(prefix="/api/whatsapp", tags=["WhatsApp"])
 
@@ -22,8 +25,11 @@ async def send_message(
     current_user: dict = Depends(get_current_user),
 ):
     """Send a WhatsApp message"""
+    debug(f"Sending WhatsApp message to {request.phone}", "whatsapp_routes.send_message")
+    debug_request(request, "whatsapp_routes.send_message")
     service = get_whatsapp_service()
     result = await service.send_message(request.phone, request.message)
+    debug_response(result, "whatsapp_routes.send_message")
     return result
 
 
@@ -35,12 +41,14 @@ async def get_messages(
     current_user: dict = Depends(get_current_user),
 ):
     """Get WhatsApp message history"""
+    debug(f"Fetching WhatsApp messages - page: {page}, page_size: {page_size}, phone: {phone}", "whatsapp_routes.get_messages")
     service = get_whatsapp_service()
     result = await service.get_messages(
         page=page,
         page_size=page_size,
         phone=phone,
     )
+    debug_response(result, "whatsapp_routes.get_messages")
     return result
 
 
@@ -49,8 +57,11 @@ async def get_device_status(
     current_user: dict = Depends(get_current_user),
 ):
     """Check WhatsApp device connection status"""
+    debug("Checking WhatsApp device status", "whatsapp_routes.get_device_status")
     service = get_whatsapp_service()
-    return await service.get_device_status()
+    result = await service.get_device_status()
+    debug_response(result, "whatsapp_routes.get_device_status")
+    return result
 
 
 @router.post("/alert", response_model=WhatsAppMessageResponse)
@@ -59,6 +70,8 @@ async def send_alert(
     current_user: dict = Depends(get_current_user),
 ):
     """Send an automated alert via WhatsApp"""
+    debug(f"Sending WhatsApp alert - type: {alert.alert_type}, phone: {alert.phone}", "whatsapp_routes.send_alert")
+    debug_request(alert, "whatsapp_routes.send_alert")
     service = get_whatsapp_service()
     result = await service.send_alert(
         phone=alert.phone,
@@ -68,4 +81,67 @@ async def send_alert(
         threshold=alert.threshold,
         custom_message=alert.message,
     )
+    debug_response(result, "whatsapp_routes.send_alert")
     return result
+
+
+# ─── Webhook for incoming WhatsApp messages ──────────────────────
+
+@router.post("/webhook")
+async def whatsapp_webhook(request: Request):
+    """
+    WaSenderAPI webhook — receives incoming WhatsApp messages.
+    Verifies signature and processes via AI assistant.
+    """
+    # Verify webhook signature
+    settings = get_settings()
+    signature = request.headers.get("x-webhook-signature", "")
+    if settings.WASSENDER_WEBHOOK_SECRET and signature != settings.WASSENDER_WEBHOOK_SECRET:
+        logger.warning("WhatsApp webhook: invalid signature")
+        raise HTTPException(status_code=401, detail="Invalid webhook signature")
+
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON")
+
+    event = payload.get("event", "")
+    debug(f"[WhatsApp Webhook] Event: {event}")
+
+    # Only process personal received messages
+    if event not in ("messages.received", "messages-personal.received", "messages.upsert"):
+        return {"status": "ignored", "event": event}
+
+    # Extract message data
+    messages_data = payload.get("data", {}).get("messages")
+    if not messages_data:
+        return {"status": "no_message_data"}
+
+    key = messages_data.get("key", {})
+
+    # Skip messages sent by us
+    if key.get("fromMe", False):
+        return {"status": "skipped_own_message"}
+
+    # Get sender phone number
+    sender_phone = key.get("cleanedSenderPn") or key.get("cleanedParticipantPn")
+    if not sender_phone:
+        logger.warning("WhatsApp webhook: no sender phone number found")
+        return {"status": "no_sender"}
+
+    # Normalize to E.164 format
+    if not sender_phone.startswith("+"):
+        sender_phone = f"+{sender_phone}"
+
+    # Get message text
+    message_body = messages_data.get("messageBody", "").strip()
+    if not message_body:
+        return {"status": "no_text_content"}
+
+    debug(f"[WhatsApp Webhook] Message from {sender_phone}: {message_body[:100]}")
+
+    # Process asynchronously so we respond 200 quickly
+    service = get_whatsapp_service()
+    asyncio.create_task(service.handle_incoming_message(sender_phone, message_body))
+
+    return {"status": "ok"}

@@ -2,6 +2,7 @@ import { Droplet, Battery, ThermometerSun, LayoutGrid } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useGetDashboardApiIotDashboardGetQuery } from "@/lib/store/generated/api";
 import { useAppSelector } from "@/lib/store/hooks";
+import { useDebugLog } from "@/lib/debug";
 
 export default function StatsRow() {
     const tg = useTranslations("GlobalStatus");
@@ -10,10 +11,15 @@ export default function StatsRow() {
     const { readings: sseReadings, connected, lastUpdate } = useAppSelector((state) => state.iot);
     const hasLiveData = connected && sseReadings.length > 0;
 
+    useDebugLog("StatsRow - sseReadings", sseReadings);
+    useDebugLog("StatsRow - connected", connected);
+
     const { data: dashboardData, isLoading, error } = useGetDashboardApiIotDashboardGetQuery(
         undefined,
         { skip: hasLiveData }
     );
+
+    useDebugLog("StatsRow - dashboardData", dashboardData);
 
     if (!hasLiveData && isLoading) {
         return (

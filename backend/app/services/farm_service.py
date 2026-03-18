@@ -3,7 +3,7 @@ Farm Service - Business logic for farm CRUD and membership management
 """
 from typing import List, Optional
 from app.supabase_client import get_supabase_admin
-from app.logging_config import logger
+from app.logging_config import logger, debug, debug_obj, debug_db_query
 from app.services.zone_service import ZoneService
 
 
@@ -13,16 +13,22 @@ class FarmService:
 
     def list_farms(self, user_id: str) -> List[dict]:
         """List all farms accessible to a user (owned + member)"""
+        debug("=== List Farms Start ===", user_id=user_id[:8] if user_id else None)
+        
+        debug_db_query("SELECT", "farms (owned)", user_id=user_id[:8] if user_id else None)
         owned = self.supabase.from_("farms").select("*").eq("owner_id", user_id).execute()
 
+        debug_db_query("SELECT", "farm_memberships", user_id=user_id[:8] if user_id else None)
         memberships = self.supabase.from_("farm_memberships").select("farm_id").eq("user_id", user_id).eq("is_active", True).execute()
         member_farm_ids = [m["farm_id"] for m in memberships.data] if memberships.data else []
 
         member_farms = []
         if member_farm_ids:
+            debug_db_query("SELECT", "farms (member)", user_id=user_id[:8] if user_id else None)
             member = self.supabase.from_("farms").select("*").in_("id", member_farm_ids).execute()
             member_farms = member.data if member.data else []
 
+        debug("=== List Farms End ===", user_id=user_id[:8] if user_id else None, owned_count=len(owned.data or []), member_count=len(member_farms))
         return (owned.data or []) + member_farms
 
     def get_farm(self, farm_id: str, user_id: str) -> Optional[dict]:

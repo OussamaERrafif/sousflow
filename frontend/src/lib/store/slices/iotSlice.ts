@@ -1,6 +1,7 @@
 "use client";
 
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
+import { isDebugMode } from "@/lib/debug";
 
 export interface BranchReading {
   branch_id: string;
@@ -56,8 +57,8 @@ export interface InfrastructureReading {
 }
 
 export interface SSEPayload {
-  environment: EnvironmentReading;
-  infrastructure: InfrastructureReading;
+  environment: EnvironmentReading | null;
+  infrastructure: InfrastructureReading | null;
   zones: ZoneReading[];
   simulator_running: boolean;
   timestamp: string;
@@ -107,6 +108,15 @@ const iotSlice = createSlice({
   reducers: {
     setLiveData(state, action: PayloadAction<SSEPayload>) {
       const { environment, infrastructure, zones, simulator_running, timestamp } = action.payload;
+      
+      if (isDebugMode()) {
+        console.debug("[SoussFlow/IoT] setLiveData received:", {
+          zonesCount: zones?.length ?? 0,
+          simulatorRunning: simulator_running,
+          timestamp,
+        });
+      }
+
       state.environment = environment;
       state.infrastructure = infrastructure;
       state.zones = zones;
@@ -131,8 +141,18 @@ const iotSlice = createSlice({
         irrigation_needed: z.irrigation_needed ? 1 : 0,
         is_anomaly: z.leak_count > 0 ? 1 : 0,
       }));
+
+      if (isDebugMode()) {
+        console.debug("[SoussFlow/IoT] state updated:", {
+          readingsCount: state.readings.length,
+          environment: state.environment,
+        });
+      }
     },
     setConnected(state, action: PayloadAction<boolean>) {
+      if (isDebugMode()) {
+        console.debug("[SoussFlow/IoT] setConnected:", action.payload);
+      }
       state.connected = action.payload;
     },
   },

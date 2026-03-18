@@ -8,6 +8,7 @@ import {
 } from "@/lib/store/generated/api";
 import { useAppSelector } from "@/lib/store/hooks";
 import { Play, Square, Activity, Gauge, Droplet, AlertTriangle, CheckCircle2, Thermometer, Wind, CloudRain } from "lucide-react";
+import { useDebugLog } from "@/lib/debug";
 
 export default function PumpsPage() {
     const t = useTranslations("Sidebar");
@@ -16,6 +17,11 @@ export default function PumpsPage() {
     const hasLiveData = connected && sseReadings.length > 0;
 
     const { data: simulatorStatus, refetch } = useGetSimulatorStatusApiIotSimulatorStatusGetQuery();
+
+    useDebugLog("PumpsPage - sseReadings", sseReadings);
+    useDebugLog("PumpsPage - connected", connected);
+    useDebugLog("PumpsPage - simulatorRunning", simulatorRunning);
+    useDebugLog("PumpsPage - simulatorStatus", simulatorStatus);
     const [startSimulator, { isLoading: isStarting }] = useStartSimulatorApiIotSimulatorStartPostMutation();
     const [stopSimulator, { isLoading: isStopping }] = useStopSimulatorApiIotSimulatorStopPostMutation();
 

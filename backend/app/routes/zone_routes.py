@@ -19,7 +19,7 @@ from app.schemas.zone import (
     BranchResponse,
     BranchListResponse,
 )
-from app.logging_config import logger
+from app.logging_config import logger, debug, debug_request, debug_response
 
 router = APIRouter(prefix="/api/zones", tags=["zones"])
 
@@ -31,6 +31,7 @@ async def list_zones(
     zone_service: ZoneService = Depends(get_zone_service),
 ):
     """List all zones for a farm"""
+    debug(f"Listing zones for farm_id: {farm_id}", "zone_routes.list_zones")
     farm_service = get_farm_service()
     farm = farm_service.get_farm(farm_id, current_user["id"])
     if not farm:
@@ -40,6 +41,7 @@ async def list_zones(
         )
 
     zones = zone_service.list_zones(farm_id)
+    debug(f"Found {len(zones)} zones", "zone_routes.list_zones")
     return {"zones": zones, "total": len(zones)}
 
 
@@ -94,6 +96,8 @@ async def create_zone(
     zone_service: ZoneService = Depends(get_zone_service),
 ):
     """Create a new zone"""
+    debug(f"Creating zone for farm_id: {farm_id}", "zone_routes.create_zone")
+    debug_request(zone_data, "zone_routes.create_zone")
     farm_service = get_farm_service()
     farm = farm_service.get_farm(farm_id, current_user["id"])
     if not farm:
@@ -111,6 +115,7 @@ async def create_zone(
         plant_type=zone_data.plant_type,
         plant_species=zone_data.plant_species,
     )
+    debug_response(zone, "zone_routes.create_zone")
     return zone
 
 
@@ -147,9 +152,12 @@ async def delete_zone(
     zone_service: ZoneService = Depends(get_zone_service),
 ):
     """Delete a zone (soft delete)"""
+    debug(f"Deleting zone {zone_id} from farm {farm_id}", "zone_routes.delete_zone")
     try:
         zone_service.delete_zone(farm_id, zone_id)
+        debug(f"Zone {zone_id} deleted successfully", "zone_routes.delete_zone")
     except Exception as e:
+        debug(f"Failed to delete zone {zone_id}: {str(e)}", "zone_routes.delete_zone")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Zone not found: {str(e)}",

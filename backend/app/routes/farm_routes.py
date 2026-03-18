@@ -17,7 +17,7 @@ from app.schemas.farm import (
     MemberListResponse,
 )
 from app.schemas.auth import CreateEmployeeRequest, UserResponse
-from app.logging_config import logger
+from app.logging_config import logger, debug, debug_obj, debug_request, debug_response
 
 router = APIRouter(prefix="/api/farms", tags=["farms"])
 
@@ -28,7 +28,9 @@ async def list_farms(
     farm_service: FarmService = Depends(get_farm_service),
 ):
     """List all farms accessible to the current user"""
+    debug_request("GET", "/api/farms")
     farms = farm_service.list_farms(current_user["id"])
+    debug_response("GET", "/api/farms", 200, total=len(farms))
     return {"farms": farms, "total": len(farms)}
 
 

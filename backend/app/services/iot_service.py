@@ -7,7 +7,7 @@ Farm-scoped version (farm_id instead of user_id).
 from datetime import datetime, timedelta, timezone
 from typing import Optional, List
 from app.supabase_client import get_supabase_admin
-from app.logging_config import logger
+from app.logging_config import logger, debug, debug_obj, debug_db_query
 
 ENV_COLUMNS = [
     "timestamp", "air_temperature_c", "air_humidity_pct", "air_pressure_hpa",
@@ -36,6 +36,9 @@ OLIVE_THRESHOLDS = {
 
 async def ingest_reading(farm_id: str, reading: dict, recorded_by: Optional[str] = None) -> dict:
     """Insert a single IoT reading into normalized v3 tables"""
+    debug("=== Ingest Reading Start ===", farm=farm_id[:8])
+    debug_obj("Reading data", reading, farm=farm_id[:8])
+    
     supabase = get_supabase_admin()
 
     ts_raw = reading.get("timestamp", datetime.now(timezone.utc).isoformat())
@@ -50,6 +53,7 @@ async def ingest_reading(farm_id: str, reading: dict, recorded_by: Optional[str]
                 "wind_speed_kmh", "cloud_cover_pct"]:
         if col in reading:
             env_data[col] = reading[col]
+    debug_db_query("INSERT", "environment_readings", farm=farm_id[:8])
     supabase.table("environment_readings").insert(env_data).execute()
 
     # Infrastructure reading
@@ -57,9 +61,11 @@ async def ingest_reading(farm_id: str, reading: dict, recorded_by: Optional[str]
     for col in ["reservoir_level_pct", "main_pump_flow_lpm", "main_pressure_mpa", "filter_status"]:
         if col in reading:
             infra_data[col] = reading[col]
+    debug_db_query("INSERT", "infrastructure_readings", farm=farm_id[:8])
     supabase.table("infrastructure_readings").insert(infra_data).execute()
 
     logger.info("IoT reading inserted (v3)", farm=farm_id[:8])
+    debug("=== Ingest Reading End ===", farm=farm_id[:8])
     return {"farm_id": farm_id, "timestamp": ts_str, **reading}
 
 
@@ -190,6 +196,15 @@ async def query_readings(
     offset: int = 0,
 ) -> list[dict]:
     """Query environment readings with filters (v3 schema)"""
+    debug("=== Query Readings Start ===", farm=farm_id[:8])
+    debug_obj("Query params", {
+        "zone_id": zone_id,
+        "start_date": str(start_date) if start_date else None,
+        "end_date": str(end_date) if end_date else None,
+        "limit": limit,
+        "offset": offset,
+    }, farm=farm_id[:8])
+    
     supabase = get_supabase_admin()
 
     query = supabase.table("environment_readings").select("*").eq("farm_id", farm_id)
@@ -200,7 +215,10 @@ async def query_readings(
         query = query.lte("timestamp", end_date.isoformat())
 
     query = query.order("timestamp", desc=True).range(offset, offset + limit - 1)
+    debug_db_query("SELECT", "environment_readings", farm=farm_id[:8])
     result = query.execute()
+    
+    debug("=== Query Readings End ===", farm=farm_id[:8], count=len(result.data or []))
     return result.data or []
 
 
@@ -635,11 +653,20 @@ async def get_latest_per_zone_health(farm_id: str) -> list[dict]:
 
 async def get_hierarchical_dashboard(farm_id: str) -> dict:
     """Get a dashboard snapshot with hierarchical data"""
+    debug("=== Get Hierarchical Dashboard Start ===", farm=farm_id[:8])
+    
     supabase = get_supabase_admin()
 
+    debug_db_query("SELECT", "environment_readings (latest)", farm=farm_id[:8])
     env = await get_latest_environment(farm_id)
+    
+    debug_db_query("SELECT", "infrastructure_readings (latest)", farm=farm_id[:8])
     infra = await get_latest_infrastructure(farm_id)
+    
+    debug_db_query("SELECT", "branch_flow_readings (latest)", farm=farm_id[:8])
     branch_flows = await get_latest_per_branch(farm_id)
+    
+    debug_db_query("SELECT", "zone_health_readings (latest)", farm=farm_id[:8])
     zone_healths = await get_latest_per_zone_health(farm_id)
 
     zones_result = (

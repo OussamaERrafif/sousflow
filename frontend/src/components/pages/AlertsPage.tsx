@@ -9,6 +9,7 @@ import {
 } from "@/lib/store/generated/api";
 import { useAppSelector } from "@/lib/store/hooks";
 import { Bell, Plus, Trash2, AlertTriangle, CheckCircle2, Edit, X, AlertOctagon, Info, Wifi } from "lucide-react";
+import { useDebugLog } from "@/lib/debug";
 
 export default function AlertsPage() {
     const t = useTranslations("Sidebar");
@@ -30,6 +31,11 @@ export default function AlertsPage() {
     // Derive live alerts from SSE
     const { readings: sseReadings, connected, lastUpdate } = useAppSelector((state) => state.iot);
     const hasLiveData = connected && sseReadings.length > 0;
+
+    useDebugLog("AlertsPage - alertRules", alertRules);
+    useDebugLog("AlertsPage - sseReadings", sseReadings);
+    useDebugLog("AlertsPage - connected", connected);
+    useDebugLog("AlertsPage - lastUpdate", lastUpdate);
 
     type LiveAlert = { id: string; type: "critical" | "warning" | "info"; title: string; message: string; time: string };
     const liveAlerts: LiveAlert[] = [];

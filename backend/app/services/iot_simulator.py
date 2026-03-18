@@ -13,7 +13,7 @@ import random
 from datetime import datetime
 from typing import Dict, List, Optional
 
-from app.logging_config import logger
+from app.logging_config import logger, debug, debug_service_call, debug_obj, is_debug_mode
 from app.supabase_client import get_supabase_admin
 from app.services.iot_service import ingest_batch, check_alert_rules
 
@@ -312,12 +312,14 @@ class IoTSimulator:
             "remaining": duration_steps,
         }
         logger.info("Anomaly injected", zone=zone_id, type=anomaly_type, duration=duration_steps)
+        debug(f"[IoTSimulator] Anomaly injected: zone={zone_id}, type={anomaly_type}, duration={duration_steps}")
 
     def inject_irrigation(self, zone_id: int, action: str):
         """Force irrigation on/off for a zone. action: 'start' or 'stop'"""
         if 1 <= zone_id <= self.n_zones:
             self.zone_irrig[zone_id] = (action == "start")
             logger.info("Irrigation forced", zone=zone_id, action=action)
+            debug(f"[IoTSimulator] Irrigation forced: zone={zone_id}, action={action}")
 
     def inject_reservoir(self, level: float):
         """Override reservoir level (0-100)."""
@@ -491,6 +493,7 @@ class IoTSimulator:
             zones=self.n_zones,
             interval_min=self.interval / 60,
         )
+        debug(f"[IoTSimulator] Started: farm={self.farm_id[:8]}, zones={self.n_zones}, interval={self.interval}s")
 
         while self.running:
             try:
@@ -512,6 +515,7 @@ class IoTSimulator:
                 if readings:
                     self._last_readings = readings
                     await ingest_batch(self.farm_id, readings)
+                    debug(f"[IoTSimulator] Batch stored: {len(readings)} readings, timestamp={readings[0]['timestamp']}")
                     logger.debug(
                         "IoT batch stored",
                         zones=len(readings),
@@ -690,6 +694,111 @@ async def get_default_farm_id() -> str:
     return "00000000-0000-0000-0000-000000000000"
 
 
+async def _seed_iot_devices(farm_id: str, n_zones: int):
+    """Seed IoT devices for the farm if none exist yet."""
+    try:
+        supabase = get_supabase_admin()
+        existing = supabase.table("iot_devices").select("id").eq("farm_id", farm_id).eq("is_active", True).limit(1).execute()
+        if existing.data:
+            return  # devices already exist
+
+        # Get zones for this farm to link devices
+        zones_resp = supabase.table("zones").select("id, zone_number, name").eq("farm_id", farm_id).eq("is_active", True).execute()
+        zones = zones_resp.data or []
+
+        # Base coordinates near Agadir
+        base_lat, base_lng = 30.42, -9.60
+
+        devices = []
+        serial_counter = 1000
+
+        # 1) Per-zone devices: moisture sensor, flow meter, valve controller
+        for i, zone in enumerate(zones):
+            zone_lat = base_lat + (i + 1) * 0.002
+            zone_lng = base_lng + (i + 1) * 0.002
+            zone_name = zone.get("name", f"Zone {zone.get('zone_number', i + 1)}")
+            zone_id = zone["id"]
+
+            devices.append({
+                "farm_id": farm_id, "zone_id": zone_id,
+                "device_type": "moisture_sensor", "name": f"Moisture - {zone_name}",
+                "model": "SM-100 Pro", "serial_number": f"SM-{serial_counter:04d}",
+                "status": "online", "last_battery_pct": random.uniform(60, 100),
+                "latitude": round(zone_lat + 0.0005, 6), "longitude": round(zone_lng + 0.0003, 6),
+            })
+            serial_counter += 1
+
+            devices.append({
+                "farm_id": farm_id, "zone_id": zone_id,
+                "device_type": "flow_meter", "name": f"Flow Meter - {zone_name}",
+                "model": "FM-200", "serial_number": f"FM-{serial_counter:04d}",
+                "status": "online", "last_battery_pct": random.uniform(70, 100),
+                "latitude": round(zone_lat - 0.0003, 6), "longitude": round(zone_lng + 0.0005, 6),
+            })
+            serial_counter += 1
+
+            devices.append({
+                "farm_id": farm_id, "zone_id": zone_id,
+                "device_type": "valve_controller", "name": f"Valve - {zone_name}",
+                "model": "VC-50", "serial_number": f"VC-{serial_counter:04d}",
+                "status": "online", "last_battery_pct": random.uniform(80, 100),
+                "latitude": round(zone_lat, 6), "longitude": round(zone_lng - 0.0004, 6),
+            })
+            serial_counter += 1
+
+        # If no zones in DB, create devices for n_zones simulated zones
+        if not zones:
+            for i in range(1, n_zones + 1):
+                zone_lat = base_lat + i * 0.002
+                zone_lng = base_lng + i * 0.002
+                for dtype, model, prefix in [
+                    ("moisture_sensor", "SM-100 Pro", "SM"),
+                    ("flow_meter", "FM-200", "FM"),
+                    ("valve_controller", "VC-50", "VC"),
+                ]:
+                    devices.append({
+                        "farm_id": farm_id,
+                        "device_type": dtype, "name": f"{prefix} - Zone {i}",
+                        "model": model, "serial_number": f"{prefix}-{serial_counter:04d}",
+                        "status": "online", "last_battery_pct": random.uniform(60, 100),
+                        "latitude": round(zone_lat + random.uniform(-0.001, 0.001), 6),
+                        "longitude": round(zone_lng + random.uniform(-0.001, 0.001), 6),
+                    })
+                    serial_counter += 1
+
+        # 2) Farm-wide devices
+        devices.extend([
+            {
+                "farm_id": farm_id, "device_type": "pressure_sensor",
+                "name": "Main Pressure Sensor", "model": "PS-300",
+                "serial_number": f"PS-{serial_counter:04d}", "status": "online",
+                "last_battery_pct": 95,
+                "latitude": round(base_lat, 6), "longitude": round(base_lng, 6),
+            },
+            {
+                "farm_id": farm_id, "device_type": "temperature_sensor",
+                "name": "Weather Station", "model": "WS-400",
+                "serial_number": f"WS-{serial_counter + 1:04d}", "status": "online",
+                "last_battery_pct": 88,
+                "latitude": round(base_lat + 0.001, 6), "longitude": round(base_lng - 0.001, 6),
+            },
+            {
+                "farm_id": farm_id, "device_type": "gateway",
+                "name": "Main Gateway", "model": "GW-500",
+                "serial_number": f"GW-{serial_counter + 2:04d}", "status": "online",
+                "last_battery_pct": 100,
+                "latitude": round(base_lat - 0.001, 6), "longitude": round(base_lng + 0.001, 6),
+            },
+        ])
+
+        if devices:
+            supabase.table("iot_devices").insert(devices).execute()
+            logger.info("Seeded IoT devices for simulator", count=len(devices), farm=farm_id[:8])
+
+    except Exception as e:
+        logger.warning(f"Failed to seed IoT devices: {e}")
+
+
 async def start_iot_simulator(
     n_zones: int = 4,
     interval_seconds: float = 300.0,
@@ -705,6 +814,9 @@ async def start_iot_simulator(
     if not farm_id:
         farm_id = await get_default_farm_id()
         logger.info("Using default farm for IoT simulator", farm=farm_id[:8])
+
+    # Seed IoT devices if the farm has none
+    await _seed_iot_devices(farm_id, n_zones)
 
     _simulator = IoTSimulator(
         farm_id=farm_id,

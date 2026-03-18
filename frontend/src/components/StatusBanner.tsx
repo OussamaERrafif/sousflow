@@ -2,12 +2,16 @@ import { CheckCircle2, AlertTriangle, XCircle, Power, FileText } from "lucide-re
 import { useTranslations } from "next-intl";
 import { useGetDashboardApiIotDashboardGetQuery } from "@/lib/store/generated/api";
 import { useAppSelector } from "@/lib/store/hooks";
+import { useDebugLog } from "@/lib/debug";
 
 export default function StatusBanner() {
     const t = useTranslations("StatusBanner");
 
     const { readings: sseReadings, connected } = useAppSelector((state) => state.iot);
     const hasLiveData = connected && sseReadings.length > 0;
+
+    useDebugLog("StatusBanner - sseReadings", sseReadings);
+    useDebugLog("StatusBanner - connected", connected);
 
     const { data: dashboardData } = useGetDashboardApiIotDashboardGetQuery(
         undefined,

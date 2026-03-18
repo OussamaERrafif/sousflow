@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 from typing import Optional, List
 from app.auth import get_current_user, _extract_farm_id
 from app.services import openai_service
-from app.logging_config import logger
+from app.logging_config import logger, debug
 
 router = APIRouter(prefix="/api/ai", tags=["AI — SoussFlow Assistant"])
 
@@ -37,6 +37,7 @@ async def chat(request: ChatRequest, user=Depends(get_current_user)):
     farm_id = _extract_farm_id(user)
     if not farm_id:
         raise HTTPException(400, "No active farm. Please select a farm first.")
+    debug(f"[OpenAI Routes] Chat request: user={user.get('username')}, farm={farm_id[:8]}, msg_len={len(request.message)}")
 
     conv_id = request.conversation_id
     if not conv_id:

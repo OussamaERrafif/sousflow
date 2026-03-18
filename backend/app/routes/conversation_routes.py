@@ -13,6 +13,7 @@ from app.schemas.farm import (
     ConversationListResponse,
     ChatMessageResponse,
 )
+from app.logging_config import debug
 
 router = APIRouter(prefix="/api/conversations", tags=["conversations"])
 
@@ -39,6 +40,7 @@ async def list_conversations(
     limit: int = Query(20, ge=1, le=100),
 ):
     """List user's conversations, sorted by most recently updated."""
+    debug(f"Listing conversations for user {current_user['id']}, farm_id: {farm_id}, page: {page}", "conversation_routes.list_conversations")
     admin = get_supabase_admin()
     offset = (page - 1) * limit
 
@@ -60,6 +62,7 @@ async def list_conversations(
         .execute()
     )
 
+    debug(f"Found {total} conversations", "conversation_routes.list_conversations")
     return {"conversations": response.data or [], "total": total}
 
 
@@ -69,6 +72,7 @@ async def create_conversation(
     current_user: dict = Depends(get_current_user),
 ):
     """Create a new conversation (farm context is resolved from active farm)."""
+    debug(f"Creating conversation for user {current_user['id']}: {conv_data.model_dump()}", "conversation_routes.create_conversation")
     admin = get_supabase_admin()
     farm_id = _extract_farm_id(current_user)
 
@@ -81,6 +85,7 @@ async def create_conversation(
     response = admin.from_("conversations").insert(data).execute()
 
     if response.data:
+        debug(f"Conversation created: {response.data[0]}", "conversation_routes.create_conversation")
         return response.data[0]
     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to create conversation")
 

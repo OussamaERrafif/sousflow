@@ -4,7 +4,7 @@ import { Home, Leaf, Bell, Settings, Activity, FileText, Globe, LogIn, LogOut, U
 import { useTranslations, useLocale } from "next-intl";
 import { usePathname, useRouter } from "@/i18n/routing";
 import { useAppSelector, useAppDispatch } from "@/lib/store/hooks";
-import { useSignOutMutation } from "@/lib/store/apiSlice";
+import { useSignOutApiAuthSignoutPostMutation } from "@/lib/store/generated/api";
 import { logout } from "@/lib/store/slices/authSlice";
 import { useEffect, useState } from "react";
 
@@ -15,7 +15,7 @@ export default function Sidebar({ activePage, setActivePage }: { activePage: str
     const pathname = usePathname();
     const dispatch = useAppDispatch();
     const { isAuthenticated, user } = useAppSelector((state) => state.auth);
-    const [signOut] = useSignOutMutation();
+    const [signOut] = useSignOutApiAuthSignoutPostMutation();
     const [showMore, setShowMore] = useState(false);
 
     useEffect(() => {

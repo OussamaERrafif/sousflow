@@ -10,7 +10,7 @@ from app.schemas.auth import (
     UserProfile,
     ChangePasswordRequest,
 )
-from app.logging_config import logger
+from app.logging_config import logger, debug, debug_obj, debug_request, debug_response, debug_db_query
 
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 
@@ -36,14 +36,19 @@ async def debug_user(username: str):
 @router.post("/signin", response_model=AuthResponse)
 async def sign_in(request: SignInRequest):
     """Sign in with username/password"""
+    debug_request("POST", "/api/auth/signin")
+    debug("Signin attempt", username=request.username)
+    
     try:
         admin = get_supabase_admin()
+        debug_db_query("SELECT", "users", username=request.username)
         result = admin.from_("users").select("*").eq("username", request.username).execute()
 
         logger.info(f"Signin attempt for username: {request.username}, found: {len(result.data) if result.data else 0} users")
         
         if not result.data:
             logger.warning(f"No user found with username: {request.username}")
+            debug("Signin failed: User not found", username=request.username)
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
         user = result.data[0]
@@ -51,13 +56,17 @@ async def sign_in(request: SignInRequest):
 
         if not user.get("is_active", False):
             logger.warning(f"User {request.username} is not active")
+            debug("Signin failed: User inactive", username=request.username)
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
         password_verified = verify_password(request.password, user["password_hash"])
         logger.info(f"Password verification result: {password_verified}")
         
         if not password_verified:
+            debug("Signin failed: Wrong password", username=request.username)
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+        
+        debug("Signin success", username=request.username, role=user.get("role"))
 
         token = create_access_token({"sub": user["id"], "role": user["role"]})
 

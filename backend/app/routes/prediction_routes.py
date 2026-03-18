@@ -9,6 +9,7 @@ from app.schemas.prediction import (
     FORECASTABLE_COLUMNS,
 )
 from app.services import prediction_service
+from app.logging_config import debug
 
 router = APIRouter(prefix="/api/predictions", tags=["Predictions"])
 
@@ -26,6 +27,7 @@ async def forecast(req: ForecastRequest, user=Depends(get_current_user)):
     if req.target_column not in FORECASTABLE_COLUMNS:
         raise HTTPException(400, f"Column '{req.target_column}' is not forecastable. "
                                  f"Valid: {FORECASTABLE_COLUMNS}")
+    debug(f"[Prediction Routes] Forecast request: user={user.get('username')}, farm={farm_id[:8] if farm_id else None}, column={req.target_column}")
     return await prediction_service.forecast(
         farm_id=farm_id,
         target_column=req.target_column,

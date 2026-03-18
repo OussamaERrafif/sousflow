@@ -2,24 +2,29 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useSignInMutation } from "@/lib/store/apiSlice";
+import { useSignInApiAuthSigninPostMutation } from "@/lib/store/generated/api";
+import { setCredentials } from "@/lib/store/slices/authSlice";
+import { useAppDispatch } from "@/lib/store/hooks";
 import { Leaf, User, Lock, Eye, EyeOff, AlertCircle } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
+  const dispatch = useAppDispatch();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
 
-  const [signIn, { isLoading }] = useSignInMutation();
+  const [signIn, { isLoading }] = useSignInApiAuthSigninPostMutation();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
     try {
-      await signIn({ username, password }).unwrap();
+      const data = await signIn({ signInRequest: { username, password } }).unwrap();
+      try { localStorage.setItem("token", data.access_token); } catch {}
+      dispatch(setCredentials({ user: data.user as { id: string; username: string }, token: data.access_token }));
       router.push("/");
     } catch (err: any) {
       setError(err?.data?.detail || "Invalid username or password");

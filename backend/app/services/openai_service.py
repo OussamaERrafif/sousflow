@@ -6,7 +6,7 @@ olive cultivation best practices, and Souss-Massa region context.
 from datetime import datetime, timezone
 from app.supabase_client import get_supabase_admin
 from app.config import get_settings
-from app.logging_config import logger
+from app.logging_config import logger, debug, debug_service_call
 
 _openai_client = None
 
@@ -135,6 +135,7 @@ Use rich markdown in your answers:
 async def chat(farm_id: str, conversation_id: str, user_message: str, sender_id: str = None) -> str:
     """Chat with context from conversation history and latest sensor data"""
     supabase = get_supabase_admin()
+    debug(f"[OpenAI Service] Chat request: farm={farm_id[:8]}, conv={conversation_id[:8]}, msg_len={len(user_message)}")
 
     # Load conversation history
     history_result = (
@@ -146,6 +147,7 @@ async def chat(farm_id: str, conversation_id: str, user_message: str, sender_id:
         .execute()
     )
     history = history_result.data or []
+    debug(f"[OpenAI Service] Loaded {len(history)} messages from history")
 
     # Save user message
     user_msg_data = {
@@ -159,6 +161,7 @@ async def chat(farm_id: str, conversation_id: str, user_message: str, sender_id:
 
     # Fetch latest sensor context for enrichment
     sensor_context = await _get_sensor_context(farm_id)
+    debug(f"[OpenAI Service] Sensor context length: {len(sensor_context) if sensor_context else 0} chars")
 
     # Build messages
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
@@ -175,6 +178,7 @@ async def chat(farm_id: str, conversation_id: str, user_message: str, sender_id:
 
     # Call OpenAI
     try:
+        debug(f"[OpenAI Service] Calling OpenAI API with {len(messages)} messages")
         response = await _get_openai().chat.completions.create(
             model=get_settings().OPENAI_MODEL,
             messages=messages,
@@ -182,6 +186,7 @@ async def chat(farm_id: str, conversation_id: str, user_message: str, sender_id:
             max_tokens=3000,
         )
         assistant_msg = response.choices[0].message.content
+        debug(f"[OpenAI Service] OpenAI response received, length={len(assistant_msg) if assistant_msg else 0}")
     except Exception as e:
         import traceback
         logger.error("OpenAI API error", error=str(e), traceback=traceback.format_exc())

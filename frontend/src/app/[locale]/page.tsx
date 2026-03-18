@@ -17,10 +17,12 @@ import SettingsPage from "@/components/pages/SettingsPage";
 import AIAssistancePage from "@/components/pages/AIAssistancePage";
 const MapPage = dynamic(() => import("@/components/pages/MapPage"), { ssr: false });
 const IoTDevicesPage = dynamic(() => import("@/components/pages/IoTDevicesPage"), { ssr: false });
+import DebugPanel from "@/components/DebugPanel";
 import { useAppSelector, useAppDispatch } from "@/lib/store/hooks";
 import { setCredentials, setProfile } from "@/lib/store/slices/authSlice";
 import { useSSE } from "@/lib/hooks/useSSE";
 import { useGetProfileApiAuthProfileGetQuery } from "@/lib/store/generated/api";
+import { isDebugMode, debugLog } from "@/lib/debug";
 
 export default function Dashboard() {
   const [activePage, setActivePage] = useState("dashboard");
@@ -33,6 +35,9 @@ export default function Dashboard() {
 
   useEffect(() => {
     setMounted(true);
+    if (isDebugMode()) {
+      debugLog("Dashboard mounted");
+    }
   }, []);
 
   useEffect(() => {
@@ -56,8 +61,17 @@ export default function Dashboard() {
         activeFarmId: profile.active_farm_id || (profile.farm_ids && profile.farm_ids[0]) || null,
         full_name: profile.full_name,
       }));
+      if (isDebugMode()) {
+        debugLog("Profile set:", { role: profile.role, farmIds: profile.farm_ids });
+      }
     }
   }, [isAuthenticated, profile, role, dispatch]);
+
+  useEffect(() => {
+    if (isDebugMode() && mounted) {
+      debugLog("Page changed to:", activePage);
+    }
+  }, [activePage, mounted]);
 
   if (!mounted) {
     return (
@@ -119,11 +133,12 @@ export default function Dashboard() {
   return (
     <div className="flex w-full min-h-screen bg-[#F5F0E8] dark:bg-zinc-900">
       <Sidebar activePage={activePage} setActivePage={setActivePage} />
-      <main className="flex-1 mr-0 md:mr-60 mb-16 md:mb-0 p-4 md:p-8 overflow-x-hidden">
+      <main className="flex-1 mb-16 md:mb-0 p-4 md:p-8 overflow-x-hidden md:ltr:ml-64 md:rtl:mr-64">
         <div className="max-w-7xl mx-auto">
           {renderPage()}
         </div>
       </main>
+      <DebugPanel />
     </div>
   );
 }

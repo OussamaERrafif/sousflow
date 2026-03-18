@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useAppDispatch, useAppSelector } from "@/lib/store/hooks";
 import { setLiveData, setConnected } from "@/lib/store/slices/iotSlice";
 import { API_URLS } from "../apiConfig";
+import { isDebugMode, debugLog } from "../debug";
 
 export function useSSE() {
   const dispatch = useAppDispatch();
@@ -21,12 +22,26 @@ export function useSSE() {
       }
 
       const baseUrl = API_URLS[currentUrlIndex].replace(/\/$/, "");
+      if (isDebugMode()) {
+        debugLog("SSE Connecting to:", `${baseUrl}/api/events`);
+      }
+      
       const es = new EventSource(`${baseUrl}/api/events`);
       esRef.current = es;
+
+      es.onopen = () => {
+        if (isDebugMode()) {
+          debugLog("SSE Connection opened");
+        }
+        dispatch(setConnected(true));
+      };
 
       es.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
+          if (isDebugMode()) {
+            debugLog("SSE Message received:", data);
+          }
           dispatch(setLiveData(data));
         } catch {
           // ignore parse errors
@@ -34,6 +49,9 @@ export function useSSE() {
       };
 
       es.onerror = () => {
+        if (isDebugMode()) {
+          debugLog("SSE Connection error");
+        }
         es.close();
         esRef.current = null;
         dispatch(setConnected(false));

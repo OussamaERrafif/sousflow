@@ -12,7 +12,7 @@ from jose import JWTError, jwt
 
 from app.config import get_settings
 from app.supabase_client import get_supabase_admin
-from app.logging_config import logger
+from app.logging_config import logger, debug, debug_obj, debug_db_query, debug_request
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -51,8 +51,12 @@ async def get_current_user(request: Request) -> dict:
     Extract and verify JWT from the Authorization header.
     Returns the authenticated user dict with role and farm context.
     """
+    debug("=== Get Current User Start ===")
+    debug_request("GET", request.url.path if request.url else "unknown")
+    
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
+        debug("Auth failed: Missing or invalid Authorization header")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Missing or invalid Authorization header",
@@ -65,19 +69,24 @@ async def get_current_user(request: Request) -> dict:
         payload = decode_token(token)
         user_id = payload.get("sub")
         if not user_id:
+            debug("Auth failed: Invalid token - no user_id")
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
-    except JWTError:
+    except JWTError as e:
+        debug(f"Auth failed: JWTError - {str(e)}")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token")
 
     try:
         admin = get_supabase_admin()
 
         # Fetch user from users table
+        debug_db_query("SELECT", "users", user_id=user_id[:8] if user_id else None)
         user_response = admin.from_("users").select("*").eq("id", user_id).eq("is_active", True).execute()
         if not user_response.data:
+            debug("Auth failed: User not found or inactive")
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found or inactive")
 
         user = user_response.data[0]
+        debug("Auth success", user_id=user_id[:8], role=user.get("role"))
 
         # Get farms owned by user
         owned_farms_response = admin.from_("farms").select("id").eq("owner_id", user_id).execute()
