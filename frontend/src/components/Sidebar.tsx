@@ -1,6 +1,6 @@
 "use client";
 
-import { Home, Leaf, Bell, Settings, Activity, FileText, Globe, LogIn, LogOut, User, Sparkles } from "lucide-react";
+import { Home, Leaf, Bell, Settings, Activity, FileText, Globe, LogIn, LogOut, User, Sparkles, Map, Cpu } from "lucide-react";
 import { useTranslations, useLocale } from "next-intl";
 import { usePathname, useRouter } from "@/i18n/routing";
 import { useAppSelector, useAppDispatch } from "@/lib/store/hooks";
@@ -120,6 +120,8 @@ export default function Sidebar({ activePage, setActivePage }: { activePage: str
                     {renderSectionHeader("العمليات")}
                     {renderMenuButton("zones", Leaf, t("nav_zones"))}
                     {renderMenuButton("pumps", Settings, t("nav_pumps"))}
+                    {renderMenuButton("map", Map, t("nav_map"))}
+                    {renderMenuButton("iot_devices", Cpu, t("nav_iot_devices"))}
 
                     {renderSectionHeader("المراقبة")}
                     {renderMenuButton("alerts", Bell, t("nav_alerts"), 2)}
@@ -181,7 +183,9 @@ export default function Sidebar({ activePage, setActivePage }: { activePage: str
                     {[
                         { id: "dashboard", icon: Home, label: t("nav_dashboard") },
                         { id: "zones", icon: Leaf, label: t("nav_zones") },
+                        { id: "map", icon: Map, label: t("nav_map") },
                         { id: "alerts", icon: Bell, label: t("nav_alerts"), badge: 2 },
+                        { id: "iot_devices", icon: Cpu, label: t("nav_iot_devices") },
                         { id: "settings", icon: Activity, label: t("nav_settings") }
                     ].map((item) => (
                         <li key={item.id} className="flex-1 h-full">

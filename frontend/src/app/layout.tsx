@@ -10,7 +10,7 @@ const tajawal = Tajawal({
 });
 
 export const metadata: Metadata = {
-  title: "SousFlow - Login",
+  title: "SousFlow - Smart Irrigation",
   description: "Smart Irrigation Dashboard",
 };
 
@@ -20,7 +20,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body className={`${tajawal.variable} font-sans antialiased text-[#5A4A3A] bg-[#F5F0E8]`}>
         <ReduxProvider>
           {children}

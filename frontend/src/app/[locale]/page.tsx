@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/i18n/routing";
+import dynamic from "next/dynamic";
 import Sidebar from "@/components/Sidebar";
 import StatusBanner from "@/components/StatusBanner";
 import StatsRow from "@/components/StatsRow";
@@ -14,15 +15,19 @@ import AlertsPage from "@/components/pages/AlertsPage";
 import ReportsPage from "@/components/pages/ReportsPage";
 import SettingsPage from "@/components/pages/SettingsPage";
 import AIAssistancePage from "@/components/pages/AIAssistancePage";
+const MapPage = dynamic(() => import("@/components/pages/MapPage"), { ssr: false });
+const IoTDevicesPage = dynamic(() => import("@/components/pages/IoTDevicesPage"), { ssr: false });
 import { useAppSelector, useAppDispatch } from "@/lib/store/hooks";
-import { setCredentials } from "@/lib/store/slices/authSlice";
+import { setCredentials, setProfile } from "@/lib/store/slices/authSlice";
 import { useSSE } from "@/lib/hooks/useSSE";
+import { useGetProfileApiAuthProfileGetQuery } from "@/lib/store/generated/api";
 
 export default function Dashboard() {
   const [activePage, setActivePage] = useState("dashboard");
   const router = useRouter();
   const dispatch = useAppDispatch();
-  const { isAuthenticated } = useAppSelector((state) => state.auth);
+  const { isAuthenticated, role } = useAppSelector((state) => state.auth);
+  const { data: profile } = useGetProfileApiAuthProfileGetQuery({}, { skip: !isAuthenticated });
   useSSE();
   const [mounted, setMounted] = useState(false);
 
@@ -35,12 +40,24 @@ export default function Dashboard() {
       let token: string | null = null;
       try { token = localStorage.getItem("token"); } catch {}
       if (!token) {
-        router.push("/login");
+        router.push("/login", { locale: "never" });
       } else {
         dispatch(setCredentials({ user: { id: "", username: "" }, token }));
       }
     }
   }, [mounted, isAuthenticated, router, dispatch]);
+
+  useEffect(() => {
+    if (isAuthenticated && profile && !role) {
+      dispatch(setProfile({
+        role: profile.role as "superadmin" | "farm_owner" | "farm_employee",
+        farmIds: profile.farm_ids || [],
+        ownedFarmIds: profile.owned_farm_ids || [],
+        activeFarmId: profile.active_farm_id || (profile.farm_ids && profile.farm_ids[0]) || null,
+        full_name: profile.full_name,
+      }));
+    }
+  }, [isAuthenticated, profile, role, dispatch]);
 
   if (!mounted) {
     return (
@@ -74,6 +91,10 @@ export default function Dashboard() {
         return <ZonesPage />;
       case "pumps":
         return <PumpsPage />;
+      case "map":
+        return <MapPage />;
+      case "iot_devices":
+        return <IoTDevicesPage />;
       case "alerts":
         return <AlertsPage />;
       case "reports":

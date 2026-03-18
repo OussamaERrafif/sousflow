@@ -4,6 +4,7 @@ Farm Service - Business logic for farm CRUD and membership management
 from typing import List, Optional
 from app.supabase_client import get_supabase_admin
 from app.logging_config import logger
+from app.services.zone_service import ZoneService
 
 
 class FarmService:
@@ -32,8 +33,8 @@ class FarmService:
                 return farm
         return None
 
-    def create_farm(self, owner_id: str, name: str, location: str = None, total_zones: int = 4, description: str = None) -> dict:
-        """Create a new farm (user becomes owner)"""
+    def create_farm(self, owner_id: str, name: str, location: str = None, total_zones: int = 4, branches_per_zone: int = 5, description: str = None) -> dict:
+        """Create a new farm with zones and branches (user becomes owner)"""
         data = {
             "owner_id": owner_id,
             "name": name,
@@ -46,9 +47,18 @@ class FarmService:
 
         response = self.supabase.from_("farms").insert(data).execute()
 
-        if response.data:
-            return response.data[0]
-        raise Exception("Failed to create farm")
+        if not response.data:
+            raise Exception("Failed to create farm")
+
+        farm = response.data[0]
+        farm_id = farm["id"]
+
+        zone_service = ZoneService()
+        zones = zone_service.create_default_zones_and_branches(farm_id, total_zones, branches_per_zone)
+        logger.info(f"Created farm '{name}' with {total_zones} zones and {branches_per_zone} branches each")
+
+        farm["zones"] = zones
+        return farm
 
     def update_farm(self, farm_id: str, owner_id: str, **updates) -> dict:
         """Update a farm (owner only)"""

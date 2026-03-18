@@ -220,3 +220,229 @@ class AlertRuleResponse(AlertRuleCreate):
     user_id: str
     is_active: bool
     created_at: datetime
+
+
+# ─── NEW v3 Hierarchical Models ──────────────────────────────────
+
+# ── Ingest Models (what sensors send) ────────────────────────
+
+class EnvironmentReadingCreate(BaseModel):
+    """Weather station data — one per farm per cycle."""
+    air_temperature_c: Optional[float] = None
+    air_humidity_pct: Optional[float] = Field(None, ge=0, le=100)
+    air_pressure_hpa: Optional[float] = None
+    light_intensity_lux: Optional[float] = Field(None, ge=0)
+    solar_radiation_wm2: Optional[float] = Field(None, ge=0)
+    precipitation_mm: Optional[float] = Field(None, ge=0)
+    wind_speed_kmh: Optional[float] = Field(None, ge=0)
+    cloud_cover_pct: Optional[float] = Field(None, ge=0, le=100)
+
+
+class InfrastructureReadingCreate(BaseModel):
+    """Reservoir, main pump, filter — one per farm per cycle."""
+    reservoir_level_pct: Optional[float] = Field(None, ge=0, le=100)
+    main_pump_flow_lpm: Optional[float] = Field(None, ge=0)
+    main_pressure_mpa: Optional[float] = Field(None, ge=0)
+    filter_status: Optional[int] = Field(None, ge=0, le=2)
+
+
+class BranchFlowReadingCreate(BaseModel):
+    """Inlet + outlet flow meter data for one branch."""
+    branch_id: str
+    valve_open: Optional[int] = Field(None, ge=0, le=1)
+    inlet_flow_lpm: Optional[float] = Field(None, ge=0)
+    outlet_flow_lpm: Optional[float] = Field(None, ge=0)
+    inlet_pressure_mpa: Optional[float] = Field(None, ge=0)
+    outlet_pressure_mpa: Optional[float] = Field(None, ge=0)
+
+
+class SoilMoistureReadingCreate(BaseModel):
+    """3 soil moisture sensors along one branch."""
+    branch_id: str
+    moisture_start_pct: Optional[float] = Field(None, ge=0, le=100)
+    moisture_middle_pct: Optional[float] = Field(None, ge=0, le=100)
+    moisture_end_pct: Optional[float] = Field(None, ge=0, le=100)
+
+
+class BranchCycleData(BaseModel):
+    """All sensor data for one branch in one cycle."""
+    branch_id: str
+    flow: BranchFlowReadingCreate
+    soil: SoilMoistureReadingCreate
+
+
+class IoTCycleCreate(BaseModel):
+    """One complete reading cycle for the entire farm.
+    Contains shared environment/infra + per-branch flow and soil data."""
+    timestamp: Optional[datetime] = None
+    environment: EnvironmentReadingCreate
+    infrastructure: InfrastructureReadingCreate
+    branches: List[BranchCycleData]
+
+
+# ── Response Models ──────────────────────────────────────────
+
+class EnvironmentReadingResponse(EnvironmentReadingCreate):
+    id: str
+    farm_id: str
+    timestamp: datetime
+    created_at: datetime
+
+
+class InfrastructureReadingResponse(InfrastructureReadingCreate):
+    id: str
+    farm_id: str
+    timestamp: datetime
+    created_at: datetime
+
+
+class BranchFlowReadingResponse(BaseModel):
+    id: str
+    branch_id: str
+    farm_id: str
+    zone_id: str
+    timestamp: datetime
+    valve_open: Optional[int] = None
+    inlet_flow_lpm: Optional[float] = None
+    outlet_flow_lpm: Optional[float] = None
+    inlet_pressure_mpa: Optional[float] = None
+    outlet_pressure_mpa: Optional[float] = None
+    flow_delta_lpm: Optional[float] = None
+    leak_detected: bool = False
+    created_at: datetime
+
+
+class SoilMoistureReadingResponse(BaseModel):
+    id: str
+    branch_id: str
+    farm_id: str
+    zone_id: str
+    timestamp: datetime
+    moisture_start_pct: Optional[float] = None
+    moisture_middle_pct: Optional[float] = None
+    moisture_end_pct: Optional[float] = None
+    avg_moisture_pct: Optional[float] = None
+    uniformity_coefficient: Optional[float] = None
+    created_at: datetime
+
+
+# ── Dashboard / Analysis Models ──────────────────────────────
+
+class BranchSummary(BaseModel):
+    """Real-time branch status for dashboard."""
+    branch_id: str
+    branch_number: int
+    branch_name: str
+    valve_open: bool
+    inlet_flow_lpm: float
+    outlet_flow_lpm: float
+    flow_delta_lpm: float
+    leak_detected: bool
+    inlet_pressure_mpa: float
+    outlet_pressure_mpa: float
+    moisture_start_pct: float
+    moisture_middle_pct: float
+    moisture_end_pct: float
+    avg_moisture_pct: float
+    uniformity_coefficient: float
+
+
+class ZoneDashboardSummary(BaseModel):
+    """Zone summary with per-branch detail."""
+    zone_id: str
+    zone_number: int
+    zone_name: str
+    is_active: bool
+    branches: List[BranchSummary]
+    avg_moisture_pct: float
+    total_inlet_flow_lpm: float
+    total_outlet_flow_lpm: float
+    water_efficiency_pct: float
+    leak_count: int
+    stress_score: float
+    stress_class: str
+    health_score: float
+    irrigation_needed: bool
+
+
+class FarmDashboardSnapshot(BaseModel):
+    """Complete farm dashboard — returned by GET /api/iot/dashboard."""
+    farm_id: str
+    timestamp: datetime
+    total_zones: int
+    total_branches: int
+    active_zones: int
+    active_branches: int
+    environment: EnvironmentReadingCreate
+    infrastructure: InfrastructureReadingCreate
+    zones: List[ZoneDashboardSummary]
+    total_water_consumption_lpm: float
+    total_leak_alerts: int
+    avg_water_efficiency_pct: float
+    farm_avg_moisture_pct: float
+    farm_health_score: float
+
+
+class BranchAnalysis(BaseModel):
+    """Detailed branch analysis over a time window."""
+    branch_id: str
+    branch_name: str
+    period_hours: int
+    flow_stats: dict
+    moisture_stats: dict
+    leak_events: int
+    avg_uniformity: float
+    avg_efficiency_pct: float
+    recommendations: List[str]
+
+
+class LeakAlert(BaseModel):
+    """Individual leak detection alert."""
+    branch_id: str
+    branch_name: str
+    zone_id: str
+    zone_name: str
+    timestamp: datetime
+    inlet_flow_lpm: float
+    outlet_flow_lpm: float
+    flow_delta_lpm: float
+    severity: str
+
+
+class WaterConsumptionReport(BaseModel):
+    """Water consumption breakdown."""
+    period_hours: int
+    farm_total_liters: float
+    per_zone: List[dict]
+    per_branch: List[dict]
+    efficiency_pct: float
+    estimated_loss_liters: float
+
+
+# ── Column Lists for Alert Rules ──────────────────────────────
+
+ENVIRONMENT_COLUMNS = [
+    "air_temperature_c", "air_humidity_pct", "air_pressure_hpa",
+    "light_intensity_lux", "solar_radiation_wm2", "precipitation_mm",
+    "wind_speed_kmh", "cloud_cover_pct"
+]
+
+INFRASTRUCTURE_COLUMNS = [
+    "reservoir_level_pct", "main_pump_flow_lpm", "main_pressure_mpa"
+]
+
+BRANCH_FLOW_COLUMNS = [
+    "inlet_flow_lpm", "outlet_flow_lpm", "flow_delta_lpm",
+    "inlet_pressure_mpa", "outlet_pressure_mpa"
+]
+
+SOIL_MOISTURE_COLUMNS = [
+    "moisture_start_pct", "moisture_middle_pct", "moisture_end_pct",
+    "avg_moisture_pct", "uniformity_coefficient"
+]
+
+ALERTABLE_COLUMNS_V3 = (
+    ENVIRONMENT_COLUMNS + INFRASTRUCTURE_COLUMNS +
+    BRANCH_FLOW_COLUMNS + SOIL_MOISTURE_COLUMNS +
+    ["stress_score", "health_score", "water_efficiency_pct"]
+)

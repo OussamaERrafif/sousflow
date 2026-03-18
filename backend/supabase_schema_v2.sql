@@ -254,6 +254,116 @@ CREATE INDEX idx_wa_phone ON whatsapp_messages(phone);
 CREATE INDEX idx_wa_created ON whatsapp_messages(created_at DESC);
 
 -- ============================================
+-- 11. Zones (with geographic coordinates for map)
+-- ============================================
+CREATE TABLE zones (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    farm_id UUID NOT NULL REFERENCES farms(id) ON DELETE CASCADE,
+    zone_number INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    area_hectares DOUBLE PRECISION,
+    geometry JSONB DEFAULT '{}',  -- GeoJSON polygon for zone drawing
+    center_latitude DOUBLE PRECISION,
+    center_longitude DOUBLE PRECISION,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_zones_farm ON zones(farm_id);
+CREATE UNIQUE INDEX idx_zones_farm_number ON zones(farm_id, zone_number);
+
+-- ============================================
+-- 12. Reservoirs (water tanks)
+-- ============================================
+CREATE TABLE reservoirs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    farm_id UUID NOT NULL REFERENCES farms(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    capacity_liters DOUBLE PRECISION DEFAULT 100000,
+    current_level_pct DOUBLE PRECISION DEFAULT 100,
+    latitude DOUBLE PRECISION,
+    longitude DOUBLE PRECISION,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_reservoirs_farm ON reservoirs(farm_id);
+
+-- ============================================
+-- 13. Pipes (distribution network)
+-- ============================================
+CREATE TABLE pipes (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    farm_id UUID NOT NULL REFERENCES farms(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    pipe_type TEXT DEFAULT 'main',  -- main, secondary, lateral
+    diameter_mm DOUBLE PRECISION,
+    length_meters DOUBLE PRECISION,
+    from_latitude DOUBLE PRECISION,
+    from_longitude DOUBLE PRECISION,
+    to_latitude DOUBLE PRECISION,
+    to_longitude DOUBLE PRECISION,
+    from_zone_id UUID REFERENCES zones(id) ON DELETE SET NULL,
+    to_zone_id UUID REFERENCES zones(id) ON DELETE SET NULL,
+    from_reservoir_id UUID REFERENCES reservoirs(id) ON DELETE SET NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_pipes_farm ON pipes(farm_id);
+
+-- ============================================
+-- 14. IoT Devices
+-- ============================================
+CREATE TABLE iot_devices (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    farm_id UUID NOT NULL REFERENCES farms(id) ON DELETE CASCADE,
+    device_type TEXT NOT NULL,  -- flow_meter, pressure_sensor, moisture_sensor, valve_controller, gateway
+    name TEXT NOT NULL,
+    model TEXT,
+    serial_number TEXT,
+    mac_address TEXT,
+    ip_address TEXT,
+    latitude DOUBLE PRECISION,
+    longitude DOUBLE PRECISION,
+    zone_id UUID REFERENCES zones(id) ON DELETE SET NULL,
+    reservoir_id UUID REFERENCES reservoirs(id) ON DELETE SET NULL,
+    status TEXT DEFAULT 'offline',  -- online, offline, error, maintenance
+    last_reading_at TIMESTAMPTZ,
+    last_battery_pct DOUBLE PRECISION,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_iot_devices_farm ON iot_devices(farm_id);
+CREATE INDEX idx_iot_devices_zone ON iot_devices(zone_id);
+CREATE INDEX idx_iot_devices_status ON iot_devices(status);
+
+-- ============================================
+-- 15. Branches (within zones)
+-- ============================================
+CREATE TABLE branches (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    zone_id UUID NOT NULL REFERENCES zones(id) ON DELETE CASCADE,
+    branch_number INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    length_meters DOUBLE PRECISION,
+    emitter_count INTEGER,
+    emitter_flow_lph DOUBLE PRECISION,
+    geometry JSONB DEFAULT '{}',  -- GeoJSON line for branch path
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_branches_zone ON branches(zone_id);
+CREATE UNIQUE INDEX idx_branches_zone_number ON branches(zone_id, branch_number);
+
+-- ============================================
 -- No RLS needed — all access control is handled
 -- in the backend using service_role key.
 -- ============================================

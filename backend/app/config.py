@@ -45,7 +45,9 @@ class Settings(BaseSettings):
     # IoT Simulator
     IOT_SIMULATOR_ENABLED: bool = False
     IOT_SIMULATOR_ZONES: int = 4
+    IOT_SIMULATOR_BRANCHES_PER_ZONE: int = 3
     IOT_SIMULATOR_INTERVAL: float = 300.0
+    IOT_SIMULATOR_LEAK_PROBABILITY: float = 0.02
     IOT_SIMULATOR_FARM_ID: Optional[str] = None
     IOT_SIMULATOR_USER_ID: Optional[str] = None
 

@@ -224,13 +224,32 @@ async def _get_sensor_context(farm_id: str) -> str:
         # Get latest reading per zone (within last 3 hours)
         three_hours_ago = (datetime.now(timezone.utc) - timedelta(hours=3)).isoformat()
         
-        result = (
-            supabase.table("iot_readings")
-            .select("zone_id,timestamp,air_temperature_c,air_humidity_pct,air_pressure_hpa,"
-                    "light_intensity_lux,soil_moisture_pct,reservoir_level_pct,filter_status,"
-                    "main_pressure_mpa,valve_open,zone_flow_lpm,zone_pressure_mpa,"
-                    "solar_radiation_wm2,precipitation_mm,wind_speed_kmh,cloud_cover_pct,"
-                    "stress_score,stress_class,health_score,irrigation_needed,is_anomaly")
+        # Get latest environment reading
+        env_result = (
+            supabase.table("environment_readings")
+            .select("*")
+            .eq("farm_id", farm_id)
+            .gte("timestamp", three_hours_ago)
+            .order("timestamp", desc=True)
+            .limit(1)
+            .execute()
+        )
+
+        # Get latest infrastructure reading
+        infra_result = (
+            supabase.table("infrastructure_readings")
+            .select("*")
+            .eq("farm_id", farm_id)
+            .gte("timestamp", three_hours_ago)
+            .order("timestamp", desc=True)
+            .limit(1)
+            .execute()
+        )
+
+        # Get latest zone health readings
+        zone_health_result = (
+            supabase.table("zone_health_readings")
+            .select("*")
             .eq("farm_id", farm_id)
             .gte("timestamp", three_hours_ago)
             .order("timestamp", desc=True)
@@ -238,109 +257,104 @@ async def _get_sensor_context(farm_id: str) -> str:
             .execute()
         )
 
-        if not result.data:
+        if not env_result.data and not zone_health_result.data:
             return ""
 
-        # Group by zone, take latest per zone
+        latest_env = env_result.data[0] if env_result.data else {}
+        latest_infra = infra_result.data[0] if infra_result.data else {}
+
+        # Group zone health by zone_id, take latest per zone
         zones = {}
-        all_readings = []
-        for r in result.data:
+        for r in (zone_health_result.data or []):
             zid = r["zone_id"]
             if zid not in zones:
                 zones[zid] = r
-            all_readings.append(r)
 
         # Build comprehensive context
         lines = ["=== LIVE SENSOR DATA ==="]
 
-        # Weather context from latest reading
-        latest = list(zones.values())[0]
+        # Weather context from environment reading
         weather_parts = []
-        if latest.get("air_temperature_c") is not None:
-            weather_parts.append(f"Temp: {latest['air_temperature_c']:.1f}°C")
-        if latest.get("air_humidity_pct") is not None:
-            weather_parts.append(f"RH: {latest['air_humidity_pct']:.0f}%")
-        if latest.get("solar_radiation_wm2") is not None:
-            weather_parts.append(f"Solar: {latest['solar_radiation_wm2']:.0f}W/m²")
-        if latest.get("wind_speed_kmh") is not None:
-            weather_parts.append(f"Wind: {latest['wind_speed_kmh']:.1f}km/h")
-        if latest.get("precipitation_mm") is not None and latest['precipitation_mm'] > 0:
-            weather_parts.append(f"Rain: {latest['precipitation_mm']:.1f}mm")
-        if latest.get("cloud_cover_pct") is not None:
-            weather_parts.append(f"Clouds: {latest['cloud_cover_pct']:.0f}%")
+        if latest_env.get("air_temperature_c") is not None:
+            weather_parts.append(f"Temp: {latest_env['air_temperature_c']:.1f}°C")
+        if latest_env.get("air_humidity_pct") is not None:
+            weather_parts.append(f"RH: {latest_env['air_humidity_pct']:.0f}%")
+        if latest_env.get("solar_radiation_wm2") is not None:
+            weather_parts.append(f"Solar: {latest_env['solar_radiation_wm2']:.0f}W/m²")
+        if latest_env.get("wind_speed_kmh") is not None:
+            weather_parts.append(f"Wind: {latest_env['wind_speed_kmh']:.1f}km/h")
+        if latest_env.get("precipitation_mm") is not None and latest_env['precipitation_mm'] > 0:
+            weather_parts.append(f"Rain: {latest_env['precipitation_mm']:.1f}mm")
+        if latest_env.get("cloud_cover_pct") is not None:
+            weather_parts.append(f"Clouds: {latest_env['cloud_cover_pct']:.0f}%")
 
         if weather_parts:
             lines.append(f"Weather: {' | '.join(weather_parts)}")
 
-        # Zone data — current snapshot
+        # Zone data — current snapshot from zone_health_readings
         lines.append("")
         lines.append("--- CURRENT (per zone) ---")
         for zid in sorted(zones):
             r = zones[zid]
-            parts = [f"Zone {zid}:"]
-            if r.get("soil_moisture_pct") is not None:
-                parts.append(f"soil={r['soil_moisture_pct']:.1f}%")
-            if r.get("air_temperature_c") is not None:
-                parts.append(f"temp={r['air_temperature_c']:.1f}°C")
-            if r.get("stress_class"):
-                parts.append(f"stress={r['stress_class']}")
+            parts = [f"Zone {zid[:8]}:"]
+            if r.get("avg_soil_moisture_pct") is not None:
+                parts.append(f"soil={r['avg_soil_moisture_pct']:.1f}%")
+            if r.get("stress_score") is not None:
+                parts.append(f"stress={r['stress_score']:.3f}")
             if r.get("health_score") is not None:
                 parts.append(f"health={r['health_score']:.1f}/10")
-            if r.get("valve_open") is not None:
-                parts.append(f"valve={'OPEN' if r['valve_open'] else 'CLOSED'}")
-            if r.get("irrigation_needed") is not None:
-                parts.append(f"irr_needed={'YES' if r['irrigation_needed'] else 'no'}")
+            if r.get("water_efficiency_pct") is not None:
+                parts.append(f"efficiency={r['water_efficiency_pct']:.0f}%")
+            if r.get("leak_count") is not None and r['leak_count'] > 0:
+                parts.append(f"LEAKS={r['leak_count']}")
             if r.get("is_anomaly") is not None and r['is_anomaly'] == 1:
                 parts.append("ANOMALY!")
             lines.append(" | ".join(parts))
 
-        # Infrastructure
-        r0 = list(zones.values())[0]
+        # Infrastructure from infrastructure_readings
         infra = []
-        if r0.get("reservoir_level_pct") is not None:
-            level = r0['reservoir_level_pct']
+        if latest_infra.get("reservoir_level_pct") is not None:
+            level = latest_infra['reservoir_level_pct']
             tag = "CRITICAL" if level < 25 else "LOW" if level < 40 else "OK"
             infra.append(f"reservoir={level:.0f}% [{tag}]")
-        if r0.get("filter_status") is not None:
-            infra.append(f"filter={['clean','partial','CLOGGED'][r0['filter_status']]}")
-        if r0.get("main_pressure_mpa") is not None:
-            infra.append(f"main_pressure={r0['main_pressure_mpa']:.3f}MPa")
+        if latest_infra.get("filter_status") is not None:
+            infra.append(f"filter={['clean','partial','CLOGGED'][latest_infra['filter_status']]}")
+        if latest_infra.get("main_pressure_mpa") is not None:
+            infra.append(f"main_pressure={latest_infra['main_pressure_mpa']:.3f}MPa")
+        if latest_infra.get("main_pump_flow_lpm") is not None:
+            infra.append(f"pump_flow={latest_infra['main_pump_flow_lpm']:.1f}L/min")
         if infra:
             lines.append(f"Infra: {' | '.join(infra)}")
 
-        # Recent history — for trend / history charts
+        # Recent history — from environment readings
         lines.append("")
-        lines.append("--- RECENT HISTORY (use for charts) ---")
-        # Group all readings by zone, show time series
-        zone_history: dict[int, list] = {}
-        for r in all_readings:
-            zid = r["zone_id"]
-            if zid not in zone_history:
-                zone_history[zid] = []
-            zone_history[zid].append(r)
-
-        for zid in sorted(zone_history):
-            readings_list = zone_history[zid][:8]  # last 8 readings per zone
-            readings_list.reverse()  # oldest first
-            entries = []
-            for r in readings_list:
-                ts = r.get("timestamp", "")
-                time_str = ""
-                if ts:
-                    try:
-                        dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
-                        time_str = dt.strftime("%H:%M")
-                    except Exception:
-                        pass
-                vals = []
-                if r.get("soil_moisture_pct") is not None:
-                    vals.append(f"soil={r['soil_moisture_pct']:.1f}")
-                if r.get("air_temperature_c") is not None:
-                    vals.append(f"temp={r['air_temperature_c']:.1f}")
-                if r.get("health_score") is not None:
-                    vals.append(f"health={r['health_score']:.1f}")
-                entries.append(f"{time_str}→{','.join(vals)}")
-            lines.append(f"Zone {zid}: {' | '.join(entries)}")
+        lines.append("--- RECENT HISTORY ---")
+        recent_env = (
+            supabase.table("environment_readings")
+            .select("timestamp,air_temperature_c,air_humidity_pct,solar_radiation_wm2")
+            .eq("farm_id", farm_id)
+            .gte("timestamp", three_hours_ago)
+            .order("timestamp", desc=True)
+            .limit(8)
+            .execute()
+        )
+        for r in reversed(recent_env.data or []):
+            ts = r.get("timestamp", "")
+            time_str = ""
+            if ts:
+                try:
+                    dt_val = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                    time_str = dt_val.strftime("%H:%M")
+                except Exception:
+                    pass
+            vals = []
+            if r.get("air_temperature_c") is not None:
+                vals.append(f"temp={r['air_temperature_c']:.1f}")
+            if r.get("air_humidity_pct") is not None:
+                vals.append(f"hum={r['air_humidity_pct']:.0f}%")
+            if r.get("solar_radiation_wm2") is not None:
+                vals.append(f"solar={r['solar_radiation_wm2']:.0f}")
+            lines.append(f"{time_str}: {', '.join(vals)}")
 
         return "\n".join(lines)
 

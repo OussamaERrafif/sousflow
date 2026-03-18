@@ -252,3 +252,142 @@ async def inject_soil(
         raise HTTPException(400, f"Zone {zone_id} does not exist (max: {sim.n_zones})")
     sim.inject_soil_moisture(zone_id, moisture)
     return {"status": "ok", "zone_id": zone_id, "soil_moisture_pct": sim.zone_soil[zone_id]}
+
+
+# =============================================================================
+# Hierarchical IoT Routes (v3 Schema)
+# =============================================================================
+
+@router.post("/readings/environment", response_model=dict, summary="Ingest environment reading")
+async def create_environment_reading(reading: dict, user=Depends(get_current_user)):
+    """Ingest an environment reading (weather station data)"""
+    farm_id = _extract_farm_id(user)
+    if not farm_id:
+        raise HTTPException(400, "No active farm. Please select a farm first.")
+    result = await iot_service.ingest_environment_reading(farm_id, reading)
+    return {"reading": result}
+
+
+@router.get("/readings/environment/latest", summary="Get latest environment reading")
+async def get_latest_environment(user=Depends(get_current_user)):
+    farm_id = _extract_farm_id(user)
+    if not farm_id:
+        raise HTTPException(400, "No active farm. Please select a farm first.")
+    result = await iot_service.get_latest_environment(farm_id)
+    if not result:
+        raise HTTPException(404, "No environment readings found")
+    return result
+
+
+@router.post("/readings/infrastructure", response_model=dict, summary="Ingest infrastructure reading")
+async def create_infrastructure_reading(reading: dict, user=Depends(get_current_user)):
+    """Ingest an infrastructure reading (reservoir, pump, filter)"""
+    farm_id = _extract_farm_id(user)
+    if not farm_id:
+        raise HTTPException(400, "No active farm. Please select a farm first.")
+    result = await iot_service.ingest_infrastructure_reading(farm_id, reading)
+    return {"reading": result}
+
+
+@router.get("/readings/infrastructure/latest", summary="Get latest infrastructure reading")
+async def get_latest_infrastructure(user=Depends(get_current_user)):
+    farm_id = _extract_farm_id(user)
+    if not farm_id:
+        raise HTTPException(400, "No active farm. Please select a farm first.")
+    result = await iot_service.get_latest_infrastructure(farm_id)
+    if not result:
+        raise HTTPException(404, "No infrastructure readings found")
+    return result
+
+
+@router.post("/readings/branch-flow", response_model=dict, summary="Ingest branch flow reading")
+async def create_branch_flow_reading(
+    branch_id: str = Query(..., description="Branch UUID"),
+    zone_id: str = Query(..., description="Zone UUID"),
+    reading: Optional[dict] = None,
+    user=Depends(get_current_user),
+):
+    """Ingest a branch flow reading (inlet + outlet per branch)"""
+    farm_id = _extract_farm_id(user)
+    if not farm_id:
+        raise HTTPException(400, "No active farm. Please select a farm first.")
+    if reading is None:
+        raise HTTPException(400, "Reading body is required")
+    result = await iot_service.ingest_branch_flow_reading(farm_id, branch_id, zone_id, reading)
+    return {"reading": result}
+
+
+@router.get("/readings/branch-flow/latest", summary="Get latest branch flow readings")
+async def get_latest_branch_flow(
+    zone_id: str = Query(None, description="Filter by zone UUID"),
+    user=Depends(get_current_user),
+):
+    farm_id = _extract_farm_id(user)
+    if not farm_id:
+        raise HTTPException(400, "No active farm. Please select a farm first.")
+    result = await iot_service.get_latest_per_branch(farm_id, zone_id)
+    return {"branches": len(result), "data": result}
+
+
+@router.post("/readings/soil-moisture", response_model=dict, summary="Ingest soil moisture reading")
+async def create_soil_moisture_reading(
+    branch_id: str = Query(..., description="Branch UUID"),
+    zone_id: str = Query(..., description="Zone UUID"),
+    reading: Optional[dict] = None,
+    user=Depends(get_current_user),
+):
+    """Ingest a soil moisture reading (3 sensors per branch)"""
+    farm_id = _extract_farm_id(user)
+    if not farm_id:
+        raise HTTPException(400, "No active farm. Please select a farm first.")
+    if reading is None:
+        raise HTTPException(400, "Reading body is required")
+    result = await iot_service.ingest_soil_moisture_reading(farm_id, branch_id, zone_id, reading)
+    return {"reading": result}
+
+
+@router.post("/readings/zone-health", response_model=dict, summary="Ingest zone health reading")
+async def create_zone_health_reading(
+    zone_id: str = Query(..., description="Zone UUID"),
+    reading: Optional[dict] = None,
+    user=Depends(get_current_user),
+):
+    """Ingest a zone health reading (aggregated per zone)"""
+    farm_id = _extract_farm_id(user)
+    if not farm_id:
+        raise HTTPException(400, "No active farm. Please select a farm first.")
+    if reading is None:
+        raise HTTPException(400, "Reading body is required")
+    result = await iot_service.ingest_zone_health_reading(farm_id, zone_id, reading)
+    return {"reading": result}
+
+
+@router.get("/readings/zone-health/latest", summary="Get latest zone health readings")
+async def get_latest_zone_health(user=Depends(get_current_user)):
+    farm_id = _extract_farm_id(user)
+    if not farm_id:
+        raise HTTPException(400, "No active farm. Please select a farm first.")
+    result = await iot_service.get_latest_per_zone_health(farm_id)
+    return {"zones": len(result), "data": result}
+
+
+@router.get("/dashboard/hierarchical", summary="Hierarchical dashboard snapshot")
+async def get_hierarchical_dashboard(user=Depends(get_current_user)):
+    """Get a dashboard snapshot with hierarchical data (zones, branches, health)"""
+    farm_id = _extract_farm_id(user)
+    if not farm_id:
+        raise HTTPException(400, "No active farm. Please select a farm first.")
+    return await iot_service.get_hierarchical_dashboard(farm_id)
+
+
+@router.get("/analyze-hierarchical/{zone_id}", summary="Analyze a zone with hierarchical data")
+async def analyze_zone_hierarchical(
+    zone_id: str,
+    hours: int = Query(24, ge=1, le=720, description="Lookback period in hours"),
+    user=Depends(get_current_user),
+):
+    """Analyze a zone with branch-level data"""
+    farm_id = _extract_farm_id(user)
+    if not farm_id:
+        raise HTTPException(400, "No active farm. Please select a farm first.")
+    return await iot_service.analyze_zone_hierarchical(farm_id, zone_id, hours)

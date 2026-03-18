@@ -6,3 +6,5 @@ from app.routes.prediction_routes import router as prediction_router
 from app.routes.openai_routes import router as openai_router
 from app.routes.farm_routes import router as farm_router
 from app.routes.conversation_routes import router as conversation_router
+from app.routes.zone_routes import router as zone_router
+from app.routes.infrastructure_routes import router as infrastructure_router

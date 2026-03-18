@@ -17,8 +17,6 @@ from app.logging_config import logger
 from app.supabase_client import get_supabase_admin
 from app.services.iot_service import ingest_batch, check_alert_rules
 
-TABLE = "iot_readings"
-
 # ── Agadir climate baseline (monthly averages) ──────────────────
 # Source: historical climate data for Agadir, Morocco (30.42°N, -9.60°W)
 # temp_avg, temp_range (diurnal swing), humidity_avg, precip_chance, cloud_avg
@@ -476,6 +474,15 @@ class IoTSimulator:
 
     # ── Async runner ─────────────────────────────────────────────
 
+    async def _verify_farm_exists(self) -> bool:
+        """Check if the current farm_id still exists in the database"""
+        try:
+            supabase = get_supabase_admin()
+            result = supabase.table("farms").select("id").eq("id", self.farm_id).limit(1).execute()
+            return bool(result.data)
+        except Exception:
+            return True  # On error, assume it exists to avoid false stops
+
     async def run(self):
         self.running = True
         logger.info(
@@ -487,6 +494,20 @@ class IoTSimulator:
 
         while self.running:
             try:
+                # Re-check that the farm still exists; if deleted, switch to current default
+                if not await self._verify_farm_exists():
+                    new_farm_id = await get_default_farm_id()
+                    if new_farm_id == "00000000-0000-0000-0000-000000000000":
+                        logger.warning("IoT Simulator: no farms in DB, waiting...")
+                        await asyncio.sleep(self.interval)
+                        continue
+                    logger.info(
+                        "IoT Simulator: farm deleted, switching to new farm",
+                        old_farm=self.farm_id[:8],
+                        new_farm=new_farm_id[:8],
+                    )
+                    self.farm_id = new_farm_id
+
                 readings = self.generate_reading()
                 if readings:
                     self._last_readings = readings
@@ -514,6 +535,141 @@ class IoTSimulator:
                 await self.task
             except asyncio.CancelledError:
                 pass
+
+    def generate_hierarchical_readings(
+        self,
+        zones: list,
+        timestamp: Optional[datetime] = None,
+    ) -> dict:
+        """
+        Generate hierarchical readings for all zones and their branches.
+        Returns dict with environment, infrastructure, branch_flow, soil_moisture, and zone_health readings.
+        """
+        if timestamp is None:
+            timestamp = datetime.now()
+
+        weather = self.generate_weather(timestamp)
+
+        env_reading = {
+            "timestamp": timestamp.isoformat(),
+            "air_temperature_c": round(weather["temp"], 2),
+            "air_humidity_pct": round(weather["hum"], 1),
+            "air_pressure_hpa": round(weather["pres"], 1),
+            "light_intensity_lux": round(self.rad_to_lux(weather["rad"]), 0),
+            "solar_radiation_wm2": round(weather["rad"], 1),
+            "precipitation_mm": round(weather["precip"], 2),
+            "wind_speed_kmh": round(weather["wind"], 1),
+            "cloud_cover_pct": round(weather["cloud"], 1),
+        }
+
+        main_flow = 0.0
+        if any(self.zone_irrig.values()):
+            active_zones = [z for z in range(1, self.n_zones + 1) if self.zone_irrig.get(z, False)]
+            if active_zones:
+                flow_per_zone = random.uniform(2.0, 3.5)
+                main_flow = flow_per_zone * len(active_zones)
+
+        infra_reading = {
+            "timestamp": timestamp.isoformat(),
+            "reservoir_level_pct": round(self.reservoir, 1),
+            "main_pump_flow_lpm": round(main_flow, 2),
+            "main_pressure_mpa": round(random.uniform(0.06, 0.12), 3),
+            "filter_status": self.filter_st,
+        }
+
+        branch_flow_readings = []
+        soil_moisture_readings = []
+        zone_health_readings = []
+
+        for zone in zones:
+            zone_id = zone["id"]
+            branches = zone.get("branches", [])
+
+            zone_total_inlet = 0.0
+            zone_total_outlet = 0.0
+            zone_leak_count = 0
+            zone_moisture_vals = []
+
+            zone_num = zone.get("zone_number", 1)
+            zone_is_irrigating = self.zone_irrig.get(zone_num, False)
+
+            for branch in branches:
+                branch_id = branch["id"]
+
+                inlet_flow = 0.0
+                outlet_flow = 0.0
+                if zone_is_irrigating:
+                    inlet_flow = random.uniform(1.5, 3.0)
+                    leak_prob = 0.05
+                    if random.random() < leak_prob:
+                        outlet_flow = inlet_flow - random.uniform(0.3, 0.8)
+                        zone_leak_count += 1
+                    else:
+                        outlet_flow = inlet_flow * random.uniform(0.92, 0.98)
+
+                branch_flow_readings.append({
+                    "branch_id": branch_id,
+                    "zone_id": zone_id,
+                    "timestamp": timestamp.isoformat(),
+                    "valve_open": 1 if zone_is_irrigating else 0,
+                    "inlet_flow_lpm": round(inlet_flow, 2),
+                    "outlet_flow_lpm": round(outlet_flow, 2),
+                    "inlet_pressure_mpa": round(random.uniform(0.05, 0.10), 3),
+                    "outlet_pressure_mpa": round(random.uniform(0.04, 0.08), 3),
+                    "leak_detected": outlet_flow < inlet_flow - 0.2,
+                })
+
+                zone_total_inlet += inlet_flow
+                zone_total_outlet += outlet_flow
+
+                base_moisture = self.zone_soil.get(zone_num, 40)
+                if zone_is_irrigating:
+                    base_moisture = min(base_moisture + random.uniform(1, 3), 65)
+
+                moisture_start = base_moisture + random.uniform(-3, 3)
+                moisture_middle = base_moisture + random.uniform(-2, 2)
+                moisture_end = base_moisture + random.uniform(-3, 1)
+
+                soil_moisture_readings.append({
+                    "branch_id": branch_id,
+                    "zone_id": zone_id,
+                    "timestamp": timestamp.isoformat(),
+                    "moisture_start_pct": round(self.clamp(moisture_start, 10, 80), 1),
+                    "moisture_middle_pct": round(self.clamp(moisture_middle, 10, 80), 1),
+                    "moisture_end_pct": round(self.clamp(moisture_end, 10, 80), 1),
+                })
+
+                zone_moisture_vals.append((moisture_start + moisture_middle + moisture_end) / 3)
+
+            avg_moisture = sum(zone_moisture_vals) / len(zone_moisture_vals) if zone_moisture_vals else 0
+            efficiency = (zone_total_outlet / zone_total_inlet * 100) if zone_total_inlet > 0 else 0
+
+            stress_score = 0.0
+            if avg_moisture < 30:
+                stress_score = random.uniform(0.5, 0.8)
+            elif avg_moisture < 40:
+                stress_score = random.uniform(0.2, 0.5)
+            else:
+                stress_score = random.uniform(0.0, 0.2)
+
+            zone_health_readings.append({
+                "zone_id": zone_id,
+                "timestamp": timestamp.isoformat(),
+                "avg_soil_moisture_pct": round(avg_moisture, 1),
+                "total_inlet_flow_lpm": round(zone_total_inlet, 2),
+                "total_outlet_flow_lpm": round(zone_total_outlet, 2),
+                "water_efficiency_pct": round(self.clamp(efficiency, 0, 100), 1),
+                "leak_count": zone_leak_count,
+                "stress_score": round(stress_score, 3),
+            })
+
+        return {
+            "environment": env_reading,
+            "infrastructure": infra_reading,
+            "branch_flows": branch_flow_readings,
+            "soil_moistures": soil_moisture_readings,
+            "zone_healths": zone_health_readings,
+        }
 
 
 # ── Module-level singleton ───────────────────────────────────────

@@ -27,6 +27,26 @@ COLUMN_UNITS = {
     "health_score": "0-10",
 }
 
+# Map columns to their v3 table
+_ENV_COLS = {"air_temperature_c", "air_humidity_pct", "air_pressure_hpa",
+             "light_intensity_lux", "solar_radiation_wm2", "precipitation_mm",
+             "wind_speed_kmh", "cloud_cover_pct"}
+_INFRA_COLS = {"reservoir_level_pct", "main_pressure_mpa", "main_pump_flow_lpm", "filter_status"}
+_ZONE_HEALTH_COLS = {"stress_score", "health_score", "avg_soil_moisture_pct",
+                     "water_efficiency_pct", "leak_count"}
+
+
+def _table_for_column(col: str) -> str:
+    """Return the v3 table name for a given column."""
+    if col in _ENV_COLS:
+        return "environment_readings"
+    if col in _INFRA_COLS:
+        return "infrastructure_readings"
+    if col in _ZONE_HEALTH_COLS:
+        return "zone_health_readings"
+    # Fallback — try environment
+    return "environment_readings"
+
 # Olive thresholds for recommendation context
 OLIVE_LIMITS = {
     "soil_moisture_pct": (30, 55),
@@ -49,15 +69,16 @@ async def forecast(
     supabase = get_supabase_admin()
     since = (datetime.now(timezone.utc) - timedelta(hours=lookback_hours)).isoformat()
 
+    table = _table_for_column(target_column)
     query = (
-        supabase.table("iot_readings")
+        supabase.table(table)
         .select(f"timestamp,{target_column}")
         .eq("farm_id", farm_id)
         .gte("timestamp", since)
         .order("timestamp", desc=False)
         .limit(5000)
     )
-    if zone_id is not None:
+    if zone_id is not None and table == "zone_health_readings":
         query = query.eq("zone_id", zone_id)
 
     result = query.execute()
@@ -196,15 +217,16 @@ async def detect_anomalies(
     supabase = get_supabase_admin()
     since = (datetime.now(timezone.utc) - timedelta(hours=lookback_hours)).isoformat()
 
+    table = _table_for_column(target_column)
     query = (
-        supabase.table("iot_readings")
+        supabase.table(table)
         .select(f"timestamp,{target_column}")
         .eq("farm_id", farm_id)
         .gte("timestamp", since)
         .order("timestamp", desc=False)
         .limit(5000)
     )
-    if zone_id is not None:
+    if zone_id is not None and table == "zone_health_readings":
         query = query.eq("zone_id", zone_id)
 
     result = query.execute()

@@ -26,19 +26,117 @@ from app.routes import (
     openai_router,
     farm_router,
     conversation_router,
+    zone_router,
 )
+from app.routes.infrastructure_routes import router as infrastructure_router
 
 START_TIME = time.time()
 templates = Jinja2Templates(directory="app/templates")
 
 _latest_readings_cache = []
+_hierarchical_readings_cache = {}
 _simulator_status_cache = {"running": False}
 
 
 def update_readings_cache(readings: list, running: bool):
-    global _latest_readings_cache, _simulator_status_cache
+    global _latest_readings_cache, _hierarchical_readings_cache, _simulator_status_cache
     _latest_readings_cache = readings
     _simulator_status_cache = {"running": running}
+
+
+def update_hierarchical_cache(hierarchical: dict, running: bool):
+    global _hierarchical_readings_cache, _simulator_status_cache
+    _hierarchical_readings_cache = hierarchical
+    _simulator_status_cache = {"running": running}
+
+
+def _merge_hierarchical_to_zones(zones_meta: list, hierarchical: dict) -> list:
+    """
+    Merge separate zone_healths, branch_flows, and soil_moistures arrays
+    into a single zones[] array with nested branches — matching the frontend
+    SSEPayload.zones shape (ZoneReading[]).
+    """
+    zone_healths = {zh["zone_id"]: zh for zh in (hierarchical.get("zone_healths") or [])}
+
+    # Index branch_flows and soil_moistures by (zone_id, branch_id)
+    bf_by_branch = {}
+    for bf in (hierarchical.get("branch_flows") or []):
+        bf_by_branch[bf["branch_id"]] = bf
+
+    sm_by_branch = {}
+    for sm in (hierarchical.get("soil_moistures") or []):
+        sm_by_branch[sm["branch_id"]] = sm
+
+    merged = []
+    for zone in zones_meta:
+        zone_id = zone["id"]
+        zh = zone_healths.get(zone_id, {})
+
+        branches_out = []
+        for branch in zone.get("branches", []):
+            bid = branch["id"]
+            bf = bf_by_branch.get(bid, {})
+            sm = sm_by_branch.get(bid, {})
+
+            inlet = bf.get("inlet_flow_lpm", 0) or 0
+            outlet = bf.get("outlet_flow_lpm", 0) or 0
+
+            start = sm.get("moisture_start_pct", 0) or 0
+            mid = sm.get("moisture_middle_pct", 0) or 0
+            end = sm.get("moisture_end_pct", 0) or 0
+            avg_m = (start + mid + end) / 3.0 if (start or mid or end) else 0
+            max_m = max(start, mid, end)
+            uc = (max(0, 100 - ((max_m - min(start, mid, end)) / max_m * 100))
+                  if max_m > 0 else 100)
+
+            branches_out.append({
+                "branch_id": bid,
+                "branch_number": branch.get("branch_number", 1),
+                "branch_name": branch.get("name", f"Branch {branch.get('branch_number', 1)}"),
+                "valve_open": bf.get("valve_open", 0),
+                "inlet_flow_lpm": round(inlet, 2),
+                "outlet_flow_lpm": round(outlet, 2),
+                "flow_delta_lpm": round(inlet - outlet, 2),
+                "leak_detected": bf.get("leak_detected", False),
+                "inlet_pressure_mpa": bf.get("inlet_pressure_mpa", 0) or 0,
+                "outlet_pressure_mpa": bf.get("outlet_pressure_mpa", 0) or 0,
+                "moisture_start_pct": round(start, 1),
+                "moisture_middle_pct": round(mid, 1),
+                "moisture_end_pct": round(end, 1),
+                "avg_moisture_pct": round(avg_m, 1),
+                "uniformity_coefficient": round(uc, 1),
+            })
+
+        stress = zh.get("stress_score", 0) or 0
+        if stress < 0.10:
+            stress_cls = "none"
+        elif stress < 0.30:
+            stress_cls = "mild"
+        elif stress < 0.60:
+            stress_cls = "moderate"
+        else:
+            stress_cls = "severe"
+
+        avg_moist = zh.get("avg_soil_moisture_pct", 0) or 0
+
+        merged.append({
+            "zone_id": zone_id,
+            "zone_number": zone.get("zone_number", 1),
+            "zone_name": zone.get("name", f"Zone {zone.get('zone_number', 1)}"),
+            "is_active": zone.get("is_active", True),
+            "branches": branches_out,
+            "avg_moisture_pct": round(avg_moist, 1),
+            "total_inlet_flow_lpm": round(zh.get("total_inlet_flow_lpm", 0) or 0, 2),
+            "total_outlet_flow_lpm": round(zh.get("total_outlet_flow_lpm", 0) or 0, 2),
+            "water_efficiency_pct": round(zh.get("water_efficiency_pct", 0) or 0, 1),
+            "leak_count": zh.get("leak_count", 0) or 0,
+            "stress_score": round(stress, 3),
+            "stress_class": stress_cls,
+            "health_score": round(zh.get("health_score", 0) or 0, 1),
+            "irrigation_needed": avg_moist < 32,
+        })
+
+    return merged
 
 
 def read_logs(log_file: str, max_lines: int = 100) -> list:
@@ -151,6 +249,8 @@ app.include_router(prediction_router)
 app.include_router(openai_router)
 app.include_router(farm_router)
 app.include_router(conversation_router)
+app.include_router(zone_router)
+app.include_router(infrastructure_router)
 
 
 @app.get("/")
@@ -282,18 +382,48 @@ async def sse_events():
     async def event_generator():
         while True:
             try:
-                from app.services.iot_simulator import is_simulator_running, get_latest_readings
+                from app.services.iot_simulator import is_simulator_running, get_latest_readings, get_simulator
                 running = is_simulator_running()
-                readings = get_latest_readings() if running else []
-                update_readings_cache(readings, running)
+                
+                if running:
+                    simulator = get_simulator()
+                    if simulator and hasattr(simulator, 'generate_hierarchical_readings'):
+                        zones_meta = await get_farm_zones()
+                        hierarchical = simulator.generate_hierarchical_readings(zones_meta)
+                        update_hierarchical_cache(hierarchical, running)
 
-                data = json.dumps({
-                    "readings": readings,
-                    "simulator_running": running,
-                    "timestamp": datetime.now().isoformat(),
-                })
+                        # Transform into the shape the frontend expects:
+                        # Merge zone_healths + branch_flows + soil_moistures into zones[]
+                        merged_zones = _merge_hierarchical_to_zones(
+                            zones_meta, hierarchical
+                        )
+
+                        data = json.dumps({
+                            "environment": hierarchical.get("environment"),
+                            "infrastructure": hierarchical.get("infrastructure"),
+                            "zones": merged_zones,
+                            "simulator_running": running,
+                            "timestamp": datetime.now().isoformat(),
+                        })
+                    else:
+                        readings = get_latest_readings() if running else []
+                        update_readings_cache(readings, running)
+                        data = json.dumps({
+                            "readings": readings,
+                            "simulator_running": running,
+                            "timestamp": datetime.now().isoformat(),
+                        })
+                else:
+                    data = json.dumps({
+                        "readings": [],
+                        "simulator_running": False,
+                        "timestamp": datetime.now().isoformat(),
+                    })
+                
                 yield f"data: {data}\n\n"
             except ImportError:
+                pass
+            except Exception:
                 pass
 
             await asyncio.sleep(2)
@@ -307,6 +437,38 @@ async def sse_events():
             "X-Accel-Buffering": "no",
         },
     )
+
+
+async def get_farm_zones():
+    """Get farm zones and branches for hierarchical readings using simulator's farm_id"""
+    try:
+        from app.supabase_client import get_supabase_admin
+        from app.services.iot_simulator import get_simulator
+        supabase = get_supabase_admin()
+
+        simulator = get_simulator()
+        if not simulator:
+            return []
+        farm_id = simulator.farm_id
+
+        zones_resp = supabase.table("zones").select("id, zone_number, name, is_active").eq("farm_id", farm_id).eq("is_active", True).execute()
+        zones = zones_resp.data or []
+
+        result = []
+        for zone in zones:
+            branches_resp = supabase.table("branches").select("id, branch_number, name").eq("zone_id", zone["id"]).eq("is_active", True).execute()
+            branches = branches_resp.data or []
+            result.append({
+                "id": zone["id"],
+                "zone_number": zone["zone_number"],
+                "name": zone["name"],
+                "is_active": zone["is_active"],
+                "branches": branches
+            })
+        return result
+    except Exception as e:
+        logger.error("Failed to fetch farm zones", error=str(e))
+        return []
 
 
 if __name__ == "__main__":

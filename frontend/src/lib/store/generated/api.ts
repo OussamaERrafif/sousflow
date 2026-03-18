@@ -295,6 +295,113 @@ const injectedRtkApi = api.injectEndpoints({
         },
       }),
     }),
+    createEnvironmentReadingApiIotReadingsEnvironmentPost: build.mutation<
+      CreateEnvironmentReadingApiIotReadingsEnvironmentPostApiResponse,
+      CreateEnvironmentReadingApiIotReadingsEnvironmentPostApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/iot/readings/environment`,
+        method: "POST",
+        body: queryArg.reading,
+      }),
+    }),
+    getLatestEnvironmentApiIotReadingsEnvironmentLatestGet: build.query<
+      GetLatestEnvironmentApiIotReadingsEnvironmentLatestGetApiResponse,
+      GetLatestEnvironmentApiIotReadingsEnvironmentLatestGetApiArg
+    >({
+      query: () => ({ url: `/api/iot/readings/environment/latest` }),
+    }),
+    createInfrastructureReadingApiIotReadingsInfrastructurePost: build.mutation<
+      CreateInfrastructureReadingApiIotReadingsInfrastructurePostApiResponse,
+      CreateInfrastructureReadingApiIotReadingsInfrastructurePostApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/iot/readings/infrastructure`,
+        method: "POST",
+        body: queryArg.reading,
+      }),
+    }),
+    getLatestInfrastructureApiIotReadingsInfrastructureLatestGet: build.query<
+      GetLatestInfrastructureApiIotReadingsInfrastructureLatestGetApiResponse,
+      GetLatestInfrastructureApiIotReadingsInfrastructureLatestGetApiArg
+    >({
+      query: () => ({ url: `/api/iot/readings/infrastructure/latest` }),
+    }),
+    createBranchFlowReadingApiIotReadingsBranchFlowPost: build.mutation<
+      CreateBranchFlowReadingApiIotReadingsBranchFlowPostApiResponse,
+      CreateBranchFlowReadingApiIotReadingsBranchFlowPostApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/iot/readings/branch-flow`,
+        method: "POST",
+        body: queryArg.reading,
+        params: {
+          branch_id: queryArg.branchId,
+          zone_id: queryArg.zoneId,
+        },
+      }),
+    }),
+    getLatestBranchFlowApiIotReadingsBranchFlowLatestGet: build.query<
+      GetLatestBranchFlowApiIotReadingsBranchFlowLatestGetApiResponse,
+      GetLatestBranchFlowApiIotReadingsBranchFlowLatestGetApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/iot/readings/branch-flow/latest`,
+        params: {
+          zone_id: queryArg.zoneId,
+        },
+      }),
+    }),
+    createSoilMoistureReadingApiIotReadingsSoilMoisturePost: build.mutation<
+      CreateSoilMoistureReadingApiIotReadingsSoilMoisturePostApiResponse,
+      CreateSoilMoistureReadingApiIotReadingsSoilMoisturePostApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/iot/readings/soil-moisture`,
+        method: "POST",
+        body: queryArg.reading,
+        params: {
+          branch_id: queryArg.branchId,
+          zone_id: queryArg.zoneId,
+        },
+      }),
+    }),
+    createZoneHealthReadingApiIotReadingsZoneHealthPost: build.mutation<
+      CreateZoneHealthReadingApiIotReadingsZoneHealthPostApiResponse,
+      CreateZoneHealthReadingApiIotReadingsZoneHealthPostApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/iot/readings/zone-health`,
+        method: "POST",
+        body: queryArg.reading,
+        params: {
+          zone_id: queryArg.zoneId,
+        },
+      }),
+    }),
+    getLatestZoneHealthApiIotReadingsZoneHealthLatestGet: build.query<
+      GetLatestZoneHealthApiIotReadingsZoneHealthLatestGetApiResponse,
+      GetLatestZoneHealthApiIotReadingsZoneHealthLatestGetApiArg
+    >({
+      query: () => ({ url: `/api/iot/readings/zone-health/latest` }),
+    }),
+    getHierarchicalDashboardApiIotDashboardHierarchicalGet: build.query<
+      GetHierarchicalDashboardApiIotDashboardHierarchicalGetApiResponse,
+      GetHierarchicalDashboardApiIotDashboardHierarchicalGetApiArg
+    >({
+      query: () => ({ url: `/api/iot/dashboard/hierarchical` }),
+    }),
+    analyzeZoneHierarchicalApiIotAnalyzeHierarchicalZoneIdGet: build.query<
+      AnalyzeZoneHierarchicalApiIotAnalyzeHierarchicalZoneIdGetApiResponse,
+      AnalyzeZoneHierarchicalApiIotAnalyzeHierarchicalZoneIdGetApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/iot/analyze-hierarchical/${queryArg.zoneId}`,
+        params: {
+          hours: queryArg.hours,
+        },
+      }),
+    }),
     forecastApiPredictionsForecastPost: build.mutation<
       ForecastApiPredictionsForecastPostApiResponse,
       ForecastApiPredictionsForecastPostApiArg
@@ -494,6 +601,310 @@ const injectedRtkApi = api.injectEndpoints({
           limit: queryArg.limit,
         },
       }),
+    }),
+    listZonesApiZonesGet: build.query<
+      ListZonesApiZonesGetApiResponse,
+      ListZonesApiZonesGetApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/zones`,
+        params: {
+          farm_id: queryArg.farmId,
+        },
+      }),
+    }),
+    createZoneApiZonesPost: build.mutation<
+      CreateZoneApiZonesPostApiResponse,
+      CreateZoneApiZonesPostApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/zones`,
+        method: "POST",
+        body: queryArg.appSchemasZoneZoneCreate,
+        params: {
+          farm_id: queryArg.farmId,
+        },
+      }),
+    }),
+    getAllZonesWithBranchesApiZonesAllWithBranchesGet: build.query<
+      GetAllZonesWithBranchesApiZonesAllWithBranchesGetApiResponse,
+      GetAllZonesWithBranchesApiZonesAllWithBranchesGetApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/zones/all-with-branches`,
+        params: {
+          farm_id: queryArg.farmId,
+        },
+      }),
+    }),
+    getZoneApiZonesZoneIdGet: build.query<
+      GetZoneApiZonesZoneIdGetApiResponse,
+      GetZoneApiZonesZoneIdGetApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/zones/${queryArg.zoneId}`,
+        params: {
+          farm_id: queryArg.farmId,
+        },
+      }),
+    }),
+    updateZoneApiZonesZoneIdPut: build.mutation<
+      UpdateZoneApiZonesZoneIdPutApiResponse,
+      UpdateZoneApiZonesZoneIdPutApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/zones/${queryArg.zoneId}`,
+        method: "PUT",
+        body: queryArg.appSchemasZoneZoneUpdate,
+        params: {
+          farm_id: queryArg.farmId,
+        },
+      }),
+    }),
+    deleteZoneApiZonesZoneIdDelete: build.mutation<
+      DeleteZoneApiZonesZoneIdDeleteApiResponse,
+      DeleteZoneApiZonesZoneIdDeleteApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/zones/${queryArg.zoneId}`,
+        method: "DELETE",
+        params: {
+          farm_id: queryArg.farmId,
+        },
+      }),
+    }),
+    listBranchesApiZonesZoneIdBranchesGet: build.query<
+      ListBranchesApiZonesZoneIdBranchesGetApiResponse,
+      ListBranchesApiZonesZoneIdBranchesGetApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/zones/${queryArg.zoneId}/branches`,
+        params: {
+          farm_id: queryArg.farmId,
+        },
+      }),
+    }),
+    createBranchApiZonesZoneIdBranchesPost: build.mutation<
+      CreateBranchApiZonesZoneIdBranchesPostApiResponse,
+      CreateBranchApiZonesZoneIdBranchesPostApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/zones/${queryArg.zoneId}/branches`,
+        method: "POST",
+        body: queryArg.branchCreate,
+        params: {
+          farm_id: queryArg.farmId,
+        },
+      }),
+    }),
+    updateBranchApiZonesZoneIdBranchesBranchIdPut: build.mutation<
+      UpdateBranchApiZonesZoneIdBranchesBranchIdPutApiResponse,
+      UpdateBranchApiZonesZoneIdBranchesBranchIdPutApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/zones/${queryArg.zoneId}/branches/${queryArg.branchId}`,
+        method: "PUT",
+        body: queryArg.branchUpdate,
+        params: {
+          farm_id: queryArg.farmId,
+        },
+      }),
+    }),
+    deleteBranchApiZonesZoneIdBranchesBranchIdDelete: build.mutation<
+      DeleteBranchApiZonesZoneIdBranchesBranchIdDeleteApiResponse,
+      DeleteBranchApiZonesZoneIdBranchesBranchIdDeleteApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/zones/${queryArg.zoneId}/branches/${queryArg.branchId}`,
+        method: "DELETE",
+        params: {
+          farm_id: queryArg.farmId,
+        },
+      }),
+    }),
+    listZonesApiInfrastructureZonesGet: build.query<
+      ListZonesApiInfrastructureZonesGetApiResponse,
+      ListZonesApiInfrastructureZonesGetApiArg
+    >({
+      query: () => ({ url: `/api/infrastructure/zones` }),
+    }),
+    createZoneApiInfrastructureZonesPost: build.mutation<
+      CreateZoneApiInfrastructureZonesPostApiResponse,
+      CreateZoneApiInfrastructureZonesPostApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/infrastructure/zones`,
+        method: "POST",
+        body: queryArg.appRoutesInfrastructureRoutesZoneCreate,
+      }),
+    }),
+    getZoneApiInfrastructureZonesZoneIdGet: build.query<
+      GetZoneApiInfrastructureZonesZoneIdGetApiResponse,
+      GetZoneApiInfrastructureZonesZoneIdGetApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/infrastructure/zones/${queryArg.zoneId}`,
+      }),
+    }),
+    updateZoneApiInfrastructureZonesZoneIdPut: build.mutation<
+      UpdateZoneApiInfrastructureZonesZoneIdPutApiResponse,
+      UpdateZoneApiInfrastructureZonesZoneIdPutApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/infrastructure/zones/${queryArg.zoneId}`,
+        method: "PUT",
+        body: queryArg.appRoutesInfrastructureRoutesZoneUpdate,
+      }),
+    }),
+    deleteZoneApiInfrastructureZonesZoneIdDelete: build.mutation<
+      DeleteZoneApiInfrastructureZonesZoneIdDeleteApiResponse,
+      DeleteZoneApiInfrastructureZonesZoneIdDeleteApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/infrastructure/zones/${queryArg.zoneId}`,
+        method: "DELETE",
+      }),
+    }),
+    listReservoirsApiInfrastructureReservoirsGet: build.query<
+      ListReservoirsApiInfrastructureReservoirsGetApiResponse,
+      ListReservoirsApiInfrastructureReservoirsGetApiArg
+    >({
+      query: () => ({ url: `/api/infrastructure/reservoirs` }),
+    }),
+    createReservoirApiInfrastructureReservoirsPost: build.mutation<
+      CreateReservoirApiInfrastructureReservoirsPostApiResponse,
+      CreateReservoirApiInfrastructureReservoirsPostApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/infrastructure/reservoirs`,
+        method: "POST",
+        body: queryArg.reservoirCreate,
+      }),
+    }),
+    getReservoirApiInfrastructureReservoirsReservoirIdGet: build.query<
+      GetReservoirApiInfrastructureReservoirsReservoirIdGetApiResponse,
+      GetReservoirApiInfrastructureReservoirsReservoirIdGetApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/infrastructure/reservoirs/${queryArg.reservoirId}`,
+      }),
+    }),
+    updateReservoirApiInfrastructureReservoirsReservoirIdPut: build.mutation<
+      UpdateReservoirApiInfrastructureReservoirsReservoirIdPutApiResponse,
+      UpdateReservoirApiInfrastructureReservoirsReservoirIdPutApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/infrastructure/reservoirs/${queryArg.reservoirId}`,
+        method: "PUT",
+        body: queryArg.reservoirUpdate,
+      }),
+    }),
+    deleteReservoirApiInfrastructureReservoirsReservoirIdDelete: build.mutation<
+      DeleteReservoirApiInfrastructureReservoirsReservoirIdDeleteApiResponse,
+      DeleteReservoirApiInfrastructureReservoirsReservoirIdDeleteApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/infrastructure/reservoirs/${queryArg.reservoirId}`,
+        method: "DELETE",
+      }),
+    }),
+    listPipesApiInfrastructurePipesGet: build.query<
+      ListPipesApiInfrastructurePipesGetApiResponse,
+      ListPipesApiInfrastructurePipesGetApiArg
+    >({
+      query: () => ({ url: `/api/infrastructure/pipes` }),
+    }),
+    createPipeApiInfrastructurePipesPost: build.mutation<
+      CreatePipeApiInfrastructurePipesPostApiResponse,
+      CreatePipeApiInfrastructurePipesPostApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/infrastructure/pipes`,
+        method: "POST",
+        body: queryArg.pipeCreate,
+      }),
+    }),
+    getPipeApiInfrastructurePipesPipeIdGet: build.query<
+      GetPipeApiInfrastructurePipesPipeIdGetApiResponse,
+      GetPipeApiInfrastructurePipesPipeIdGetApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/infrastructure/pipes/${queryArg.pipeId}`,
+      }),
+    }),
+    updatePipeApiInfrastructurePipesPipeIdPut: build.mutation<
+      UpdatePipeApiInfrastructurePipesPipeIdPutApiResponse,
+      UpdatePipeApiInfrastructurePipesPipeIdPutApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/infrastructure/pipes/${queryArg.pipeId}`,
+        method: "PUT",
+        body: queryArg.pipeUpdate,
+      }),
+    }),
+    deletePipeApiInfrastructurePipesPipeIdDelete: build.mutation<
+      DeletePipeApiInfrastructurePipesPipeIdDeleteApiResponse,
+      DeletePipeApiInfrastructurePipesPipeIdDeleteApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/infrastructure/pipes/${queryArg.pipeId}`,
+        method: "DELETE",
+      }),
+    }),
+    listDevicesApiInfrastructureDevicesGet: build.query<
+      ListDevicesApiInfrastructureDevicesGetApiResponse,
+      ListDevicesApiInfrastructureDevicesGetApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/infrastructure/devices`,
+        params: {
+          status: queryArg.status,
+          device_type: queryArg.deviceType,
+        },
+      }),
+    }),
+    createDeviceApiInfrastructureDevicesPost: build.mutation<
+      CreateDeviceApiInfrastructureDevicesPostApiResponse,
+      CreateDeviceApiInfrastructureDevicesPostApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/infrastructure/devices`,
+        method: "POST",
+        body: queryArg.ioTDeviceCreate,
+      }),
+    }),
+    getDeviceApiInfrastructureDevicesDeviceIdGet: build.query<
+      GetDeviceApiInfrastructureDevicesDeviceIdGetApiResponse,
+      GetDeviceApiInfrastructureDevicesDeviceIdGetApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/infrastructure/devices/${queryArg.deviceId}`,
+      }),
+    }),
+    updateDeviceApiInfrastructureDevicesDeviceIdPut: build.mutation<
+      UpdateDeviceApiInfrastructureDevicesDeviceIdPutApiResponse,
+      UpdateDeviceApiInfrastructureDevicesDeviceIdPutApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/infrastructure/devices/${queryArg.deviceId}`,
+        method: "PUT",
+        body: queryArg.ioTDeviceUpdate,
+      }),
+    }),
+    deleteDeviceApiInfrastructureDevicesDeviceIdDelete: build.mutation<
+      DeleteDeviceApiInfrastructureDevicesDeviceIdDeleteApiResponse,
+      DeleteDeviceApiInfrastructureDevicesDeviceIdDeleteApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/infrastructure/devices/${queryArg.deviceId}`,
+        method: "DELETE",
+      }),
+    }),
+    getMapDataApiInfrastructureMapGet: build.query<
+      GetMapDataApiInfrastructureMapGetApiResponse,
+      GetMapDataApiInfrastructureMapGetApiArg
+    >({
+      query: () => ({ url: `/api/infrastructure/map` }),
     }),
     rootGet: build.query<RootGetApiResponse, RootGetApiArg>({
       query: () => ({ url: `/` }),
@@ -719,6 +1130,88 @@ export type InjectSoilApiIotSimulatorInjectSoilPostApiArg = {
   /** Soil moisture % */
   moisture?: number;
 };
+export type CreateEnvironmentReadingApiIotReadingsEnvironmentPostApiResponse =
+  /** status 200 Successful Response */ {
+    [key: string]: any;
+  };
+export type CreateEnvironmentReadingApiIotReadingsEnvironmentPostApiArg = {
+  reading: {
+    [key: string]: any;
+  };
+};
+export type GetLatestEnvironmentApiIotReadingsEnvironmentLatestGetApiResponse =
+  /** status 200 Successful Response */ any;
+export type GetLatestEnvironmentApiIotReadingsEnvironmentLatestGetApiArg = void;
+export type CreateInfrastructureReadingApiIotReadingsInfrastructurePostApiResponse =
+  /** status 200 Successful Response */ {
+    [key: string]: any;
+  };
+export type CreateInfrastructureReadingApiIotReadingsInfrastructurePostApiArg =
+  {
+    reading: {
+      [key: string]: any;
+    };
+  };
+export type GetLatestInfrastructureApiIotReadingsInfrastructureLatestGetApiResponse =
+  /** status 200 Successful Response */ any;
+export type GetLatestInfrastructureApiIotReadingsInfrastructureLatestGetApiArg =
+  void;
+export type CreateBranchFlowReadingApiIotReadingsBranchFlowPostApiResponse =
+  /** status 200 Successful Response */ {
+    [key: string]: any;
+  };
+export type CreateBranchFlowReadingApiIotReadingsBranchFlowPostApiArg = {
+  /** Branch UUID */
+  branchId: string;
+  /** Zone UUID */
+  zoneId: string;
+  reading: {
+    [key: string]: any;
+  } | null;
+};
+export type GetLatestBranchFlowApiIotReadingsBranchFlowLatestGetApiResponse =
+  /** status 200 Successful Response */ any;
+export type GetLatestBranchFlowApiIotReadingsBranchFlowLatestGetApiArg = {
+  /** Filter by zone UUID */
+  zoneId?: string;
+};
+export type CreateSoilMoistureReadingApiIotReadingsSoilMoisturePostApiResponse =
+  /** status 200 Successful Response */ {
+    [key: string]: any;
+  };
+export type CreateSoilMoistureReadingApiIotReadingsSoilMoisturePostApiArg = {
+  /** Branch UUID */
+  branchId: string;
+  /** Zone UUID */
+  zoneId: string;
+  reading: {
+    [key: string]: any;
+  } | null;
+};
+export type CreateZoneHealthReadingApiIotReadingsZoneHealthPostApiResponse =
+  /** status 200 Successful Response */ {
+    [key: string]: any;
+  };
+export type CreateZoneHealthReadingApiIotReadingsZoneHealthPostApiArg = {
+  /** Zone UUID */
+  zoneId: string;
+  reading: {
+    [key: string]: any;
+  } | null;
+};
+export type GetLatestZoneHealthApiIotReadingsZoneHealthLatestGetApiResponse =
+  /** status 200 Successful Response */ any;
+export type GetLatestZoneHealthApiIotReadingsZoneHealthLatestGetApiArg = void;
+export type GetHierarchicalDashboardApiIotDashboardHierarchicalGetApiResponse =
+  /** status 200 Successful Response */ any;
+export type GetHierarchicalDashboardApiIotDashboardHierarchicalGetApiArg = void;
+export type AnalyzeZoneHierarchicalApiIotAnalyzeHierarchicalZoneIdGetApiResponse =
+  /** status 200 Successful Response */ any;
+export type AnalyzeZoneHierarchicalApiIotAnalyzeHierarchicalZoneIdGetApiArg = {
+  zoneId: string;
+  /** Lookback period in hours */
+  hours?: number;
+};
 export type ForecastApiPredictionsForecastPostApiResponse =
   /** status 200 Successful Response */ ForecastResponse;
 export type ForecastApiPredictionsForecastPostApiArg = {
@@ -837,6 +1330,169 @@ export type GetMessagesApiConversationsConversationIdMessagesGetApiArg = {
   page?: number;
   limit?: number;
 };
+export type ListZonesApiZonesGetApiResponse =
+  /** status 200 Successful Response */ ZoneListResponse;
+export type ListZonesApiZonesGetApiArg = {
+  farmId: string;
+};
+export type CreateZoneApiZonesPostApiResponse =
+  /** status 201 Successful Response */ ZoneResponse;
+export type CreateZoneApiZonesPostApiArg = {
+  farmId: string;
+  appSchemasZoneZoneCreate: ZoneCreate;
+};
+export type GetAllZonesWithBranchesApiZonesAllWithBranchesGetApiResponse =
+  /** status 200 Successful Response */ ZoneWithBranches[];
+export type GetAllZonesWithBranchesApiZonesAllWithBranchesGetApiArg = {
+  farmId: string;
+};
+export type GetZoneApiZonesZoneIdGetApiResponse =
+  /** status 200 Successful Response */ ZoneWithBranches;
+export type GetZoneApiZonesZoneIdGetApiArg = {
+  zoneId: string;
+  farmId: string;
+};
+export type UpdateZoneApiZonesZoneIdPutApiResponse =
+  /** status 200 Successful Response */ ZoneResponse;
+export type UpdateZoneApiZonesZoneIdPutApiArg = {
+  zoneId: string;
+  farmId: string;
+  appSchemasZoneZoneUpdate: ZoneUpdate;
+};
+export type DeleteZoneApiZonesZoneIdDeleteApiResponse = unknown;
+export type DeleteZoneApiZonesZoneIdDeleteApiArg = {
+  zoneId: string;
+  farmId: string;
+};
+export type ListBranchesApiZonesZoneIdBranchesGetApiResponse =
+  /** status 200 Successful Response */ BranchListResponse;
+export type ListBranchesApiZonesZoneIdBranchesGetApiArg = {
+  zoneId: string;
+  farmId: string;
+};
+export type CreateBranchApiZonesZoneIdBranchesPostApiResponse =
+  /** status 201 Successful Response */ BranchResponse;
+export type CreateBranchApiZonesZoneIdBranchesPostApiArg = {
+  zoneId: string;
+  farmId: string;
+  branchCreate: BranchCreate;
+};
+export type UpdateBranchApiZonesZoneIdBranchesBranchIdPutApiResponse =
+  /** status 200 Successful Response */ BranchResponse;
+export type UpdateBranchApiZonesZoneIdBranchesBranchIdPutApiArg = {
+  zoneId: string;
+  branchId: string;
+  farmId: string;
+  branchUpdate: BranchUpdate;
+};
+export type DeleteBranchApiZonesZoneIdBranchesBranchIdDeleteApiResponse =
+  unknown;
+export type DeleteBranchApiZonesZoneIdBranchesBranchIdDeleteApiArg = {
+  zoneId: string;
+  branchId: string;
+  farmId: string;
+};
+export type ListZonesApiInfrastructureZonesGetApiResponse =
+  /** status 200 Successful Response */ ZoneResponse2[];
+export type ListZonesApiInfrastructureZonesGetApiArg = void;
+export type CreateZoneApiInfrastructureZonesPostApiResponse =
+  /** status 201 Successful Response */ ZoneResponse2;
+export type CreateZoneApiInfrastructureZonesPostApiArg = {
+  appRoutesInfrastructureRoutesZoneCreate: ZoneCreate2;
+};
+export type GetZoneApiInfrastructureZonesZoneIdGetApiResponse =
+  /** status 200 Successful Response */ ZoneResponse2;
+export type GetZoneApiInfrastructureZonesZoneIdGetApiArg = {
+  zoneId: string;
+};
+export type UpdateZoneApiInfrastructureZonesZoneIdPutApiResponse =
+  /** status 200 Successful Response */ ZoneResponse2;
+export type UpdateZoneApiInfrastructureZonesZoneIdPutApiArg = {
+  zoneId: string;
+  appRoutesInfrastructureRoutesZoneUpdate: ZoneUpdate2;
+};
+export type DeleteZoneApiInfrastructureZonesZoneIdDeleteApiResponse = unknown;
+export type DeleteZoneApiInfrastructureZonesZoneIdDeleteApiArg = {
+  zoneId: string;
+};
+export type ListReservoirsApiInfrastructureReservoirsGetApiResponse =
+  /** status 200 Successful Response */ ReservoirResponse[];
+export type ListReservoirsApiInfrastructureReservoirsGetApiArg = void;
+export type CreateReservoirApiInfrastructureReservoirsPostApiResponse =
+  /** status 201 Successful Response */ ReservoirResponse;
+export type CreateReservoirApiInfrastructureReservoirsPostApiArg = {
+  reservoirCreate: ReservoirCreate;
+};
+export type GetReservoirApiInfrastructureReservoirsReservoirIdGetApiResponse =
+  /** status 200 Successful Response */ ReservoirResponse;
+export type GetReservoirApiInfrastructureReservoirsReservoirIdGetApiArg = {
+  reservoirId: string;
+};
+export type UpdateReservoirApiInfrastructureReservoirsReservoirIdPutApiResponse =
+  /** status 200 Successful Response */ ReservoirResponse;
+export type UpdateReservoirApiInfrastructureReservoirsReservoirIdPutApiArg = {
+  reservoirId: string;
+  reservoirUpdate: ReservoirUpdate;
+};
+export type DeleteReservoirApiInfrastructureReservoirsReservoirIdDeleteApiResponse =
+  unknown;
+export type DeleteReservoirApiInfrastructureReservoirsReservoirIdDeleteApiArg =
+  {
+    reservoirId: string;
+  };
+export type ListPipesApiInfrastructurePipesGetApiResponse =
+  /** status 200 Successful Response */ PipeResponse[];
+export type ListPipesApiInfrastructurePipesGetApiArg = void;
+export type CreatePipeApiInfrastructurePipesPostApiResponse =
+  /** status 201 Successful Response */ PipeResponse;
+export type CreatePipeApiInfrastructurePipesPostApiArg = {
+  pipeCreate: PipeCreate;
+};
+export type GetPipeApiInfrastructurePipesPipeIdGetApiResponse =
+  /** status 200 Successful Response */ PipeResponse;
+export type GetPipeApiInfrastructurePipesPipeIdGetApiArg = {
+  pipeId: string;
+};
+export type UpdatePipeApiInfrastructurePipesPipeIdPutApiResponse =
+  /** status 200 Successful Response */ PipeResponse;
+export type UpdatePipeApiInfrastructurePipesPipeIdPutApiArg = {
+  pipeId: string;
+  pipeUpdate: PipeUpdate;
+};
+export type DeletePipeApiInfrastructurePipesPipeIdDeleteApiResponse = unknown;
+export type DeletePipeApiInfrastructurePipesPipeIdDeleteApiArg = {
+  pipeId: string;
+};
+export type ListDevicesApiInfrastructureDevicesGetApiResponse =
+  /** status 200 Successful Response */ IoTDeviceResponse[];
+export type ListDevicesApiInfrastructureDevicesGetApiArg = {
+  status?: string | null;
+  deviceType?: string | null;
+};
+export type CreateDeviceApiInfrastructureDevicesPostApiResponse =
+  /** status 201 Successful Response */ IoTDeviceResponse;
+export type CreateDeviceApiInfrastructureDevicesPostApiArg = {
+  ioTDeviceCreate: IoTDeviceCreate;
+};
+export type GetDeviceApiInfrastructureDevicesDeviceIdGetApiResponse =
+  /** status 200 Successful Response */ IoTDeviceResponse;
+export type GetDeviceApiInfrastructureDevicesDeviceIdGetApiArg = {
+  deviceId: string;
+};
+export type UpdateDeviceApiInfrastructureDevicesDeviceIdPutApiResponse =
+  /** status 200 Successful Response */ IoTDeviceResponse;
+export type UpdateDeviceApiInfrastructureDevicesDeviceIdPutApiArg = {
+  deviceId: string;
+  ioTDeviceUpdate: IoTDeviceUpdate;
+};
+export type DeleteDeviceApiInfrastructureDevicesDeviceIdDeleteApiResponse =
+  unknown;
+export type DeleteDeviceApiInfrastructureDevicesDeviceIdDeleteApiArg = {
+  deviceId: string;
+};
+export type GetMapDataApiInfrastructureMapGetApiResponse =
+  /** status 200 Successful Response */ InfrastructureMapResponse;
+export type GetMapDataApiInfrastructureMapGetApiArg = void;
 export type RootGetApiResponse = /** status 200 Successful Response */ any;
 export type RootGetApiArg = void;
 export type HealthCheckHealthGetApiResponse =
@@ -1173,6 +1829,226 @@ export type ChatMessageResponse = {
   content: string;
   created_at: string;
 };
+export type ZoneResponse = {
+  id: string;
+  farm_id: string;
+  zone_number: number;
+  name: string;
+  description?: string | null;
+  area_hectares?: number | null;
+  plant_type: string;
+  plant_species: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+export type ZoneListResponse = {
+  zones?: ZoneResponse[];
+  total?: number;
+};
+export type ZoneCreate = {
+  zone_number: number;
+  name: string;
+  description?: string | null;
+  area_hectares?: number | null;
+  plant_type?: string;
+  plant_species?: string;
+  is_active?: boolean;
+};
+export type BranchResponse = {
+  id: string;
+  zone_id: string;
+  branch_number: number;
+  name: string;
+  length_meters?: number | null;
+  emitter_count?: number | null;
+  emitter_flow_lph: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+export type ZoneWithBranches = {
+  id: string;
+  farm_id: string;
+  zone_number: number;
+  name: string;
+  description?: string | null;
+  area_hectares?: number | null;
+  plant_type: string;
+  plant_species: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  branches?: BranchResponse[];
+};
+export type ZoneUpdate = {
+  name?: string | null;
+  description?: string | null;
+  area_hectares?: number | null;
+  plant_type?: string | null;
+  plant_species?: string | null;
+  is_active?: boolean | null;
+};
+export type BranchListResponse = {
+  branches?: BranchResponse[];
+  total?: number;
+};
+export type BranchCreate = {
+  branch_number: number;
+  name: string;
+  length_meters?: number | null;
+  emitter_count?: number | null;
+  emitter_flow_lph?: number;
+  is_active?: boolean;
+};
+export type BranchUpdate = {
+  name?: string | null;
+  length_meters?: number | null;
+  emitter_count?: number | null;
+  emitter_flow_lph?: number | null;
+  is_active?: boolean | null;
+};
+export type ZoneResponse2 = {
+  id: string;
+  farm_id: string;
+  zone_number: number;
+  name: string;
+  area_hectares: number | null;
+  geometry: {
+    [key: string]: any;
+  } | null;
+  center_latitude: number | null;
+  center_longitude: number | null;
+  is_active: boolean;
+};
+export type ZoneCreate2 = {
+  zone_number: number;
+  name: string;
+  area_hectares?: number | null;
+  geometry?: {
+    [key: string]: any;
+  } | null;
+  center_latitude?: number | null;
+  center_longitude?: number | null;
+};
+export type ZoneUpdate2 = {
+  name?: string | null;
+  area_hectares?: number | null;
+  geometry?: {
+    [key: string]: any;
+  } | null;
+  center_latitude?: number | null;
+  center_longitude?: number | null;
+};
+export type ReservoirResponse = {
+  id: string;
+  farm_id: string;
+  name: string;
+  capacity_liters: number;
+  current_level_pct: number;
+  latitude: number | null;
+  longitude: number | null;
+  is_active: boolean;
+};
+export type ReservoirCreate = {
+  name: string;
+  capacity_liters?: number | null;
+  latitude?: number | null;
+  longitude?: number | null;
+};
+export type ReservoirUpdate = {
+  name?: string | null;
+  capacity_liters?: number | null;
+  latitude?: number | null;
+  longitude?: number | null;
+};
+export type PipeResponse = {
+  id: string;
+  farm_id: string;
+  name: string;
+  pipe_type: string;
+  diameter_mm: number | null;
+  length_meters: number | null;
+  from_latitude: number | null;
+  from_longitude: number | null;
+  to_latitude: number | null;
+  to_longitude: number | null;
+  from_zone_id: string | null;
+  to_zone_id: string | null;
+  from_reservoir_id: string | null;
+  is_active: boolean;
+};
+export type PipeCreate = {
+  name: string;
+  pipe_type?: string | null;
+  diameter_mm?: number | null;
+  length_meters?: number | null;
+  from_latitude?: number | null;
+  from_longitude?: number | null;
+  to_latitude?: number | null;
+  to_longitude?: number | null;
+  from_zone_id?: string | null;
+  to_zone_id?: string | null;
+  from_reservoir_id?: string | null;
+};
+export type PipeUpdate = {
+  name?: string | null;
+  pipe_type?: string | null;
+  diameter_mm?: number | null;
+  length_meters?: number | null;
+  from_latitude?: number | null;
+  from_longitude?: number | null;
+  to_latitude?: number | null;
+  to_longitude?: number | null;
+};
+export type IoTDeviceResponse = {
+  id: string;
+  farm_id: string;
+  device_type: string;
+  name: string;
+  model: string | null;
+  serial_number: string | null;
+  mac_address: string | null;
+  ip_address: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  zone_id: string | null;
+  reservoir_id: string | null;
+  status: string;
+  last_reading_at: string | null;
+  last_battery_pct: number | null;
+  is_active: boolean;
+};
+export type IoTDeviceCreate = {
+  device_type: string;
+  name: string;
+  model?: string | null;
+  serial_number?: string | null;
+  mac_address?: string | null;
+  ip_address?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  zone_id?: string | null;
+  reservoir_id?: string | null;
+};
+export type IoTDeviceUpdate = {
+  name?: string | null;
+  model?: string | null;
+  serial_number?: string | null;
+  mac_address?: string | null;
+  ip_address?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  zone_id?: string | null;
+  reservoir_id?: string | null;
+  status?: string | null;
+};
+export type InfrastructureMapResponse = {
+  zones: ZoneResponse2[];
+  reservoirs: ReservoirResponse[];
+  pipes: PipeResponse[];
+  devices: IoTDeviceResponse[];
+};
 export const {
   useDebugUserApiAuthDebugUserUsernameGetQuery,
   useSignInApiAuthSigninPostMutation,
@@ -1205,6 +2081,17 @@ export const {
   useInjectReservoirApiIotSimulatorInjectReservoirPostMutation,
   useInjectFilterApiIotSimulatorInjectFilterPostMutation,
   useInjectSoilApiIotSimulatorInjectSoilPostMutation,
+  useCreateEnvironmentReadingApiIotReadingsEnvironmentPostMutation,
+  useGetLatestEnvironmentApiIotReadingsEnvironmentLatestGetQuery,
+  useCreateInfrastructureReadingApiIotReadingsInfrastructurePostMutation,
+  useGetLatestInfrastructureApiIotReadingsInfrastructureLatestGetQuery,
+  useCreateBranchFlowReadingApiIotReadingsBranchFlowPostMutation,
+  useGetLatestBranchFlowApiIotReadingsBranchFlowLatestGetQuery,
+  useCreateSoilMoistureReadingApiIotReadingsSoilMoisturePostMutation,
+  useCreateZoneHealthReadingApiIotReadingsZoneHealthPostMutation,
+  useGetLatestZoneHealthApiIotReadingsZoneHealthLatestGetQuery,
+  useGetHierarchicalDashboardApiIotDashboardHierarchicalGetQuery,
+  useAnalyzeZoneHierarchicalApiIotAnalyzeHierarchicalZoneIdGetQuery,
   useForecastApiPredictionsForecastPostMutation,
   useDetectAnomaliesApiPredictionsAnomaliesPostMutation,
   useGetHistoryApiPredictionsHistoryGetQuery,
@@ -1227,6 +2114,37 @@ export const {
   useUpdateConversationApiConversationsConversationIdPutMutation,
   useDeleteConversationApiConversationsConversationIdDeleteMutation,
   useGetMessagesApiConversationsConversationIdMessagesGetQuery,
+  useListZonesApiZonesGetQuery,
+  useCreateZoneApiZonesPostMutation,
+  useGetAllZonesWithBranchesApiZonesAllWithBranchesGetQuery,
+  useGetZoneApiZonesZoneIdGetQuery,
+  useUpdateZoneApiZonesZoneIdPutMutation,
+  useDeleteZoneApiZonesZoneIdDeleteMutation,
+  useListBranchesApiZonesZoneIdBranchesGetQuery,
+  useCreateBranchApiZonesZoneIdBranchesPostMutation,
+  useUpdateBranchApiZonesZoneIdBranchesBranchIdPutMutation,
+  useDeleteBranchApiZonesZoneIdBranchesBranchIdDeleteMutation,
+  useListZonesApiInfrastructureZonesGetQuery,
+  useCreateZoneApiInfrastructureZonesPostMutation,
+  useGetZoneApiInfrastructureZonesZoneIdGetQuery,
+  useUpdateZoneApiInfrastructureZonesZoneIdPutMutation,
+  useDeleteZoneApiInfrastructureZonesZoneIdDeleteMutation,
+  useListReservoirsApiInfrastructureReservoirsGetQuery,
+  useCreateReservoirApiInfrastructureReservoirsPostMutation,
+  useGetReservoirApiInfrastructureReservoirsReservoirIdGetQuery,
+  useUpdateReservoirApiInfrastructureReservoirsReservoirIdPutMutation,
+  useDeleteReservoirApiInfrastructureReservoirsReservoirIdDeleteMutation,
+  useListPipesApiInfrastructurePipesGetQuery,
+  useCreatePipeApiInfrastructurePipesPostMutation,
+  useGetPipeApiInfrastructurePipesPipeIdGetQuery,
+  useUpdatePipeApiInfrastructurePipesPipeIdPutMutation,
+  useDeletePipeApiInfrastructurePipesPipeIdDeleteMutation,
+  useListDevicesApiInfrastructureDevicesGetQuery,
+  useCreateDeviceApiInfrastructureDevicesPostMutation,
+  useGetDeviceApiInfrastructureDevicesDeviceIdGetQuery,
+  useUpdateDeviceApiInfrastructureDevicesDeviceIdPutMutation,
+  useDeleteDeviceApiInfrastructureDevicesDeviceIdDeleteMutation,
+  useGetMapDataApiInfrastructureMapGetQuery,
   useRootGetQuery,
   useHealthCheckHealthGetQuery,
   useDashboardLoginDashboardLoginGetQuery,

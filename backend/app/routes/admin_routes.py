@@ -59,7 +59,37 @@ async def create_owner_with_farm(
 
     farm = farm_resp.data[0]
 
-    logger.info(f"Superadmin created owner '{request.username}' with farm '{request.farm_name}'")
+    # Auto-create zones and branches for the farm
+    total_zones = request.farm_total_zones or 4
+    branches_per_zone = 3
+    for zone_num in range(1, total_zones + 1):
+        zone_data = {
+            "farm_id": farm["id"],
+            "zone_number": zone_num,
+            "name": f"Zone {zone_num}",
+            "plant_type": "olive",
+            "plant_species": "Olea europaea",
+        }
+        try:
+            zone_resp = admin.from_("zones").insert(zone_data).execute()
+            if zone_resp.data:
+                zone_id = zone_resp.data[0]["id"]
+                # Create branches for each zone
+                for branch_num in range(1, branches_per_zone + 1):
+                    branch_data = {
+                        "zone_id": zone_id,
+                        "branch_number": branch_num,
+                        "name": f"Zone {zone_num} - Branch {branch_num}",
+                        "emitter_flow_lph": 4.0,
+                    }
+                    try:
+                        admin.from_("branches").insert(branch_data).execute()
+                    except Exception as e:
+                        logger.warning(f"Failed to create branch {branch_num} for zone {zone_id}: {e}")
+        except Exception as e:
+            logger.warning(f"Failed to create zone {zone_num} for farm {farm['id']}: {e}")
+
+    logger.info(f"Superadmin created owner '{request.username}' with farm '{request.farm_name}' ({total_zones} zones, {branches_per_zone} branches each)")
     return {
         "user": {
             "id": user["id"],
@@ -128,3 +158,56 @@ async def delete_owner(owner_id: str, current_user: dict = Depends(require_super
     admin.from_("users").delete().eq("id", owner_id).execute()
 
     logger.info(f"Superadmin deleted owner {owner_id}")
+
+
+@router.post("/seed-devices/{farm_id}", status_code=status.HTTP_201_CREATED)
+async def seed_iot_devices(
+    farm_id: str,
+    current_user: dict = Depends(require_superadmin),
+):
+    """Seed IoT devices for all branches in a farm (3 flow meters + 2 soil moisture per branch)"""
+    admin = get_supabase_admin()
+
+    farm = admin.from_("farms").select("id").eq("id", farm_id).execute()
+    if not farm.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Farm not found")
+
+    zones = admin.from_("zones").select("id").eq("farm_id", farm_id).eq("is_active", True).execute()
+    if not zones.data:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No zones found in farm")
+
+    total_devices = 0
+    for zone in zones.data:
+        branches = admin.from_("branches").select("id,branch_number").eq("zone_id", zone["id"]).execute()
+        for branch in branches.data:
+            branch_number = branch["branch_number"]
+            for i in range(1, 4):
+                device_data = {
+                    "farm_id": farm_id,
+                    "zone_id": zone["id"],
+                    "device_type": "flow_meter",
+                    "name": f"Flow Meter {branch_number}-{i}",
+                    "model": "FM-100",
+                    "serial_number": f"FM{branch_number:02d}{i:02d}001",
+                    "mac_address": f"00:1B:44:11:{branch_number:02X}:{i:X0}",
+                    "status": "online",
+                }
+                admin.from_("iot_devices").insert(device_data).execute()
+                total_devices += 1
+
+            for i in range(1, 3):
+                device_data = {
+                    "farm_id": farm_id,
+                    "zone_id": zone["id"],
+                    "device_type": "moisture_sensor",
+                    "name": f"Soil Moisture {branch_number}-{i}",
+                    "model": "SM-200",
+                    "serial_number": f"SM{branch_number:02d}{i:02d}001",
+                    "mac_address": f"00:1B:44:22:{branch_number:02X}:{i:X0}",
+                    "status": "online",
+                }
+                admin.from_("iot_devices").insert(device_data).execute()
+                total_devices += 1
+
+    logger.info(f"Superadmin seeded {total_devices} IoT devices for farm {farm_id}")
+    return {"message": f"Created {total_devices} IoT devices", "count": total_devices}
