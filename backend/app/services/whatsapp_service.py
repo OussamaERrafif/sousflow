@@ -325,15 +325,12 @@ class WhatsAppService:
                 farm_id=farm_id,
                 conversation_id=conversation_id,
                 user_message=message,
+                channel="whatsapp",
             )
 
             # WhatsApp has a 4096 char limit — truncate if needed
             if len(ai_response) > 4000:
                 ai_response = ai_response[:3990] + "\n..."
-
-            # Strip SVG tags (not renderable in WhatsApp)
-            import re
-            ai_response = re.sub(r'<svg[\s\S]*?</svg>', '[chart - visible in app]', ai_response)
 
             await self.send_message(phone, ai_response)
 
