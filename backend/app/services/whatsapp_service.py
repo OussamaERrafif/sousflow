@@ -185,6 +185,49 @@ class WhatsAppService:
 
         return "\n".join(lines)
 
+    # ─── WhatsApp Formatting ─────────────────────────────────────
+
+    @staticmethod
+    def _convert_to_whatsapp_format(text: str) -> str:
+        """Convert markdown to WhatsApp-compatible formatting"""
+        import re
+
+        # Remove SVG blocks
+        text = re.sub(r'<svg[\s\S]*?</svg>', '', text)
+        # Remove any remaining HTML tags
+        text = re.sub(r'<[^>]+>', '', text)
+
+        # Convert **bold** to *bold* (WhatsApp uses single asterisks)
+        text = re.sub(r'\*\*(.+?)\*\*', r'*\1*', text)
+
+        # Convert ### heading to bold with emoji line
+        text = re.sub(r'^###\s*(.+)$', r'*\1*', text, flags=re.MULTILINE)
+        text = re.sub(r'^##\s*(.+)$', r'*\1*', text, flags=re.MULTILINE)
+        text = re.sub(r'^#\s*(.+)$', r'*\1*', text, flags=re.MULTILINE)
+
+        # Convert `code` to plain text (no backtick support for inline in WhatsApp)
+        text = re.sub(r'`([^`\n]+)`', r'\1', text)
+
+        # Convert markdown links [text](url) to just text
+        text = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', text)
+
+        # Convert blockquotes > text to plain text
+        text = re.sub(r'^>\s*', '', text, flags=re.MULTILINE)
+
+        # Convert markdown tables to simple lines
+        # Remove table separator rows (|---|---|)
+        text = re.sub(r'^\|[-: |]+\|$', '', text, flags=re.MULTILINE)
+        # Convert table rows |a|b|c| to "a | b | c"
+        def _convert_table_row(m):
+            cells = [c.strip() for c in m.group(0).strip('|').split('|')]
+            return ' | '.join(cells)
+        text = re.sub(r'^\|(.+)\|$', _convert_table_row, text, flags=re.MULTILINE)
+
+        # Clean up multiple blank lines
+        text = re.sub(r'\n{3,}', '\n\n', text)
+
+        return text.strip()
+
     # ─── AI WhatsApp Assistant ───────────────────────────────────
 
     async def handle_incoming_message(self, sender_phone: str, message_body: str) -> None:
@@ -327,6 +370,9 @@ class WhatsAppService:
                 user_message=message,
                 channel="whatsapp",
             )
+
+            # Force-convert markdown to WhatsApp formatting
+            ai_response = self._convert_to_whatsapp_format(ai_response)
 
             # WhatsApp has a 4096 char limit — truncate if needed
             if len(ai_response) > 4000:
