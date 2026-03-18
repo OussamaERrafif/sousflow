@@ -442,6 +442,35 @@ export default function IoTDevicesPage() {
                                         <Power className="w-4 h-4" />
                                         {device.status === "online" ? t("turn_off") : t("turn_on")}
                                     </button>
+                                    {device.device_type === "valve_controller" && (
+                                        <button
+                                            onClick={async () => {
+                                                try {
+                                                    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+                                                    const farmId = typeof window !== "undefined" ? localStorage.getItem("activeFarmId") : null;
+                                                    const headers: Record<string, string> = { "Content-Type": "application/json" };
+                                                    if (token) headers["Authorization"] = `Bearer ${token}`;
+                                                    if (farmId) headers["X-Farm-ID"] = farmId;
+                                                    const isOpen = device.control_state?.valve_open;
+                                                    await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/control/device/${device.id}`, {
+                                                        method: "POST",
+                                                        headers,
+                                                        body: JSON.stringify({ command_type: isOpen ? "valve_close" : "valve_open" }),
+                                                    });
+                                                } catch (e) {
+                                                    console.error("Device control error:", e);
+                                                }
+                                            }}
+                                            className={`p-2 rounded-lg border ${
+                                                device.control_state?.valve_open
+                                                    ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                                                    : "bg-gray-50 border-gray-200 text-gray-500"
+                                            }`}
+                                            title={device.control_state?.valve_open ? "Close Valve" : "Open Valve"}
+                                        >
+                                            <Droplets className="w-4 h-4" />
+                                        </button>
+                                    )}
                                     <button className="px-3 py-2 bg-card border border-border rounded-lg hover:bg-muted transition-colors">
                                         <Settings className="w-4 h-4" />
                                     </button>

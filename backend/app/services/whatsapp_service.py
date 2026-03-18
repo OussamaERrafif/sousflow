@@ -375,11 +375,24 @@ class WhatsAppService:
 
         try:
             from app.services.openai_service import chat
+            # Look up farm owner as user context for AI tool permission checks
+            user_context = None
+            try:
+                _supabase = get_supabase_admin()
+                _farm = _supabase.table("farms").select("owner_id").eq("id", farm_id).limit(1).execute()
+                if _farm.data:
+                    _owner = _supabase.table("users").select("id, role").eq("id", _farm.data[0]["owner_id"]).limit(1).execute()
+                    if _owner.data:
+                        user_context = {"id": _owner.data[0]["id"], "role": _owner.data[0]["role"]}
+            except Exception:
+                pass
+
             ai_response = await chat(
                 farm_id=farm_id,
                 conversation_id=conversation_id,
                 user_message=message,
                 channel="whatsapp",
+                user_context=user_context,
             )
 
             # Force-convert markdown to WhatsApp formatting

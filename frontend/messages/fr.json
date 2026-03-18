@@ -97,7 +97,10 @@
         "stress_score": "Stress",
         "normal": "Normal",
         "warning": "Alerte",
-        "critical": "Critique"
+        "critical": "Critique",
+        "manual_mode": "Mode manuel",
+        "switch_to_manual": "Passer en mode manuel",
+        "switch_to_auto": "Passer en mode automatique"
     },
     "DataViz": {
         "moisture_history": "Analyse d'humidité (24h)"
@@ -148,6 +151,9 @@
         "suggestion2": "État de l'humidité du sol",
         "suggestion3": "Alertes et problèmes",
         "suggestion4": "Conseils d'optimisation",
+        "cmd_start_irrigation": "Démarrer l'irrigation zone 1",
+        "cmd_zone_status": "État de toutes les zones?",
+        "cmd_check_anomalies": "Y a-t-il des anomalies?",
         "currentData": "Données actuelles",
         "connection": "Connexion",
         "live": "En direct",
@@ -169,6 +175,37 @@
         "newChat": "Nouveau chat",
         "noConversations": "Aucune conversation précédente",
         "confirmDelete": "Voulez-vous supprimer cette conversation?"
+    },
+    "DeviceControl": {
+        "start_irrigation": "Démarrer l'irrigation",
+        "stop_irrigation": "Arrêter l'irrigation",
+        "manual_mode": "Mode manuel",
+        "auto_mode": "Automatique",
+        "switch_to_manual": "Passer en mode manuel",
+        "switch_to_auto": "Passer en mode automatique",
+        "confirm_start": "Voulez-vous démarrer l'irrigation dans {zone}?",
+        "confirm_stop": "Voulez-vous arrêter l'irrigation dans {zone}?",
+        "duration_label": "Durée (minutes, optionnel)",
+        "command_sent": "Commande envoyée",
+        "command_failed": "Échec de la commande",
+        "cancel": "Annuler"
+    },
+    "Anomalies": {
+        "title": "Détection d'anomalies",
+        "unacknowledged": "Non confirmées",
+        "acknowledge": "Confirmer",
+        "acknowledge_all": "Tout confirmer",
+        "severity_critical": "Critique",
+        "severity_high": "Élevé",
+        "severity_medium": "Moyen",
+        "severity_low": "Faible",
+        "type_z_score": "Valeur aberrante",
+        "type_sudden_change": "Changement soudain",
+        "type_stuck_sensor": "Capteur bloqué",
+        "type_drift": "Dérive progressive",
+        "type_correlation": "Corrélation multiple",
+        "tab_alerts": "Règles d'alerte",
+        "tab_anomalies": "Détection d'anomalies"
     },
     "MapPage": {
         "title": "Carte de la ferme",

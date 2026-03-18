@@ -160,6 +160,28 @@ def require_superadmin(current_user: dict = Depends(get_current_user)) -> dict:
     return current_user
 
 
+async def require_control_permission(current_user: dict = Depends(get_current_user)) -> dict:
+    """Dependency: farm_owner always OK, farm_employee needs control_devices permission."""
+    role = current_user.get("role")
+    if role in ("superadmin", "farm_owner"):
+        return current_user
+
+    # For farm_employee, check permissions in farm_memberships
+    farm_id = _extract_farm_id(current_user)
+    if not farm_id:
+        raise HTTPException(status_code=403, detail="No farm context")
+
+    supabase = get_supabase_admin()
+    membership = supabase.table("farm_memberships").select("permissions").eq(
+        "user_id", current_user["id"]
+    ).eq("farm_id", farm_id).eq("is_active", True).limit(1).execute()
+
+    if membership.data and membership.data[0].get("permissions", {}).get("control_devices"):
+        return current_user
+
+    raise HTTPException(status_code=403, detail="You don't have device control permission")
+
+
 def require_farm_access(farm_id: str, current_user: dict = Depends(get_current_user)) -> dict:
     """Dependency that checks if the user has access to the specified farm."""
     if farm_id not in current_user.get("farm_ids", []):

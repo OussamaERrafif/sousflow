@@ -44,6 +44,9 @@ const SUGGESTIONS = [
     { key: "suggestion2", icon: Thermometer, labelKey: "suggestion2" },
     { key: "suggestion3", icon: AlertTriangle, labelKey: "suggestion3" },
     { key: "suggestion4", icon: Leaf, labelKey: "suggestion4" },
+    { key: "cmd_start_irrigation", icon: Droplets, labelKey: "cmd_start_irrigation" },
+    { key: "cmd_zone_status", icon: Thermometer, labelKey: "cmd_zone_status" },
+    { key: "cmd_check_anomalies", icon: AlertTriangle, labelKey: "cmd_check_anomalies" },
 ];
 
 /** Strip ```svg ... ``` fences so rehype-raw can parse inline SVG */

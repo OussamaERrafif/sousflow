@@ -56,10 +56,17 @@ export interface InfrastructureReading {
   filter_status: number;
 }
 
+export interface ControlStates {
+  zone_valves: Record<number, boolean>;    // zone_number → valve open
+  manual_overrides: Record<number, boolean>; // zone_number → manual mode
+}
+
 export interface SSEPayload {
   environment: EnvironmentReading | null;
   infrastructure: InfrastructureReading | null;
   zones: ZoneReading[];
+  control_states: ControlStates | null;
+  anomaly_count: number;
   simulator_running: boolean;
   timestamp: string;
 }
@@ -87,6 +94,8 @@ interface IoTState {
   infrastructure: InfrastructureReading | null;
   zones: ZoneReading[];
   readings: LegacyReading[]; // backward compat for old components
+  controlStates: ControlStates | null;
+  anomalyCount: number;
   simulatorRunning: boolean;
   lastUpdate: string | null;
   connected: boolean;
@@ -97,6 +106,8 @@ const initialState: IoTState = {
   infrastructure: null,
   zones: [],
   readings: [],
+  controlStates: null,
+  anomalyCount: 0,
   simulatorRunning: false,
   lastUpdate: null,
   connected: false,
@@ -107,7 +118,7 @@ const iotSlice = createSlice({
   initialState,
   reducers: {
     setLiveData(state, action: PayloadAction<SSEPayload>) {
-      const { environment, infrastructure, zones, simulator_running, timestamp } = action.payload;
+      const { environment, infrastructure, zones, control_states, anomaly_count, simulator_running, timestamp } = action.payload;
       
       if (isDebugMode()) {
         console.debug("[SoussFlow/IoT] setLiveData received:", {
@@ -120,6 +131,8 @@ const iotSlice = createSlice({
       state.environment = environment;
       state.infrastructure = infrastructure;
       state.zones = zones;
+      state.controlStates = control_states || null;
+      state.anomalyCount = anomaly_count || 0;
       state.simulatorRunning = simulator_running;
       state.lastUpdate = timestamp;
       state.connected = true;

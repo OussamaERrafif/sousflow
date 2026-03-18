@@ -28,6 +28,8 @@ from app.routes import (
     farm_router,
     conversation_router,
     zone_router,
+    device_control_router,
+    anomaly_router,
 )
 from app.routes.infrastructure_routes import router as infrastructure_router
 
@@ -270,6 +272,8 @@ app.include_router(farm_router)
 app.include_router(conversation_router)
 app.include_router(zone_router)
 app.include_router(infrastructure_router)
+app.include_router(device_control_router)
+app.include_router(anomaly_router)
 
 
 @app.get("/")
@@ -472,10 +476,32 @@ async def sse_events():
                             zones_meta, hierarchical
                         )
 
+                        # Build control states from simulator
+                        control_states = {}
+                        if simulator:
+                            control_states = {
+                                "zone_valves": {z: simulator.zone_irrig.get(z, False) for z in range(1, simulator.n_zones + 1)},
+                                "manual_overrides": {z: simulator.manual_override.get(z, False) for z in range(1, simulator.n_zones + 1)},
+                            }
+
+                        # Get unacknowledged anomaly count (non-blocking)
+                        anomaly_count = 0
+                        try:
+                            from app.supabase_client import get_supabase_admin as _get_sb
+                            _sb = _get_sb()
+                            _anomaly_result = _sb.table("anomaly_events").select("id", count="exact").eq(
+                                "farm_id", simulator.farm_id
+                            ).eq("acknowledged", False).execute()
+                            anomaly_count = _anomaly_result.count or 0
+                        except Exception:
+                            pass
+
                         data = json.dumps({
                             "environment": hierarchical.get("environment"),
                             "infrastructure": hierarchical.get("infrastructure"),
                             "zones": merged_zones,
+                            "control_states": control_states,
+                            "anomaly_count": anomaly_count,
                             "simulator_running": running,
                             "timestamp": datetime.now().isoformat(),
                         })

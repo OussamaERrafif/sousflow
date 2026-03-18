@@ -181,6 +181,14 @@ async def ingest_batch(farm_id: str, readings: list[dict], recorded_by: Optional
             errors.append(f"Zone health chunk {start}: {str(e)}")
 
     logger.info("Batch ingest complete (v3)", inserted=inserted, failed=failed, farm=farm_id[:8])
+
+    # Run anomaly detection (non-blocking)
+    try:
+        from app.services.anomaly_service import analyze_reading_batch
+        await analyze_reading_batch(farm_id, readings)
+    except Exception as e:
+        logger.warning(f"Anomaly analysis failed (non-blocking): {e}")
+
     return {"inserted": inserted, "failed": failed, "errors": errors[:10]}
 
 

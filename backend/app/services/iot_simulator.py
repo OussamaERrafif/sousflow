@@ -95,6 +95,7 @@ class IoTSimulator:
         self._prev_wind: float = 3.0
         self._last_readings: list = []
         self._injected_anomalies: Dict[int, dict] = {}
+        self.manual_override = {z: False for z in range(1, n_zones + 1)}
         self.step = 0
 
     # ── Utilities ────────────────────────────────────────────────
@@ -409,10 +410,12 @@ class IoTSimulator:
 
         # Update valve decisions for each zone
         for z in range(1, self.n_zones + 1):
-            if self.zone_needs_water(self.zone_soil[z], self.reservoir, 0.10, self.filter_st):
-                self.zone_irrig[z] = True
-            if self.zone_irrig[z] and self.zone_soil[z] >= self.profile["irrigate_stop"]:
-                self.zone_irrig[z] = False
+            if not self.manual_override.get(z, False):  # Only auto-control if NOT in manual mode
+                if self.zone_needs_water(self.zone_soil[z], self.reservoir, 0.10, self.filter_st):
+                    self.zone_irrig[z] = True
+                if self.zone_irrig[z] and self.zone_soil[z] >= self.profile["irrigate_stop"]:
+                    self.zone_irrig[z] = False
+            # If manual_override is True, zone_irrig[z] stays whatever it was last set to
 
         any_open = any(self.zone_irrig.values())
         main_pressure = self.sim_main_pressure(self.reservoir, any_open, self.filter_st)

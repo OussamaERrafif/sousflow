@@ -8,11 +8,33 @@ import {
     useDeleteAlertRuleApiIotAlertsRulesRuleIdDeleteMutation,
 } from "@/lib/store/generated/api";
 import { useAppSelector } from "@/lib/store/hooks";
-import { Bell, Plus, Trash2, AlertTriangle, CheckCircle2, Edit, X, AlertOctagon, Info, Wifi } from "lucide-react";
+import { Bell, Plus, Trash2, AlertTriangle, CheckCircle2, Edit, X, AlertOctagon, Info, Wifi, Shield, Eye } from "lucide-react";
 import { useDebugLog } from "@/lib/debug";
+
+type TabType = "alerts" | "anomalies";
+
+interface AnomalyEventData {
+    id: string;
+    anomaly_type: string;
+    severity: string;
+    zone_id: string | null;
+    target_columns: string[];
+    details: Record<string, unknown>;
+    created_at: string;
+}
+
+interface AnomalyDashboardData {
+    total_unacknowledged: number;
+    by_severity: Record<string, number>;
+    by_type: Record<string, number>;
+    recent: AnomalyEventData[];
+    zone_anomaly_counts: Record<string, number>;
+}
 
 export default function AlertsPage() {
     const t = useTranslations("Sidebar");
+    const ta = useTranslations("Anomalies");
+    const [activeTab, setActiveTab] = useState<TabType>("alerts");
     const [isCreating, setIsCreating] = useState(false);
     const [newRule, setNewRule] = useState({
         name: "",
@@ -28,8 +50,53 @@ export default function AlertsPage() {
     const [createRule, { isLoading: isCreatingRule }] = useCreateAlertRuleApiIotAlertsRulesPostMutation();
     const [deleteRule] = useDeleteAlertRuleApiIotAlertsRulesRuleIdDeleteMutation();
 
+    // Anomaly detection state
+    const [anomalyDashboard, setAnomalyDashboard] = useState<AnomalyDashboardData | null>(null);
+    const [anomalyLoading, setAnomalyLoading] = useState(false);
+    const [ackLoading, setAckLoading] = useState(false);
+
+    const fetchAnomalyDashboard = async () => {
+        setAnomalyLoading(true);
+        try {
+            const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+            const farmId = typeof window !== "undefined" ? localStorage.getItem("activeFarmId") : null;
+            const headers: Record<string, string> = {};
+            if (token) headers["Authorization"] = `Bearer ${token}`;
+            if (farmId) headers["X-Farm-ID"] = farmId;
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/anomalies/dashboard`, { headers });
+            if (res.ok) {
+                setAnomalyDashboard(await res.json());
+            }
+        } catch (e) {
+            console.error("Anomaly dashboard error:", e);
+        } finally {
+            setAnomalyLoading(false);
+        }
+    };
+
+    const handleAcknowledge = async (ids: string[]) => {
+        setAckLoading(true);
+        try {
+            const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+            const farmId = typeof window !== "undefined" ? localStorage.getItem("activeFarmId") : null;
+            const headers: Record<string, string> = { "Content-Type": "application/json" };
+            if (token) headers["Authorization"] = `Bearer ${token}`;
+            if (farmId) headers["X-Farm-ID"] = farmId;
+            await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/anomalies/acknowledge`, {
+                method: "POST",
+                headers,
+                body: JSON.stringify({ anomaly_ids: ids }),
+            });
+            fetchAnomalyDashboard();
+        } catch (e) {
+            console.error("Acknowledge error:", e);
+        } finally {
+            setAckLoading(false);
+        }
+    };
+
     // Derive live alerts from SSE
-    const { readings: sseReadings, connected, lastUpdate } = useAppSelector((state) => state.iot);
+    const { readings: sseReadings, connected, lastUpdate, anomalyCount } = useAppSelector((state) => state.iot);
     const hasLiveData = connected && sseReadings.length > 0;
 
     useDebugLog("AlertsPage - alertRules", alertRules);
@@ -137,6 +204,21 @@ export default function AlertsPage() {
     const [filter, setFilter] = useState<"all" | "critical" | "warning" | "info">("all");
     const filteredAlerts = filter === "all" ? liveAlerts : liveAlerts.filter(a => a.type === filter);
 
+    const severityColor: Record<string, string> = {
+        critical: "bg-red-500",
+        high: "bg-orange-500",
+        medium: "bg-amber-400",
+        low: "bg-blue-400",
+    };
+
+    const anomalyTypeLabel: Record<string, string> = {
+        z_score: ta("type_z_score"),
+        sudden_change: ta("type_sudden_change"),
+        stuck_sensor: ta("type_stuck_sensor"),
+        drift: ta("type_drift"),
+        correlation: ta("type_correlation"),
+    };
+
     return (
         <div className="w-full">
             <div className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -144,14 +226,152 @@ export default function AlertsPage() {
                     <h1 className="text-2xl font-bold text-foreground">{t("nav_alerts")}</h1>
                     <p className="text-muted-foreground mt-1">Alert rules and live notifications</p>
                 </div>
+                <div className="flex items-center gap-3">
+                    {activeTab === "alerts" && (
+                        <button
+                            onClick={() => setIsCreating(true)}
+                            className="flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary/90 px-5 py-2.5 rounded-xl font-semibold transition-colors"
+                        >
+                            <Plus className="w-5 h-5" />
+                            Create Rule
+                        </button>
+                    )}
+                </div>
+            </div>
+
+            {/* Tab Switcher */}
+            <div className="flex gap-1 bg-muted/50 p-1 rounded-lg mb-6 w-fit">
                 <button
-                    onClick={() => setIsCreating(true)}
-                    className="flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary/90 px-5 py-2.5 rounded-xl font-semibold transition-colors"
+                    onClick={() => setActiveTab("alerts")}
+                    className={`px-4 py-2 text-sm font-medium rounded-md transition-colors flex items-center gap-2 ${
+                        activeTab === "alerts"
+                            ? "bg-card shadow-sm text-foreground"
+                            : "text-muted-foreground hover:text-foreground"
+                    }`}
                 >
-                    <Plus className="w-5 h-5" />
-                    Create Rule
+                    <Bell className="w-4 h-4" />
+                    {ta("tab_alerts")}
+                </button>
+                <button
+                    onClick={() => { setActiveTab("anomalies"); fetchAnomalyDashboard(); }}
+                    className={`px-4 py-2 text-sm font-medium rounded-md transition-colors flex items-center gap-2 ${
+                        activeTab === "anomalies"
+                            ? "bg-card shadow-sm text-foreground"
+                            : "text-muted-foreground hover:text-foreground"
+                    }`}
+                >
+                    <Shield className="w-4 h-4" />
+                    {ta("tab_anomalies")}
+                    {anomalyCount > 0 && (
+                        <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{anomalyCount}</span>
+                    )}
                 </button>
             </div>
+
+            {activeTab === "anomalies" ? (
+                /* Anomaly Detection Tab */
+                <div>
+                    {anomalyLoading ? (
+                        <div className="p-12 text-center"><div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto" /></div>
+                    ) : anomalyDashboard ? (
+                        <>
+                            {/* Summary Cards */}
+                            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+                                <div className="bg-card rounded-xl p-4 border border-border col-span-2 md:col-span-1">
+                                    <p className="text-xs font-bold text-muted-foreground uppercase mb-1">{ta("unacknowledged")}</p>
+                                    <p className="text-3xl font-black text-foreground">{anomalyDashboard.total_unacknowledged}</p>
+                                </div>
+                                {["critical", "high", "medium", "low"].map(sev => (
+                                    <div key={sev} className="bg-card rounded-xl p-4 border border-border">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <span className={`w-2.5 h-2.5 rounded-full ${severityColor[sev]}`} />
+                                            <span className="text-xs font-bold text-muted-foreground uppercase">{ta(`severity_${sev}`)}</span>
+                                        </div>
+                                        <p className="text-2xl font-black text-foreground">{anomalyDashboard.by_severity[sev] || 0}</p>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Actions */}
+                            {anomalyDashboard.recent.length > 0 && (
+                                <div className="flex justify-between items-center mb-4">
+                                    <p className="text-sm text-muted-foreground">{anomalyDashboard.recent.length} {ta("unacknowledged")}</p>
+                                    <button
+                                        onClick={() => handleAcknowledge(anomalyDashboard.recent.map(a => a.id))}
+                                        disabled={ackLoading}
+                                        className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-bold hover:bg-primary/90 disabled:opacity-50"
+                                    >
+                                        <Eye className="w-4 h-4" />
+                                        {ta("acknowledge_all")}
+                                    </button>
+                                </div>
+                            )}
+
+                            {/* Anomaly List */}
+                            {anomalyDashboard.recent.length === 0 ? (
+                                <div className="p-8 text-center bg-emerald-500/5 rounded-2xl border border-emerald-500/20">
+                                    <CheckCircle2 className="w-12 h-12 text-emerald-500/50 mx-auto mb-3" />
+                                    <p className="text-emerald-500 font-semibold">No active anomalies</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-3">
+                                    {anomalyDashboard.recent.map((anomaly) => (
+                                        <div key={anomaly.id} className="p-4 rounded-2xl border bg-card hover:shadow-md transition-all">
+                                            <div className="flex items-start gap-4">
+                                                <div className={`shrink-0 w-3 h-3 rounded-full mt-1.5 ${severityColor[anomaly.severity] || "bg-gray-400"}`} />
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-start justify-between gap-2">
+                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                            <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${
+                                                                anomaly.severity === "critical" ? "bg-red-500/10 text-red-500" :
+                                                                anomaly.severity === "high" ? "bg-orange-500/10 text-orange-500" :
+                                                                anomaly.severity === "medium" ? "bg-amber-500/10 text-amber-500" :
+                                                                "bg-blue-500/10 text-blue-500"
+                                                            }`}>
+                                                                {ta(`severity_${anomaly.severity}`)}
+                                                            </span>
+                                                            <span className="font-semibold text-foreground">
+                                                                {anomalyTypeLabel[anomaly.anomaly_type] || anomaly.anomaly_type}
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-xs text-muted-foreground shrink-0" dir="ltr">
+                                                                {new Date(anomaly.created_at).toLocaleTimeString()}
+                                                            </span>
+                                                            <button
+                                                                onClick={() => handleAcknowledge([anomaly.id])}
+                                                                className="text-xs font-bold text-primary hover:underline"
+                                                            >
+                                                                {ta("acknowledge")}
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                    <p className="text-sm text-muted-foreground mt-1">
+                                                        {anomaly.target_columns.join(", ")}
+                                                        {anomaly.zone_id && ` · Zone`}
+                                                    </p>
+                                                    {anomaly.details && typeof anomaly.details === "object" && "message" in (anomaly.details as Record<string, unknown>) && (
+                                                        <p className="text-xs text-muted-foreground mt-1 italic">
+                                                            {String((anomaly.details as Record<string, unknown>).message)}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </>
+                    ) : (
+                        <div className="p-8 text-center bg-muted/30 rounded-2xl border border-dashed border-border">
+                            <Shield className="w-12 h-12 text-muted-foreground/40 mx-auto mb-3" />
+                            <p className="text-muted-foreground font-medium">Click to load anomaly data</p>
+                        </div>
+                    )}
+                </div>
+            ) : (
+            <>
+            {/* Alerts Tab (existing content) */}
 
             {/* Create Rule Form */}
             {isCreating && (
@@ -377,6 +597,8 @@ export default function AlertsPage() {
                     </div>
                 )}
             </div>
+            </>
+            )}
         </div>
     );
 }

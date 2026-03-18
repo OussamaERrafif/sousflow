@@ -7,10 +7,11 @@ import {
 } from "@/lib/store/generated/api";
 import { useAppSelector } from "@/lib/store/hooks";
 import type { BranchReading, ZoneReading } from "@/lib/store/slices/iotSlice";
-import { CheckCircle2, AlertTriangle, AlertOctagon, PauseCircle, Wifi, WifiOff, Droplets, Gauge, Activity, Thermometer } from "lucide-react";
+import { CheckCircle2, AlertTriangle, AlertOctagon, PauseCircle, Wifi, WifiOff, Droplets, Gauge, Activity, Thermometer, Power, ToggleLeft, ToggleRight } from "lucide-react";
 import { BranchCard } from "../BranchCard";
 import { WaterConsumptionChart } from "../WaterConsumptionChart";
 import { useDebugLog } from "@/lib/debug";
+import { ControlConfirmDialog } from "../ControlConfirmDialog";
 
 function MoistureBar({ level, status }: { level: number; status: string }) {
     const t = useTranslations("ZoneGrid");
@@ -42,8 +43,14 @@ export default function ZonesPage() {
     const t = useTranslations("ZoneGrid");
     const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
     const [expandedBranches, setExpandedBranches] = useState<Set<string>>(new Set());
+    const [controlDialog, setControlDialog] = useState<{
+        zoneId: string;
+        zoneName: string;
+        action: "start_irrigation" | "stop_irrigation";
+    } | null>(null);
+    const [controlLoading, setControlLoading] = useState(false);
 
-    const { zones: sseZones, environment, infrastructure, simulatorRunning, connected, lastUpdate } = useAppSelector((state) => state.iot);
+    const { zones: sseZones, environment, infrastructure, controlStates, simulatorRunning, connected, lastUpdate } = useAppSelector((state) => state.iot);
     const hasLiveData = connected && sseZones && sseZones.length > 0;
 
     useDebugLog("ZonesPage - sseZones", sseZones);
@@ -59,6 +66,47 @@ export default function ZonesPage() {
         if (zone.leak_count > 0) return "critical";
         if ((zone.avg_moisture_pct ?? 100) < 40) return "warning";
         return "good";
+    };
+
+    const handleControlZone = async (zoneId: string, action: "start_irrigation" | "stop_irrigation", durationMinutes?: number) => {
+        setControlLoading(true);
+        try {
+            const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+            const farmId = typeof window !== "undefined" ? localStorage.getItem("activeFarmId") : null;
+            const headers: Record<string, string> = { "Content-Type": "application/json" };
+            if (token) headers["Authorization"] = `Bearer ${token}`;
+            if (farmId) headers["X-Farm-ID"] = farmId;
+
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/control/zone/${zoneId}`, {
+                method: "POST",
+                headers,
+                body: JSON.stringify({ action, duration_minutes: durationMinutes || null }),
+            });
+            if (!res.ok) throw new Error("Control command failed");
+        } catch (e) {
+            console.error("Zone control error:", e);
+        } finally {
+            setControlLoading(false);
+            setControlDialog(null);
+        }
+    };
+
+    const handleToggleOverride = async (zoneId: string, enabled: boolean) => {
+        try {
+            const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+            const farmId = typeof window !== "undefined" ? localStorage.getItem("activeFarmId") : null;
+            const headers: Record<string, string> = { "Content-Type": "application/json" };
+            if (token) headers["Authorization"] = `Bearer ${token}`;
+            if (farmId) headers["X-Farm-ID"] = farmId;
+
+            await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/control/zone/${zoneId}/override`, {
+                method: "POST",
+                headers,
+                body: JSON.stringify({ enabled }),
+            });
+        } catch (e) {
+            console.error("Override toggle error:", e);
+        }
     };
 
     const toggleBranch = (branchId: string) => {
@@ -227,6 +275,58 @@ export default function ZonesPage() {
 
                                 <MoistureBar level={zone.avg_moisture_pct ?? 0} status={getZoneStatus(zone)} />
 
+                                {/* Irrigation Control */}
+                                {(() => {
+                                    const isIrrigating = controlStates?.zone_valves?.[zone.zone_number] ?? false;
+                                    const isManualMode = controlStates?.manual_overrides?.[zone.zone_number] ?? false;
+                                    return (
+                                        <>
+                                            <div className="flex items-center gap-2 mt-3">
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setControlDialog({
+                                                            zoneId: zone.zone_id,
+                                                            zoneName: zone.zone_name || `Zone ${zone.zone_number}`,
+                                                            action: isIrrigating ? "stop_irrigation" : "start_irrigation",
+                                                        });
+                                                    }}
+                                                    disabled={controlLoading}
+                                                    className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-bold border transition-all ${
+                                                        isIrrigating
+                                                            ? "bg-red-50 text-red-700 border-red-200 hover:bg-red-100"
+                                                            : "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+                                                    }`}
+                                                >
+                                                    <Power className="w-3.5 h-3.5" />
+                                                    {isIrrigating ? t("stop") : t("start")}
+                                                </button>
+
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleToggleOverride(zone.zone_id, !isManualMode);
+                                                    }}
+                                                    className="flex items-center gap-1 px-2 py-2 rounded-lg text-xs font-bold border border-border hover:bg-muted"
+                                                    title={isManualMode ? t("switch_to_auto") : t("switch_to_manual")}
+                                                >
+                                                    {isManualMode
+                                                        ? <ToggleRight className="w-4 h-4 text-amber-600" />
+                                                        : <ToggleLeft className="w-4 h-4 text-muted-foreground" />
+                                                    }
+                                                </button>
+                                            </div>
+
+                                            {isManualMode && (
+                                                <div className="flex items-center gap-1.5 mt-2 text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-1 rounded-md border border-amber-100">
+                                                    <ToggleRight className="w-3 h-3" />
+                                                    {t("manual_mode")}
+                                                </div>
+                                            )}
+                                        </>
+                                    );
+                                })()}
+
                                 {zone.irrigation_needed && (
                                     <div className="flex items-center gap-2 mt-3 bg-sky-50 text-sky-700 px-3 py-1.5 rounded-lg border border-sky-100">
                                         <div className="w-2 h-2 rounded-full bg-sky-500 animate-pulse"></div>
@@ -278,6 +378,16 @@ export default function ZonesPage() {
                     );
                 })}
             </div>
+
+            {controlDialog && (
+                <ControlConfirmDialog
+                    zoneName={controlDialog.zoneName}
+                    action={controlDialog.action}
+                    loading={controlLoading}
+                    onConfirm={(durationMinutes) => handleControlZone(controlDialog.zoneId, controlDialog.action, durationMinutes)}
+                    onCancel={() => setControlDialog(null)}
+                />
+            )}
         </div>
     );
 }

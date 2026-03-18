@@ -2,7 +2,9 @@
 OpenAI Service — Olive Irrigation AI Assistant
 Provides conversational AI with awareness of the full IoT dataset schema,
 olive cultivation best practices, and Souss-Massa region context.
+Supports function calling for device control and anomaly queries.
 """
+import json as _json
 from datetime import datetime, timezone
 from typing import Optional
 from app.supabase_client import get_supabase_admin
@@ -72,6 +74,19 @@ You have access to a 26-column IoT dataset with hourly readings:
 4. Explain olive-specific agronomic concepts
 5. Alert on critical conditions (frost, heat stress, drought, waterlogging)
 6. Provide water conservation strategies specific to the Souss region
+
+## Device Control
+You can DIRECTLY control farm devices through function calls:
+- Start/stop irrigation for any zone
+- Switch zones between automatic and manual control mode
+- Check zone status and anomaly reports
+
+When the user asks you to control a device (e.g., "turn on irrigation in zone 3", "ابدأ ري المنطقة 3", "arrose la zone 3"):
+1. Confirm what you're about to do
+2. Execute the command via the appropriate function
+3. Report the result and current zone status
+
+Always explain the consequences of control actions (e.g., "Starting irrigation will increase soil moisture. Current level is 38%, optimal range is 35-55%.")
 
 ## Core Response Style
 - Concise, actionable advice
@@ -234,8 +249,181 @@ Rules:
 """
 
 
-async def chat(farm_id: str, conversation_id: str, user_message: str, sender_id: str = None, channel: str = "web") -> str:
+DEVICE_CONTROL_TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "control_zone_irrigation",
+            "description": "Start or stop irrigation for a specific farm zone. Use zone numbers (1, 2, 3, etc.) matching the zones shown in sensor data.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "zone_number": {
+                        "type": "integer",
+                        "description": "The zone number (1-based). Must match an existing zone."
+                    },
+                    "action": {
+                        "type": "string",
+                        "enum": ["start", "stop"],
+                        "description": "Whether to start or stop irrigation"
+                    },
+                    "duration_minutes": {
+                        "type": "integer",
+                        "description": "Optional: automatically stop after this many minutes. Omit for indefinite."
+                    }
+                },
+                "required": ["zone_number", "action"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_zone_status",
+            "description": "Get current irrigation and sensor status for a specific zone or all zones. Returns valve states, soil moisture, flow, and health data.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "zone_number": {
+                        "type": "integer",
+                        "description": "Zone number to check. Use 0 to get all zones."
+                    }
+                },
+                "required": ["zone_number"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "set_manual_override",
+            "description": "Enable or disable manual control mode for a zone. When enabled, automatic irrigation decisions are bypassed.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "zone_number": {"type": "integer", "description": "Zone number"},
+                    "enabled": {"type": "boolean", "description": "True to enable manual mode, False for automatic mode"}
+                },
+                "required": ["zone_number", "enabled"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_anomaly_summary",
+            "description": "Get the current anomaly detection summary. Returns counts of unacknowledged anomalies by severity and type.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        }
+    }
+]
+
+
+async def _execute_tool(
+    tool_name: str,
+    arguments: dict,
+    farm_id: str,
+    user_context: dict
+) -> str:
+    """Execute an AI tool call and return the result as a JSON string."""
+    from app.services import device_control_service
+    from app.services import anomaly_service
+
+    try:
+        # Permission check for control actions
+        if tool_name in ("control_zone_irrigation", "set_manual_override"):
+            role = user_context.get("role", "")
+            if role == "farm_employee":
+                supabase = get_supabase_admin()
+                membership = supabase.table("farm_memberships").select("permissions").eq(
+                    "user_id", user_context["id"]
+                ).eq("farm_id", farm_id).eq("is_active", True).limit(1).execute()
+                if not (membership.data and membership.data[0].get("permissions", {}).get("control_devices")):
+                    return _json.dumps({"error": "Permission denied. You don't have device control permission."})
+
+        if tool_name == "control_zone_irrigation":
+            zone_number = arguments["zone_number"]
+            action = arguments["action"]
+            duration = arguments.get("duration_minutes")
+
+            supabase = get_supabase_admin()
+            zone_result = supabase.table("zones").select("id, name").eq(
+                "farm_id", farm_id
+            ).eq("zone_number", zone_number).limit(1).execute()
+            if not zone_result.data:
+                return _json.dumps({"error": f"Zone {zone_number} not found"})
+
+            zone_id = zone_result.data[0]["id"]
+            zone_name = zone_result.data[0].get("name", f"Zone {zone_number}")
+
+            await device_control_service.control_zone(
+                farm_id, zone_id, action, user_context.get("id", "ai"), "ai", duration
+            )
+            return _json.dumps({
+                "success": True,
+                "action": action,
+                "zone_number": zone_number,
+                "zone_name": zone_name,
+                "duration_minutes": duration,
+                "message": f"Irrigation {'started' if action == 'start' else 'stopped'} for {zone_name}"
+            })
+
+        elif tool_name == "get_zone_status":
+            zone_number = arguments.get("zone_number", 0)
+            states = await device_control_service.get_control_states(farm_id)
+
+            if zone_number == 0:
+                return _json.dumps(states)
+            else:
+                zone_data = next(
+                    (z for z in states.get("zones", []) if z.get("zone_number") == zone_number),
+                    None
+                )
+                if zone_data:
+                    return _json.dumps(zone_data)
+                return _json.dumps({"error": f"Zone {zone_number} not found"})
+
+        elif tool_name == "set_manual_override":
+            zone_number = arguments["zone_number"]
+            enabled = arguments["enabled"]
+
+            supabase = get_supabase_admin()
+            zone_result = supabase.table("zones").select("id").eq(
+                "farm_id", farm_id
+            ).eq("zone_number", zone_number).limit(1).execute()
+            if not zone_result.data:
+                return _json.dumps({"error": f"Zone {zone_number} not found"})
+
+            await device_control_service.set_manual_override(
+                farm_id, zone_result.data[0]["id"], enabled, user_context.get("id", "ai")
+            )
+            return _json.dumps({
+                "success": True,
+                "zone_number": zone_number,
+                "manual_override": enabled,
+                "message": f"Manual mode {'enabled' if enabled else 'disabled'} for Zone {zone_number}"
+            })
+
+        elif tool_name == "get_anomaly_summary":
+            dashboard = await anomaly_service.get_anomaly_dashboard(farm_id)
+            return _json.dumps(dashboard, default=str)
+
+        return _json.dumps({"error": f"Unknown tool: {tool_name}"})
+
+    except Exception as e:
+        logger.error(f"Tool execution error: {tool_name}: {e}")
+        return _json.dumps({"error": str(e)})
+
+
+async def chat(farm_id: str, conversation_id: str, user_message: str,
+               sender_id: str = None, channel: str = "web",
+               user_context: dict = None) -> str:
     """Chat with context from conversation history and latest sensor data.
+    Supports function calling for device control.
 
     channel: "web" for dashboard (rich markdown + SVG), "whatsapp" for WhatsApp formatting
     """
@@ -282,17 +470,56 @@ async def chat(farm_id: str, conversation_id: str, user_message: str, sender_id:
         messages.append({"role": msg["role"], "content": msg["content"]})
     messages.append({"role": "user", "content": user_message})
 
-    # Call OpenAI
+    # Call OpenAI with function calling support
     try:
-        debug(f"[OpenAI Service] Calling OpenAI API with {len(messages)} messages")
+        debug(f"[OpenAI Service] Calling OpenAI API with {len(messages)} messages (with tools)")
         response = await _get_openai().chat.completions.create(
             model=get_settings().OPENAI_MODEL,
             messages=messages,
+            tools=DEVICE_CONTROL_TOOLS,
+            tool_choice="auto",
             temperature=0.7,
             max_tokens=3000,
         )
-        assistant_msg = response.choices[0].message.content
-        debug(f"[OpenAI Service] OpenAI response received, length={len(assistant_msg) if assistant_msg else 0}")
+
+        # Tool-calling loop: handle tool calls until we get a text response
+        max_iterations = 5
+        iteration = 0
+
+        while response.choices[0].message.tool_calls and iteration < max_iterations:
+            iteration += 1
+            assistant_message = response.choices[0].message
+            messages.append(assistant_message)
+
+            for tool_call in assistant_message.tool_calls:
+                tool_name = tool_call.function.name
+                tool_args = _json.loads(tool_call.function.arguments)
+
+                logger.info(f"[AI Tool Call] {tool_name}({tool_args})")
+
+                result = await _execute_tool(
+                    tool_name, tool_args, farm_id,
+                    user_context or {"id": sender_id, "role": "farm_owner"}
+                )
+
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
+                    "content": result,
+                })
+
+            # Call OpenAI again with tool results
+            response = await _get_openai().chat.completions.create(
+                model=get_settings().OPENAI_MODEL,
+                messages=messages,
+                tools=DEVICE_CONTROL_TOOLS,
+                tool_choice="auto",
+                temperature=0.7,
+                max_tokens=3000,
+            )
+
+        assistant_msg = response.choices[0].message.content or ""
+        debug(f"[OpenAI Service] OpenAI response received, length={len(assistant_msg)}")
     except Exception as e:
         import traceback
         logger.error("OpenAI API error", error=str(e), traceback=traceback.format_exc())

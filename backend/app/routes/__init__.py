@@ -8,3 +8,5 @@ from app.routes.farm_routes import router as farm_router
 from app.routes.conversation_routes import router as conversation_router
 from app.routes.zone_routes import router as zone_router
 from app.routes.infrastructure_routes import router as infrastructure_router
+from app.routes.device_control_routes import router as device_control_router
+from app.routes.anomaly_routes import router as anomaly_router

@@ -58,6 +58,8 @@ async def chat(request: ChatRequest, user=Depends(get_current_user)):
             conversation_id=conv_id,
             user_message=request.message,
             sender_id=user["id"],
+            channel="web",
+            user_context=user,
         )
         return {"response": reply, "conversation_id": conv_id}
     except Exception as e:

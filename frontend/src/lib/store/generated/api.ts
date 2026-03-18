@@ -81,6 +81,15 @@ const injectedRtkApi = api.injectEndpoints({
         method: "PUT",
       }),
     }),
+    seedIotDevicesApiAdminSeedDevicesFarmIdPost: build.mutation<
+      SeedIotDevicesApiAdminSeedDevicesFarmIdPostApiResponse,
+      SeedIotDevicesApiAdminSeedDevicesFarmIdPostApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/admin/seed-devices/${queryArg.farmId}`,
+        method: "POST",
+      }),
+    }),
     sendMessageApiWhatsappSendPost: build.mutation<
       SendMessageApiWhatsappSendPostApiResponse,
       SendMessageApiWhatsappSendPostApiArg
@@ -119,6 +128,12 @@ const injectedRtkApi = api.injectEndpoints({
         method: "POST",
         body: queryArg.whatsAppAlert,
       }),
+    }),
+    whatsappWebhookApiWhatsappWebhookPost: build.mutation<
+      WhatsappWebhookApiWhatsappWebhookPostApiResponse,
+      WhatsappWebhookApiWhatsappWebhookPostApiArg
+    >({
+      query: () => ({ url: `/api/whatsapp/webhook`, method: "POST" }),
     }),
     createReadingApiIotReadingsPost: build.mutation<
       CreateReadingApiIotReadingsPostApiResponse,
@@ -906,6 +921,86 @@ const injectedRtkApi = api.injectEndpoints({
     >({
       query: () => ({ url: `/api/infrastructure/map` }),
     }),
+    controlZoneApiControlZoneZoneIdPost: build.mutation<
+      ControlZoneApiControlZoneZoneIdPostApiResponse,
+      ControlZoneApiControlZoneZoneIdPostApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/control/zone/${queryArg.zoneId}`,
+        method: "POST",
+        body: queryArg.zoneControlRequest,
+      }),
+    }),
+    controlDeviceApiControlDeviceDeviceIdPost: build.mutation<
+      ControlDeviceApiControlDeviceDeviceIdPostApiResponse,
+      ControlDeviceApiControlDeviceDeviceIdPostApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/control/device/${queryArg.deviceId}`,
+        method: "POST",
+        body: queryArg.deviceCommandCreate,
+      }),
+    }),
+    setOverrideApiControlZoneZoneIdOverridePost: build.mutation<
+      SetOverrideApiControlZoneZoneIdOverridePostApiResponse,
+      SetOverrideApiControlZoneZoneIdOverridePostApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/control/zone/${queryArg.zoneId}/override`,
+        method: "POST",
+        body: queryArg.manualOverrideRequest,
+      }),
+    }),
+    getStatesApiControlStatesGet: build.query<
+      GetStatesApiControlStatesGetApiResponse,
+      GetStatesApiControlStatesGetApiArg
+    >({
+      query: () => ({ url: `/api/control/states` }),
+    }),
+    getHistoryApiControlHistoryGet: build.query<
+      GetHistoryApiControlHistoryGetApiResponse,
+      GetHistoryApiControlHistoryGetApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/control/history`,
+        params: {
+          limit: queryArg.limit,
+          offset: queryArg.offset,
+        },
+      }),
+    }),
+    anomalyDashboardApiAnomaliesDashboardGet: build.query<
+      AnomalyDashboardApiAnomaliesDashboardGetApiResponse,
+      AnomalyDashboardApiAnomaliesDashboardGetApiArg
+    >({
+      query: () => ({ url: `/api/anomalies/dashboard` }),
+    }),
+    listAnomaliesApiAnomaliesGet: build.query<
+      ListAnomaliesApiAnomaliesGetApiResponse,
+      ListAnomaliesApiAnomaliesGetApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/anomalies/`,
+        params: {
+          anomaly_type: queryArg.anomalyType,
+          severity: queryArg.severity,
+          zone_id: queryArg.zoneId,
+          acknowledged: queryArg.acknowledged,
+          limit: queryArg.limit,
+          offset: queryArg.offset,
+        },
+      }),
+    }),
+    acknowledgeApiAnomaliesAcknowledgePost: build.mutation<
+      AcknowledgeApiAnomaliesAcknowledgePostApiResponse,
+      AcknowledgeApiAnomaliesAcknowledgePostApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/anomalies/acknowledge`,
+        method: "POST",
+        body: queryArg.anomalyAcknowledge,
+      }),
+    }),
     rootGet: build.query<RootGetApiResponse, RootGetApiArg>({
       query: () => ({ url: `/` }),
     }),
@@ -944,6 +1039,41 @@ const injectedRtkApi = api.injectEndpoints({
       DashboardDashboardGetApiArg
     >({
       query: () => ({ url: `/dashboard` }),
+    }),
+    debugStatusApiDebugStatusGet: build.query<
+      DebugStatusApiDebugStatusGetApiResponse,
+      DebugStatusApiDebugStatusGetApiArg
+    >({
+      query: () => ({ url: `/api/debug/status` }),
+    }),
+    debugToggleApiDebugTogglePost: build.mutation<
+      DebugToggleApiDebugTogglePostApiResponse,
+      DebugToggleApiDebugTogglePostApiArg
+    >({
+      query: () => ({ url: `/api/debug/toggle`, method: "POST" }),
+    }),
+    debugEnableApiDebugEnablePost: build.mutation<
+      DebugEnableApiDebugEnablePostApiResponse,
+      DebugEnableApiDebugEnablePostApiArg
+    >({
+      query: () => ({ url: `/api/debug/enable`, method: "POST" }),
+    }),
+    debugDisableApiDebugDisablePost: build.mutation<
+      DebugDisableApiDebugDisablePostApiResponse,
+      DebugDisableApiDebugDisablePostApiArg
+    >({
+      query: () => ({ url: `/api/debug/disable`, method: "POST" }),
+    }),
+    debugLogsApiDebugLogsGet: build.query<
+      DebugLogsApiDebugLogsGetApiResponse,
+      DebugLogsApiDebugLogsGetApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/debug/logs`,
+        params: {
+          max_lines: queryArg.maxLines,
+        },
+      }),
     }),
     getLatestApiLatestGet: build.query<
       GetLatestApiLatestGetApiResponse,
@@ -1004,6 +1134,11 @@ export type ToggleOwnerActiveApiAdminOwnersOwnerIdToggleActivePutApiResponse =
 export type ToggleOwnerActiveApiAdminOwnersOwnerIdToggleActivePutApiArg = {
   ownerId: string;
 };
+export type SeedIotDevicesApiAdminSeedDevicesFarmIdPostApiResponse =
+  /** status 201 Successful Response */ any;
+export type SeedIotDevicesApiAdminSeedDevicesFarmIdPostApiArg = {
+  farmId: string;
+};
 export type SendMessageApiWhatsappSendPostApiResponse =
   /** status 200 Successful Response */ WhatsAppMessageResponse;
 export type SendMessageApiWhatsappSendPostApiArg = {
@@ -1024,6 +1159,9 @@ export type SendAlertApiWhatsappAlertPostApiResponse =
 export type SendAlertApiWhatsappAlertPostApiArg = {
   whatsAppAlert: WhatsAppAlert;
 };
+export type WhatsappWebhookApiWhatsappWebhookPostApiResponse =
+  /** status 200 Successful Response */ any;
+export type WhatsappWebhookApiWhatsappWebhookPostApiArg = void;
 export type CreateReadingApiIotReadingsPostApiResponse =
   /** status 200 Successful Response */ {
     [key: string]: any;
@@ -1493,6 +1631,51 @@ export type DeleteDeviceApiInfrastructureDevicesDeviceIdDeleteApiArg = {
 export type GetMapDataApiInfrastructureMapGetApiResponse =
   /** status 200 Successful Response */ InfrastructureMapResponse;
 export type GetMapDataApiInfrastructureMapGetApiArg = void;
+export type ControlZoneApiControlZoneZoneIdPostApiResponse =
+  /** status 200 Successful Response */ DeviceCommandResponse;
+export type ControlZoneApiControlZoneZoneIdPostApiArg = {
+  zoneId: string;
+  zoneControlRequest: ZoneControlRequest;
+};
+export type ControlDeviceApiControlDeviceDeviceIdPostApiResponse =
+  /** status 200 Successful Response */ DeviceCommandResponse;
+export type ControlDeviceApiControlDeviceDeviceIdPostApiArg = {
+  deviceId: string;
+  deviceCommandCreate: DeviceCommandCreate;
+};
+export type SetOverrideApiControlZoneZoneIdOverridePostApiResponse =
+  /** status 200 Successful Response */ any;
+export type SetOverrideApiControlZoneZoneIdOverridePostApiArg = {
+  zoneId: string;
+  manualOverrideRequest: ManualOverrideRequest;
+};
+export type GetStatesApiControlStatesGetApiResponse =
+  /** status 200 Successful Response */ FarmControlStates;
+export type GetStatesApiControlStatesGetApiArg = void;
+export type GetHistoryApiControlHistoryGetApiResponse =
+  /** status 200 Successful Response */ CommandHistoryResponse;
+export type GetHistoryApiControlHistoryGetApiArg = {
+  limit?: number;
+  offset?: number;
+};
+export type AnomalyDashboardApiAnomaliesDashboardGetApiResponse =
+  /** status 200 Successful Response */ any;
+export type AnomalyDashboardApiAnomaliesDashboardGetApiArg = void;
+export type ListAnomaliesApiAnomaliesGetApiResponse =
+  /** status 200 Successful Response */ any;
+export type ListAnomaliesApiAnomaliesGetApiArg = {
+  anomalyType?: string | null;
+  severity?: string | null;
+  zoneId?: string | null;
+  acknowledged?: boolean | null;
+  limit?: number;
+  offset?: number;
+};
+export type AcknowledgeApiAnomaliesAcknowledgePostApiResponse =
+  /** status 200 Successful Response */ any;
+export type AcknowledgeApiAnomaliesAcknowledgePostApiArg = {
+  anomalyAcknowledge: AnomalyAcknowledge;
+};
 export type RootGetApiResponse = /** status 200 Successful Response */ any;
 export type RootGetApiArg = void;
 export type HealthCheckHealthGetApiResponse =
@@ -1509,6 +1692,23 @@ export type UsersPageUsersGetApiResponse = unknown;
 export type UsersPageUsersGetApiArg = void;
 export type DashboardDashboardGetApiResponse = unknown;
 export type DashboardDashboardGetApiArg = void;
+export type DebugStatusApiDebugStatusGetApiResponse =
+  /** status 200 Successful Response */ any;
+export type DebugStatusApiDebugStatusGetApiArg = void;
+export type DebugToggleApiDebugTogglePostApiResponse =
+  /** status 200 Successful Response */ any;
+export type DebugToggleApiDebugTogglePostApiArg = void;
+export type DebugEnableApiDebugEnablePostApiResponse =
+  /** status 200 Successful Response */ any;
+export type DebugEnableApiDebugEnablePostApiArg = void;
+export type DebugDisableApiDebugDisablePostApiResponse =
+  /** status 200 Successful Response */ any;
+export type DebugDisableApiDebugDisablePostApiArg = void;
+export type DebugLogsApiDebugLogsGetApiResponse =
+  /** status 200 Successful Response */ any;
+export type DebugLogsApiDebugLogsGetApiArg = {
+  maxLines?: number;
+};
 export type GetLatestApiLatestGetApiResponse =
   /** status 200 Successful Response */ any;
 export type GetLatestApiLatestGetApiArg = void;
@@ -1913,13 +2113,13 @@ export type ZoneResponse2 = {
   farm_id: string;
   zone_number: number;
   name: string;
-  area_hectares: number | null;
-  geometry: {
+  area_hectares?: number | null;
+  geometry?: {
     [key: string]: any;
   } | null;
-  center_latitude: number | null;
-  center_longitude: number | null;
-  is_active: boolean;
+  center_latitude?: number | null;
+  center_longitude?: number | null;
+  is_active?: boolean;
 };
 export type ZoneCreate2 = {
   zone_number: number;
@@ -1944,11 +2144,11 @@ export type ReservoirResponse = {
   id: string;
   farm_id: string;
   name: string;
-  capacity_liters: number;
-  current_level_pct: number;
-  latitude: number | null;
-  longitude: number | null;
-  is_active: boolean;
+  capacity_liters?: number;
+  current_level_pct?: number;
+  latitude?: number | null;
+  longitude?: number | null;
+  is_active?: boolean;
 };
 export type ReservoirCreate = {
   name: string;
@@ -1966,17 +2166,17 @@ export type PipeResponse = {
   id: string;
   farm_id: string;
   name: string;
-  pipe_type: string;
-  diameter_mm: number | null;
-  length_meters: number | null;
-  from_latitude: number | null;
-  from_longitude: number | null;
-  to_latitude: number | null;
-  to_longitude: number | null;
-  from_zone_id: string | null;
-  to_zone_id: string | null;
-  from_reservoir_id: string | null;
-  is_active: boolean;
+  pipe_type?: string;
+  diameter_mm?: number | null;
+  length_meters?: number | null;
+  from_latitude?: number | null;
+  from_longitude?: number | null;
+  to_latitude?: number | null;
+  to_longitude?: number | null;
+  from_zone_id?: string | null;
+  to_zone_id?: string | null;
+  from_reservoir_id?: string | null;
+  is_active?: boolean;
 };
 export type PipeCreate = {
   name: string;
@@ -2005,19 +2205,20 @@ export type IoTDeviceResponse = {
   id: string;
   farm_id: string;
   device_type: string;
-  name: string;
-  model: string | null;
-  serial_number: string | null;
-  mac_address: string | null;
-  ip_address: string | null;
-  latitude: number | null;
-  longitude: number | null;
-  zone_id: string | null;
-  reservoir_id: string | null;
-  status: string;
-  last_reading_at: string | null;
-  last_battery_pct: number | null;
-  is_active: boolean;
+  name?: string | null;
+  device_id?: string | null;
+  model?: string | null;
+  serial_number?: string | null;
+  mac_address?: string | null;
+  ip_address?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  zone_id?: string | null;
+  reservoir_id?: string | null;
+  status?: string;
+  last_reading_at?: string | null;
+  last_battery_pct?: number | null;
+  is_active?: boolean;
 };
 export type IoTDeviceCreate = {
   device_type: string;
@@ -2049,6 +2250,55 @@ export type InfrastructureMapResponse = {
   pipes: PipeResponse[];
   devices: IoTDeviceResponse[];
 };
+export type DeviceCommandResponse = {
+  id: string;
+  farm_id: string;
+  zone_id?: string | null;
+  device_id?: string | null;
+  command_type: string;
+  target_type: string;
+  status: string;
+  source: string;
+  created_at: string;
+  executed_at?: string | null;
+  result?: {
+    [key: string]: any;
+  };
+};
+export type ZoneControlRequest = {
+  action: "start_irrigation" | "stop_irrigation";
+  duration_minutes?: number | null;
+};
+export type DeviceCommandCreate = {
+  command_type: "valve_open" | "valve_close" | "pump_start" | "pump_stop";
+  parameters?: {
+    [key: string]: any;
+  } | null;
+};
+export type ManualOverrideRequest = {
+  enabled: boolean;
+};
+export type ZoneControlState = {
+  zone_id: string;
+  zone_number: number;
+  zone_name: string;
+  valve_open: boolean;
+  mode: "auto" | "manual";
+  irrigation_active: boolean;
+};
+export type FarmControlStates = {
+  zones: ZoneControlState[];
+  pump_active: boolean;
+  reservoir_level_pct: number;
+  filter_status: number;
+};
+export type CommandHistoryResponse = {
+  commands: DeviceCommandResponse[];
+  total: number;
+};
+export type AnomalyAcknowledge = {
+  anomaly_ids: string[];
+};
 export const {
   useDebugUserApiAuthDebugUserUsernameGetQuery,
   useSignInApiAuthSigninPostMutation,
@@ -2060,10 +2310,12 @@ export const {
   useGetOwnerDetailApiAdminOwnersOwnerIdGetQuery,
   useDeleteOwnerApiAdminOwnersOwnerIdDeleteMutation,
   useToggleOwnerActiveApiAdminOwnersOwnerIdToggleActivePutMutation,
+  useSeedIotDevicesApiAdminSeedDevicesFarmIdPostMutation,
   useSendMessageApiWhatsappSendPostMutation,
   useGetMessagesApiWhatsappMessagesGetQuery,
   useGetDeviceStatusApiWhatsappStatusGetQuery,
   useSendAlertApiWhatsappAlertPostMutation,
+  useWhatsappWebhookApiWhatsappWebhookPostMutation,
   useCreateReadingApiIotReadingsPostMutation,
   useGetReadingsApiIotReadingsGetQuery,
   useCreateBatchApiIotReadingsBatchPostMutation,
@@ -2145,6 +2397,14 @@ export const {
   useUpdateDeviceApiInfrastructureDevicesDeviceIdPutMutation,
   useDeleteDeviceApiInfrastructureDevicesDeviceIdDeleteMutation,
   useGetMapDataApiInfrastructureMapGetQuery,
+  useControlZoneApiControlZoneZoneIdPostMutation,
+  useControlDeviceApiControlDeviceDeviceIdPostMutation,
+  useSetOverrideApiControlZoneZoneIdOverridePostMutation,
+  useGetStatesApiControlStatesGetQuery,
+  useGetHistoryApiControlHistoryGetQuery,
+  useAnomalyDashboardApiAnomaliesDashboardGetQuery,
+  useListAnomaliesApiAnomaliesGetQuery,
+  useAcknowledgeApiAnomaliesAcknowledgePostMutation,
   useRootGetQuery,
   useHealthCheckHealthGetQuery,
   useDashboardLoginDashboardLoginGetQuery,
@@ -2152,6 +2412,11 @@ export const {
   useLoginPageLoginGetQuery,
   useUsersPageUsersGetQuery,
   useDashboardDashboardGetQuery,
+  useDebugStatusApiDebugStatusGetQuery,
+  useDebugToggleApiDebugTogglePostMutation,
+  useDebugEnableApiDebugEnablePostMutation,
+  useDebugDisableApiDebugDisablePostMutation,
+  useDebugLogsApiDebugLogsGetQuery,
   useGetLatestApiLatestGetQuery,
   useSseEventsApiEventsGetQuery,
 } = injectedRtkApi;

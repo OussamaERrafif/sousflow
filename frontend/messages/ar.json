@@ -150,7 +150,10 @@
         "stress_score": "الإجهاد",
         "normal": "عادي",
         "warning": "تنبيه",
-        "critical": "حرج"
+        "critical": "حرج",
+        "manual_mode": "تحكم يدوي",
+        "switch_to_manual": "التبديل إلى الوضع اليدوي",
+        "switch_to_auto": "التبديل إلى الوضع التلقائي"
     },
     "DataViz": {
         "moisture_history": "تحليل الرطوبة (24 ساعة)"
@@ -201,6 +204,9 @@
         "suggestion2": "حالة الرطوبة في التربة",
         "suggestion3": "تحذيرات وآليات",
         "suggestion4": "نصائح للتحسين",
+        "cmd_start_irrigation": "ابدأ ري المنطقة 1",
+        "cmd_zone_status": "ما حالة جميع المناطق؟",
+        "cmd_check_anomalies": "هل يوجد شذوذ؟",
         "currentData": "البيانات الحالية",
         "connection": "الاتصال",
         "live": "مباشر",
@@ -222,5 +228,36 @@
         "newChat": "محادثة جديدة",
         "noConversations": "لا توجد محادثات سابقة",
         "confirmDelete": "هل تريد حذف هذه المحادثة؟"
+    },
+    "DeviceControl": {
+        "start_irrigation": "بدء الري",
+        "stop_irrigation": "إيقاف الري",
+        "manual_mode": "تحكم يدوي",
+        "auto_mode": "تلقائي",
+        "switch_to_manual": "التبديل إلى الوضع اليدوي",
+        "switch_to_auto": "التبديل إلى الوضع التلقائي",
+        "confirm_start": "هل تريد بدء الري في {zone}؟",
+        "confirm_stop": "هل تريد إيقاف الري في {zone}؟",
+        "duration_label": "المدة (دقائق، اختياري)",
+        "command_sent": "تم إرسال الأمر",
+        "command_failed": "فشل الأمر",
+        "cancel": "إلغاء"
+    },
+    "Anomalies": {
+        "title": "كشف الشذوذ",
+        "unacknowledged": "غير مؤكد",
+        "acknowledge": "تأكيد",
+        "acknowledge_all": "تأكيد الكل",
+        "severity_critical": "حرج",
+        "severity_high": "مرتفع",
+        "severity_medium": "متوسط",
+        "severity_low": "منخفض",
+        "type_z_score": "قيمة شاذة",
+        "type_sudden_change": "تغير مفاجئ",
+        "type_stuck_sensor": "مستشعر متوقف",
+        "type_drift": "انحراف تدريجي",
+        "type_correlation": "ارتباط متعدد",
+        "tab_alerts": "قواعد التنبيه",
+        "tab_anomalies": "كشف الشذوذ"
     }
 }
