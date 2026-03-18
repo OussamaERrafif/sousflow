@@ -24,12 +24,13 @@ class WhatsAppService:
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.api_key}" if self.api_key else "",
         }
+        logger.info(f"[WhatsApp Init] enabled={self.enabled}, api_url={self.api_url}, device_id={self.device_id}, api_key_set={bool(self.api_key)}")
 
     async def send_message(self, phone: str, message: str) -> Dict[str, Any]:
         """Send a text message via WhatsApp using WaSenderAPI"""
-        debug(f"[WhatsApp Service] Sending message to {phone}, msg_len={len(message)}")
+        logger.info(f"[WA SEND] Attempting to send to {phone}, enabled={self.enabled}, api_url={self.api_url}, msg_len={len(message)}")
         if not self.enabled:
-            debug("[WhatsApp Service] WhatsApp is disabled")
+            logger.warning(f"[WA SEND] DISABLED — not sending to {phone}")
             return {
                 "success": False,
                 "status": "disabled",
@@ -41,14 +42,18 @@ class WhatsAppService:
             "text": message,
         }
 
+        url = f"{self.api_url}/api/send-message"
+        logger.info(f"[WA SEND] POST {url} | to={phone}")
+
         async with httpx.AsyncClient() as client:
             try:
                 response = await client.post(
-                    f"{self.api_url}/api/send-message",
+                    url,
                     json=payload,
                     headers=self.headers,
                     timeout=30.0,
                 )
+                logger.info(f"[WA SEND] Response: status={response.status_code}, body={response.text[:500]}")
                 response.raise_for_status()
                 result = response.json()
 
@@ -66,21 +71,21 @@ class WhatsAppService:
                     external_id=msg_id,
                 )
 
-                logger.info(f"WhatsApp message sent to {phone}")
+                logger.info(f"[WA SEND] SUCCESS to {phone}, msg_id={msg_id}")
                 return {
                     "success": True,
                     "message_id": msg_id,
                     "status": "sent",
                 }
             except httpx.HTTPStatusError as e:
-                logger.error(f"WaSenderAPI error: {e.response.status_code} - {e.response.text}")
+                logger.error(f"[WA SEND] HTTP ERROR: {e.response.status_code} - {e.response.text}")
                 return {
                     "success": False,
                     "status": "failed",
                     "detail": f"API error: {e.response.status_code}",
                 }
             except Exception as e:
-                logger.error(f"WhatsApp send error: {e}")
+                logger.error(f"[WA SEND] EXCEPTION: {type(e).__name__}: {e}")
                 return {
                     "success": False,
                     "status": "error",
@@ -190,7 +195,7 @@ class WhatsAppService:
         3. If connected → route to OpenAI with farm context
         """
         try:
-            debug(f"[WhatsApp AI] Incoming from {sender_phone}: {message_body}")
+            logger.info(f"[WA AI] >>> Incoming from {sender_phone}: {message_body[:100]}")
 
             # Log inbound message
             await self._log_message(
@@ -202,6 +207,7 @@ class WhatsAppService:
 
             # Get or create AI session for this phone
             session = await self._get_ai_session(sender_phone)
+            logger.info(f"[WA AI] Session for {sender_phone}: {session}")
 
             if session is None:
                 # New user — create session, ask for farm name
@@ -227,7 +233,8 @@ class WhatsAppService:
                     "من فضلك، أخبرني باسم مزرعتك.\n_Quel est le nom de votre ferme?_"
                 )
         except Exception as e:
-            logger.error(f"[WhatsApp AI] Error handling message from {sender_phone}: {e}", exc_info=True)
+            import traceback
+            logger.error(f"[WA AI] ERROR from {sender_phone}: {type(e).__name__}: {e}\n{traceback.format_exc()}")
             try:
                 await self.send_message(
                     sender_phone,
@@ -243,6 +250,7 @@ class WhatsAppService:
 
         # Search for farm by name (case-insensitive via ilike)
         result = supabase.table("farms").select("id, name, owner_id").ilike("name", f"%{farm_name_clean}%").execute()
+        logger.info(f"[WA AI] Farm lookup for '{farm_name_clean}': found {len(result.data)} results: {result.data}")
 
         if not result.data:
             await self.send_message(

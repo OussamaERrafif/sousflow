@@ -106,27 +106,31 @@ async def whatsapp_webhook(request: Request):
         raise HTTPException(status_code=400, detail="Invalid JSON")
 
     event = payload.get("event", "")
-    debug(f"[WhatsApp Webhook] Event: {event}")
+    logger.info(f"[WA WEBHOOK] Event: {event}, payload keys: {list(payload.keys())}")
 
     # Only process personal received messages
     if event not in ("messages.received", "messages-personal.received", "messages.upsert"):
+        logger.info(f"[WA WEBHOOK] Ignoring event: {event}")
         return {"status": "ignored", "event": event}
 
     # Extract message data
     messages_data = payload.get("data", {}).get("messages")
     if not messages_data:
+        logger.warning("[WA WEBHOOK] No messages data in payload")
         return {"status": "no_message_data"}
 
     key = messages_data.get("key", {})
+    logger.info(f"[WA WEBHOOK] Key: {key}")
 
     # Skip messages sent by us
     if key.get("fromMe", False):
+        logger.info("[WA WEBHOOK] Skipping own message")
         return {"status": "skipped_own_message"}
 
     # Get sender phone number
     sender_phone = key.get("cleanedSenderPn") or key.get("cleanedParticipantPn")
     if not sender_phone:
-        logger.warning("WhatsApp webhook: no sender phone number found")
+        logger.warning(f"[WA WEBHOOK] No sender phone. Full key: {key}")
         return {"status": "no_sender"}
 
     # Normalize to E.164 format
@@ -136,12 +140,14 @@ async def whatsapp_webhook(request: Request):
     # Get message text
     message_body = messages_data.get("messageBody", "").strip()
     if not message_body:
+        logger.info(f"[WA WEBHOOK] No text content from {sender_phone}")
         return {"status": "no_text_content"}
 
-    debug(f"[WhatsApp Webhook] Message from {sender_phone}: {message_body[:100]}")
+    logger.info(f"[WA WEBHOOK] Processing: from={sender_phone}, msg={message_body[:100]}")
 
     # Process asynchronously so we respond 200 quickly
     service = get_whatsapp_service()
+    logger.info(f"[WA WEBHOOK] Service enabled={service.enabled}, api_url={service.api_url}")
     asyncio.create_task(service.handle_incoming_message(sender_phone, message_body))
 
     return {"status": "ok"}
