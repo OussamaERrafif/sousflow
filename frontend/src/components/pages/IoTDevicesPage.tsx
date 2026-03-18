@@ -49,7 +49,15 @@ const deviceTypeLabels: Record<string, string> = {
     battery: "Battery",
 };
 
-const statusConfig = {
+type StatusKey = "online" | "offline" | "error" | "maintenance";
+
+const statusConfig: Record<StatusKey, {
+    color: string;
+    text: string;
+    bg: string;
+    border: string;
+    icon: React.ComponentType<{ className?: string }>;
+}> = {
     online: {
         color: "bg-emerald-500",
         text: "text-emerald-700",
@@ -91,7 +99,7 @@ export default function IoTDevicesPage() {
     const { data: devices, isLoading, error } = useListDevicesApiInfrastructureDevicesGetQuery(
         {
             status: filterStatus || undefined,
-            device_type: filterType || undefined,
+            deviceType: filterType || undefined,
         },
         { skip: !activeFarmId }
     );
@@ -158,7 +166,7 @@ export default function IoTDevicesPage() {
         if (!newDevice.name || !activeFarmId) return;
         try {
             await createDevice({
-                iotDevice: newDevice,
+                ioTDeviceCreate: newDevice,
             });
             setNewDevice({
                 device_type: "flow_meter",
@@ -178,7 +186,7 @@ export default function IoTDevicesPage() {
         try {
             await updateDevice({
                 deviceId: device.id,
-                iotDevice: { status: newStatus },
+                ioTDeviceUpdate: { status: newStatus },
             });
         } catch (err) {
             console.error("Failed to update device:", err);
@@ -353,7 +361,7 @@ export default function IoTDevicesPage() {
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {filteredDevices.map((device: any) => {
-                        const config = statusConfig[device.status] || statusConfig.offline;
+                        const config = statusConfig[device.status as StatusKey] || statusConfig.offline;
                         const StatusIcon = config.icon;
                         const DeviceIcon = deviceTypeIcons[device.device_type] || Activity;
 

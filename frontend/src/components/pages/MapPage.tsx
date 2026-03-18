@@ -31,7 +31,7 @@ export default function MapPage() {
     const [showAddPipe, setShowAddPipe] = useState(false);
 
     const { data: mapData, isLoading, error } = useGetMapDataApiInfrastructureMapGetQuery(
-        {},
+        undefined,
         { skip: !activeFarmId }
     );
 
@@ -127,7 +127,7 @@ export default function MapPage() {
         if (!newZoneName || !activeFarmId) return;
         try {
             await createZone({
-                zone: {
+                appRoutesInfrastructureRoutesZoneCreate: {
                     zone_number: zones.length + 1,
                     name: newZoneName,
                 },
@@ -143,7 +143,7 @@ export default function MapPage() {
         if (!newReservoirName || !activeFarmId) return;
         try {
             await createReservoir({
-                reservoir: {
+                reservoirCreate: {
                     name: newReservoirName,
                 },
             });
@@ -158,7 +158,7 @@ export default function MapPage() {
         if (!newPipeName || !activeFarmId) return;
         try {
             await createPipe({
-                pipe: {
+                pipeCreate: {
                     name: newPipeName,
                     pipe_type: "main",
                 },
