@@ -4,6 +4,7 @@ Provides conversational AI with awareness of the full IoT dataset schema,
 olive cultivation best practices, and Souss-Massa region context.
 """
 from datetime import datetime, timezone
+from typing import Optional
 from app.supabase_client import get_supabase_admin
 from app.config import get_settings
 from app.logging_config import logger, debug, debug_service_call
@@ -131,6 +132,14 @@ Use rich markdown in your answers:
 - `inline code` for sensor field names
 - > Blockquotes for important warnings or tips
 - ### Headings to organize sections
+
+## Chart Offer
+When your response contains numerical data that could be visualized (sensor values, zone comparisons, trends, percentages), add a short question at the very end asking the user if they want a chart. Match the user's language:
+- Arabic: "📊 _هل تريد رسم بياني لهذه البيانات؟_"
+- French: "📊 _Voulez-vous un graphique de ces données ?_"
+- English: "📊 _Would you like a chart of this data?_"
+
+Only ask this when there are at least 2 data points that make a chart meaningful. Do NOT ask if you already included an SVG chart in the response, or if the user explicitly asked for a chart (in that case, just include the SVG directly).
 """
 
 WHATSAPP_SYSTEM_PROMPT = _BASE_PROMPT + """
@@ -180,6 +189,48 @@ You are responding via WhatsApp. Use ONLY WhatsApp-compatible formatting:
 1. ابدأ ري المنطقة 3 فوراً
 2. المنطقة 1 تحتاج ري خلال ساعتين
 3. المنطقة 2 لا تحتاج ري حالياً
+
+## Chart Offer
+When your response contains numerical data that could be visualized (sensor values, zone comparisons, trends, percentages), add a short question at the very end asking the user if they want a chart. Match the user's language:
+- Arabic: "📊 _هل تريد رسم بياني لهذه البيانات؟_"
+- French: "📊 _Voulez-vous un graphique ?_"
+- English: "📊 _Would you like a chart?_"
+
+Only offer when there are at least 2 data points. Do NOT offer if the user explicitly asked for a chart.
+"""
+
+CHART_GENERATION_PROMPT = """You are a chart data generator. Given the conversation context, generate a Chart.js configuration as PURE JSON (no markdown, no code fences, no explanation — ONLY valid JSON).
+
+Use this structure:
+{
+  "type": "bar",
+  "data": {
+    "labels": ["Zone 1", "Zone 2", "Zone 3"],
+    "datasets": [{
+      "label": "Soil Moisture (%)",
+      "data": [42, 55, 29],
+      "backgroundColor": ["#10B981", "#10B981", "#EF4444"]
+    }]
+  },
+  "options": {
+    "plugins": {
+      "title": { "display": true, "text": "Zone Soil Moisture" }
+    },
+    "scales": {
+      "y": { "beginAtZero": true }
+    }
+  }
+}
+
+Rules:
+- Chart types: "bar", "line", "doughnut", "pie" — pick the best for the data
+- Use these colors: good=#10B981, warning=#F59E0B, critical=#EF4444, primary=#C17A3A
+- For bar charts comparing zones: color bars based on value (green=good, yellow=warning, red=critical)
+- For line charts: use primary color #C17A3A for the line
+- Keep it simple — one or two datasets max
+- Title should be in the same language as the conversation
+- Use the ACTUAL sensor values from the conversation context, not placeholder data
+- Output ONLY the JSON object, nothing else
 """
 
 
@@ -260,6 +311,52 @@ async def chat(farm_id: str, conversation_id: str, user_message: str, sender_id:
     }).eq("id", conversation_id).execute()
 
     return assistant_msg
+
+
+async def generate_chart_config(farm_id: str, conversation_id: str) -> Optional[dict]:
+    """Generate a Chart.js config based on recent conversation context and sensor data.
+    Returns parsed JSON dict or None on failure."""
+    import json as _json
+    supabase = get_supabase_admin()
+
+    # Load recent conversation for context
+    history_result = (
+        supabase.table("chat_messages")
+        .select("role,content")
+        .eq("conversation_id", conversation_id)
+        .order("created_at", desc=False)
+        .limit(10)
+        .execute()
+    )
+    history = history_result.data or []
+
+    sensor_context = await _get_sensor_context(farm_id)
+
+    messages = [{"role": "system", "content": CHART_GENERATION_PROMPT}]
+    if sensor_context:
+        messages.append({"role": "system", "content": f"[LIVE SENSOR DATA]\n{sensor_context}"})
+    for msg in history:
+        messages.append({"role": msg["role"], "content": msg["content"]})
+    messages.append({"role": "user", "content": "Generate a chart based on the data discussed above."})
+
+    try:
+        response = await _get_openai().chat.completions.create(
+            model=get_settings().OPENAI_MODEL,
+            messages=messages,
+            temperature=0.3,
+            max_tokens=1000,
+        )
+        raw = response.choices[0].message.content.strip()
+        # Strip markdown code fences if present
+        if raw.startswith("```"):
+            raw = raw.split("\n", 1)[1] if "\n" in raw else raw[3:]
+            if raw.endswith("```"):
+                raw = raw[:-3]
+            raw = raw.strip()
+        return _json.loads(raw)
+    except Exception as e:
+        logger.error(f"Chart config generation failed: {e}")
+        return None
 
 
 async def get_history(conversation_id: str) -> list[dict]:

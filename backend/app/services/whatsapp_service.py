@@ -347,8 +347,14 @@ class WhatsAppService:
             f"_Connecté à {farm['name']}! Posez vos questions._"
         )
 
+    # Keywords that mean the user wants a chart
+    _CHART_KEYWORDS = {
+        "نعم", "أيوا", "اه", "رسم", "رسم بياني", "بياني", "chart", "graph",
+        "plot", "oui", "graphique", "yes", "yeah", "ok", "d'accord",
+    }
+
     async def _handle_ai_chat(self, phone: str, message: str, session: dict) -> None:
-        """Route message to OpenAI with farm context"""
+        """Route message to OpenAI with farm context, or generate chart if requested"""
         # Check for farm switch command
         msg_lower = message.strip().lower()
         if msg_lower in ("تغيير المزرعة", "changer ferme", "switch farm", "تغيير"):
@@ -361,6 +367,11 @@ class WhatsAppService:
 
         farm_id = session["farm_id"]
         conversation_id = session["conversation_id"]
+
+        # Check if user is requesting a chart
+        if self._is_chart_request(msg_lower):
+            await self._handle_chart_request(phone, farm_id, conversation_id)
+            return
 
         try:
             from app.services.openai_service import chat
@@ -386,6 +397,64 @@ class WhatsAppService:
                 phone,
                 "⚠️ عذراً، حدث خطأ. حاول مرة أخرى.\n_Erreur, réessayez._"
             )
+
+    def _is_chart_request(self, msg_lower: str) -> bool:
+        """Check if the message is a request for a chart"""
+        words = set(msg_lower.split())
+        return bool(words & self._CHART_KEYWORDS)
+
+    async def _handle_chart_request(self, phone: str, farm_id: str, conversation_id: str) -> None:
+        """Generate a chart image and send it via WhatsApp"""
+        import json as _json
+        from urllib.parse import quote
+
+        try:
+            from app.services.openai_service import generate_chart_config
+            config = await generate_chart_config(farm_id, conversation_id)
+
+            if not config:
+                await self.send_message(phone, "⚠️ لم أتمكن من إنشاء الرسم البياني. حاول مرة أخرى.\n_Impossible de générer le graphique._")
+                return
+
+            # Build QuickChart.io URL
+            chart_json = _json.dumps(config, ensure_ascii=False)
+            chart_url = f"https://quickchart.io/chart?c={quote(chart_json)}&w=600&h=400&bkg=white"
+
+            logger.info(f"[WA CHART] Sending chart to {phone}, url_len={len(chart_url)}")
+
+            # Send as image via WaSenderAPI
+            await self._send_image(phone, chart_url, "📊 SoussFlow Chart")
+
+        except Exception as e:
+            logger.error(f"WhatsApp chart error: {e}")
+            await self.send_message(phone, "⚠️ خطأ في إنشاء الرسم البياني.\n_Erreur lors de la génération du graphique._")
+
+    async def _send_image(self, phone: str, image_url: str, caption: str = "") -> Dict[str, Any]:
+        """Send an image via WaSenderAPI"""
+        if not self.enabled:
+            return {"success": False, "status": "disabled"}
+
+        payload = {
+            "to": phone,
+            "imageUrl": image_url,
+        }
+        if caption:
+            payload["text"] = caption
+
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.post(
+                    f"{self.api_url}/api/send-message",
+                    json=payload,
+                    headers=self.headers,
+                    timeout=30.0,
+                )
+                logger.info(f"[WA IMAGE] Response: {response.status_code} - {response.text[:300]}")
+                response.raise_for_status()
+                return {"success": True, "status": "sent"}
+            except Exception as e:
+                logger.error(f"[WA IMAGE] Error: {e}")
+                return {"success": False, "status": "error", "detail": str(e)}
 
     # ─── AI Session Management (Supabase) ────────────────────────
 
