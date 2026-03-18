@@ -2,7 +2,6 @@
 WhatsApp routes — send/receive messages via WaSenderAPI
 Includes webhook endpoint for incoming messages (AI assistant)
 """
-import asyncio
 from fastapi import APIRouter, Depends, HTTPException, Request, status, Query
 from typing import Optional
 from app.auth import get_current_user
@@ -145,9 +144,11 @@ async def whatsapp_webhook(request: Request):
 
     logger.info(f"[WA WEBHOOK] Processing: from={sender_phone}, msg={message_body[:100]}")
 
-    # Process asynchronously so we respond 200 quickly
+    # On Vercel serverless, background tasks get killed after response.
+    # Must await directly so the handler completes before we return.
     service = get_whatsapp_service()
     logger.info(f"[WA WEBHOOK] Service enabled={service.enabled}, api_url={service.api_url}")
-    asyncio.create_task(service.handle_incoming_message(sender_phone, message_body))
+    await service.handle_incoming_message(sender_phone, message_body)
 
+    logger.info(f"[WA WEBHOOK] Done processing message from {sender_phone}")
     return {"status": "ok"}
