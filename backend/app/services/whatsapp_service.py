@@ -189,42 +189,52 @@ class WhatsAppService:
         2. If awaiting farm name → look up farm, connect
         3. If connected → route to OpenAI with farm context
         """
-        debug(f"[WhatsApp AI] Incoming from {sender_phone}: {message_body}")
+        try:
+            debug(f"[WhatsApp AI] Incoming from {sender_phone}: {message_body}")
 
-        # Log inbound message
-        await self._log_message(
-            phone=sender_phone,
-            message=message_body,
-            direction="inbound",
-            status="received",
-        )
-
-        # Get or create AI session for this phone
-        session = await self._get_ai_session(sender_phone)
-
-        if session is None:
-            # New user — create session, ask for farm name
-            await self._create_ai_session(sender_phone)
-            await self.send_message(
-                sender_phone,
-                "🌿 *مرحبا بك في SoussFlow!*\n\n"
-                "أنا مساعدك الذكي لإدارة الري.\n"
-                "من فضلك، أخبرني باسم مزرعتك للبدء.\n\n"
-                "🇫🇷 _Bienvenue sur SoussFlow! Quel est le nom de votre ferme?_"
+            # Log inbound message
+            await self._log_message(
+                phone=sender_phone,
+                message=message_body,
+                direction="inbound",
+                status="received",
             )
-        elif session["state"] == "awaiting_farm_name":
-            # User is responding with farm name
-            await self._handle_farm_lookup(sender_phone, message_body, session)
-        elif session["state"] == "connected":
-            # User is connected — route to AI
-            await self._handle_ai_chat(sender_phone, message_body, session)
-        else:
-            # Unknown state — reset
-            await self._update_ai_session(session["id"], state="awaiting_farm_name", farm_id=None, conversation_id=None)
-            await self.send_message(
-                sender_phone,
-                "من فضلك، أخبرني باسم مزرعتك.\n_Quel est le nom de votre ferme?_"
-            )
+
+            # Get or create AI session for this phone
+            session = await self._get_ai_session(sender_phone)
+
+            if session is None:
+                # New user — create session, ask for farm name
+                await self._create_ai_session(sender_phone)
+                await self.send_message(
+                    sender_phone,
+                    "🌿 *مرحبا بك في SoussFlow!*\n\n"
+                    "أنا مساعدك الذكي لإدارة الري.\n"
+                    "من فضلك، أخبرني باسم مزرعتك للبدء.\n\n"
+                    "🇫🇷 _Bienvenue sur SoussFlow! Quel est le nom de votre ferme?_"
+                )
+            elif session["state"] == "awaiting_farm_name":
+                # User is responding with farm name
+                await self._handle_farm_lookup(sender_phone, message_body, session)
+            elif session["state"] == "connected":
+                # User is connected — route to AI
+                await self._handle_ai_chat(sender_phone, message_body, session)
+            else:
+                # Unknown state — reset
+                await self._update_ai_session(session["id"], state="awaiting_farm_name", farm_id=None, conversation_id=None)
+                await self.send_message(
+                    sender_phone,
+                    "من فضلك، أخبرني باسم مزرعتك.\n_Quel est le nom de votre ferme?_"
+                )
+        except Exception as e:
+            logger.error(f"[WhatsApp AI] Error handling message from {sender_phone}: {e}", exc_info=True)
+            try:
+                await self.send_message(
+                    sender_phone,
+                    "⚠️ عذراً، حدث خطأ. حاول مرة أخرى.\n_Erreur, réessayez._"
+                )
+            except Exception:
+                pass
 
     async def _handle_farm_lookup(self, phone: str, farm_name: str, session: dict) -> None:
         """Look up farm by name and connect the user"""
@@ -232,7 +242,7 @@ class WhatsAppService:
         farm_name_clean = farm_name.strip()
 
         # Search for farm by name (case-insensitive via ilike)
-        result = supabase.table("farms").select("id, name").ilike("name", f"%{farm_name_clean}%").execute()
+        result = supabase.table("farms").select("id, name, owner_id").ilike("name", f"%{farm_name_clean}%").execute()
 
         if not result.data:
             await self.send_message(
@@ -258,7 +268,9 @@ class WhatsAppService:
         farm_id = farm["id"]
 
         # Create a conversation for this WhatsApp session
+        # user_id is required — use the farm owner as the conversation owner
         conv_result = supabase.table("conversations").insert({
+            "user_id": farm["owner_id"],
             "farm_id": farm_id,
             "title": f"WhatsApp - {phone}",
         }).execute()
