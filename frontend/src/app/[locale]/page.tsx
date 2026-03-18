@@ -27,7 +27,7 @@ export default function Dashboard() {
   const router = useRouter();
   const dispatch = useAppDispatch();
   const { isAuthenticated, role } = useAppSelector((state) => state.auth);
-  const { data: profile } = useGetProfileApiAuthProfileGetQuery({}, { skip: !isAuthenticated });
+  const { data: profile } = useGetProfileApiAuthProfileGetQuery(undefined, { skip: !isAuthenticated });
   useSSE();
   const [mounted, setMounted] = useState(false);
 
