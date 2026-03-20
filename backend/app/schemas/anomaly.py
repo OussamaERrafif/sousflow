@@ -38,3 +38,12 @@ class AnomalyFilters(BaseModel):
     acknowledged: Optional[bool] = None
     limit: int = 50
     offset: int = 0
+
+
+class AnomalyInjectRequest(BaseModel):
+    """Request to inject an anomaly for a farm (admin/testing)."""
+    anomaly_type: str  # low_soil_moisture, irrigation_failure, sensor_error, sensor_fault, pipe_burst, pressure_drop, flow_spike
+    severity: str = "medium"  # low, medium, high, critical
+    zone_id: Optional[str] = None  # zone UUID (optional, for zone-specific anomalies)
+    details: Optional[str] = None  # optional extra details
+    send_alerts: bool = True  # whether to send WhatsApp alerts to farm users

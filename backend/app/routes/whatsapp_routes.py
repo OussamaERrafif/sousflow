@@ -3,6 +3,7 @@ WhatsApp routes — send/receive messages via WaSenderAPI
 Includes webhook endpoint for incoming messages (AI assistant)
 """
 from fastapi import APIRouter, Depends, HTTPException, Request, status, Query
+from pydantic import BaseModel, Field
 from typing import Optional
 from app.auth import get_current_user
 from app.config import get_settings
@@ -16,6 +17,13 @@ from app.schemas.whatsapp import (
 from app.logging_config import logger, debug, debug_request, debug_response
 
 router = APIRouter(prefix="/api/whatsapp", tags=["WhatsApp"])
+
+
+# ─── Test / Simulation Schemas ───────────────────────────────
+class SimulateMessageRequest(BaseModel):
+    phone: str = Field("+212600000000", description="Simulated phone number")
+    message: str = Field(..., description="Message to send to the bot")
+    test_mode: bool = Field(True, description="True = no real WhatsApp sends, False = live mode")
 
 
 @router.post("/send", response_model=WhatsAppMessageResponse)
@@ -152,3 +160,58 @@ async def whatsapp_webhook(request: Request):
 
     logger.info(f"[WA WEBHOOK] Done processing message from {sender_phone}")
     return {"status": "ok"}
+
+
+# ─── WhatsApp Testing / Simulation ───────────────────────────
+
+@router.post("/test", summary="Simulate a WhatsApp conversation (testing mode)")
+async def simulate_whatsapp(
+    request: SimulateMessageRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Test the WhatsApp AI bot without real users.
+    - test_mode=True: No real messages sent, responses captured and returned
+    - test_mode=False: Live mode, real messages sent via WhatsApp
+
+    Logs: incoming message, AI response, action taken.
+    """
+    service = get_whatsapp_service()
+    result = await service.simulate_message(
+        phone=request.phone,
+        message=request.message,
+        test_mode=request.test_mode,
+    )
+    return result
+
+
+@router.get("/test/session", summary="Get test session state for a phone number")
+async def get_test_session(
+    phone: str = Query("+212600000000", description="Phone number to check"),
+    current_user: dict = Depends(get_current_user),
+):
+    """Check the current AI session state for a phone number (useful for testing)."""
+    service = get_whatsapp_service()
+    session = await service._get_ai_session(phone)
+    pending = service._pending_confirmations.get(phone)
+    return {
+        "phone": phone,
+        "session": session,
+        "pending_confirmation": pending,
+    }
+
+
+@router.delete("/test/session", summary="Reset test session for a phone number")
+async def reset_test_session(
+    phone: str = Query("+212600000000", description="Phone number to reset"),
+    current_user: dict = Depends(get_current_user),
+):
+    """Reset/delete the AI session for a phone number (useful for re-testing from scratch)."""
+    service = get_whatsapp_service()
+    session = await service._get_ai_session(phone)
+    if session:
+        from app.supabase_client import get_supabase_admin
+        supabase = get_supabase_admin()
+        supabase.table("whatsapp_ai_sessions").delete().eq("id", session["id"]).execute()
+    service._pending_confirmations.pop(phone, None)
+    return {"status": "reset", "phone": phone}

@@ -13,6 +13,57 @@ from app.logging_config import logger, debug
 class WhatsAppService:
     """Service for sending and receiving WhatsApp messages via WaSenderAPI"""
 
+    # ─── Help menu ───────────────────────────────────────────────
+    HELP_MENU = (
+        "Here's what I can help you with:\n\n"
+        "• Check soil moisture\n"
+        "• Turn irrigation ON\n"
+        "• Turn irrigation OFF\n\n"
+        "Try:\n"
+        '• "What is the soil moisture?"\n'
+        '• "Turn on irrigation"\n'
+        '• "Turn off irrigation"'
+    )
+
+    # ─── Keyword sets ────────────────────────────────────────────
+    _HELP_KEYWORDS = {
+        "help", "menu", "what can you do",
+        "مساعدة", "قائمة", "ماذا تستطيع", "المساعدة",
+    }
+
+    _IRRIGATION_START_PHRASES = [
+        "turn on irrigation", "turn on the irrigation",
+        "start irrigation", "start the irrigation",
+        "open irrigation", "begin irrigation",
+        "irrigate zone", "water zone", "start watering",
+        "ابدأ الري", "شغل الري", "افتح الري", "ابدأ ري",
+        "تشغيل الري", "بدء الري",
+        "allumer l'irrigation", "démarrer l'irrigation",
+        "ouvrir l'irrigation", "activer l'irrigation",
+    ]
+
+    _IRRIGATION_STOP_PHRASES = [
+        "turn off irrigation", "turn off the irrigation",
+        "stop irrigation", "stop the irrigation",
+        "close irrigation", "stop watering",
+        "أوقف الري", "اطفئ الري", "أطفئ الري",
+        "إيقاف الري", "وقف الري", "أغلق الري",
+        "arrêter l'irrigation", "éteindre l'irrigation",
+        "fermer l'irrigation", "désactiver l'irrigation",
+    ]
+
+    _YES_WORDS = {
+        "yes", "yeah", "yep", "ok", "okay", "sure", "confirm", "do it",
+        "نعم", "أيوا", "اه", "موافق", "تأكيد",
+        "oui", "d'accord", "ouais",
+    }
+
+    _NO_WORDS = {
+        "no", "nope", "cancel", "nevermind", "never mind",
+        "لا", "لأ", "إلغاء", "لا تفعل",
+        "non", "annuler", "pas",
+    }
+
     def __init__(self):
         settings = get_settings()
         self.enabled = settings.WASSENDER_ENABLED
@@ -24,6 +75,8 @@ class WhatsAppService:
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.api_key}" if self.api_key else "",
         }
+        # In-memory store for pending irrigation confirmations: phone → {action, original_message}
+        self._pending_confirmations: Dict[str, Dict[str, str]] = {}
         logger.info(f"[WhatsApp Init] enabled={self.enabled}, api_url={self.api_url}, device_id={self.device_id}, api_key_set={bool(self.api_key)}")
 
     async def send_message(self, phone: str, message: str) -> Dict[str, Any]:
@@ -265,6 +318,9 @@ class WhatsAppService:
             elif session["state"] == "awaiting_farm_name":
                 # User is responding with farm name
                 await self._handle_farm_lookup(sender_phone, message_body, session)
+            elif session["state"] == "awaiting_confirmation":
+                # User is responding to an irrigation confirmation prompt
+                await self._handle_confirmation(sender_phone, message_body, session)
             elif session["state"] == "connected":
                 # User is connected — route to AI
                 await self._handle_ai_chat(sender_phone, message_body, session)
@@ -353,9 +409,18 @@ class WhatsAppService:
         "plot", "oui", "graphique", "yes", "yeah", "ok", "d'accord",
     }
 
-    async def _handle_ai_chat(self, phone: str, message: str, session: dict) -> None:
+    def _is_help_request(self, msg_lower: str) -> bool:
+        return msg_lower.strip() in self._HELP_KEYWORDS or "what can you do" in msg_lower
+
+    def _is_irrigation_start(self, msg_lower: str) -> bool:
+        return any(phrase in msg_lower for phrase in self._IRRIGATION_START_PHRASES)
+
+    def _is_irrigation_stop(self, msg_lower: str) -> bool:
+        return any(phrase in msg_lower for phrase in self._IRRIGATION_STOP_PHRASES)
+
+    async def _handle_ai_chat(self, phone: str, message: str, session: dict, bypass_confirmation: bool = False) -> None:
         """Route message to OpenAI with farm context, or generate chart if requested"""
-        # Check for farm switch command
+        # Check for farm switch command (always checked)
         msg_lower = message.strip().lower()
         if msg_lower in ("تغيير المزرعة", "changer ferme", "switch farm", "تغيير"):
             await self._update_ai_session(session["id"], state="awaiting_farm_name", farm_id=None, conversation_id=None)
@@ -368,10 +433,42 @@ class WhatsAppService:
         farm_id = session["farm_id"]
         conversation_id = session["conversation_id"]
 
-        # Check if user is requesting a chart
-        if self._is_chart_request(msg_lower):
-            await self._handle_chart_request(phone, farm_id, conversation_id)
-            return
+        if not bypass_confirmation:
+            # Help menu
+            if self._is_help_request(msg_lower):
+                await self.send_message(phone, self.HELP_MENU)
+                return
+
+            # Chart request
+            if self._is_chart_request(msg_lower):
+                await self._handle_chart_request(phone, farm_id, conversation_id)
+                return
+
+            # Irrigation confirmation intercept — start
+            if self._is_irrigation_start(msg_lower):
+                self._pending_confirmations[phone] = {
+                    "action": "start",
+                    "original_message": message,
+                }
+                await self._update_ai_session(session["id"], state="awaiting_confirmation")
+                await self.send_message(
+                    phone,
+                    "Are you sure you want to turn *on* the irrigation?\nReply *yes* to confirm or *no* to cancel."
+                )
+                return
+
+            # Irrigation confirmation intercept — stop
+            if self._is_irrigation_stop(msg_lower):
+                self._pending_confirmations[phone] = {
+                    "action": "stop",
+                    "original_message": message,
+                }
+                await self._update_ai_session(session["id"], state="awaiting_confirmation")
+                await self.send_message(
+                    phone,
+                    "Are you sure you want to turn *off* the irrigation?\nReply *yes* to confirm or *no* to cancel."
+                )
+                return
 
         try:
             from app.services.openai_service import chat
@@ -398,6 +495,11 @@ class WhatsAppService:
             # Force-convert markdown to WhatsApp formatting
             ai_response = self._convert_to_whatsapp_format(ai_response)
 
+            # Handle unsupported request marker from AI
+            if "CANNOT_HELP" in ai_response:
+                await self.send_message(phone, "Sorry, I can't help with that.\n\n" + self.HELP_MENU)
+                return
+
             # WhatsApp has a 4096 char limit — truncate if needed
             if len(ai_response) > 4000:
                 ai_response = ai_response[:3990] + "\n..."
@@ -409,6 +511,41 @@ class WhatsAppService:
             await self.send_message(
                 phone,
                 "⚠️ عذراً، حدث خطأ. حاول مرة أخرى.\n_Erreur, réessayez._"
+            )
+
+    async def _handle_confirmation(self, phone: str, message: str, session: dict) -> None:
+        """Handle user response to an irrigation confirmation prompt"""
+        msg_lower = message.strip().lower()
+        words = set(msg_lower.split())
+        pending = self._pending_confirmations.get(phone)
+
+        if not pending:
+            # No pending action — reset to connected and process normally
+            await self._update_ai_session(session["id"], state="connected")
+            await self._handle_ai_chat(phone, message, {**session, "state": "connected"})
+            return
+
+        is_yes = bool(words & self._YES_WORDS) or msg_lower in self._YES_WORDS
+        is_no = bool(words & self._NO_WORDS) or msg_lower in self._NO_WORDS
+
+        if is_yes:
+            original_message = pending["original_message"]
+            self._pending_confirmations.pop(phone, None)
+            await self._update_ai_session(session["id"], state="connected")
+            # Execute the original command via AI, bypassing confirmation
+            await self._handle_ai_chat(
+                phone, original_message,
+                {**session, "state": "connected"},
+                bypass_confirmation=True,
+            )
+        elif is_no:
+            self._pending_confirmations.pop(phone, None)
+            await self._update_ai_session(session["id"], state="connected")
+            await self.send_message(phone, "Okay, no changes were made.")
+        else:
+            await self.send_message(
+                phone,
+                "Please reply with *yes* to confirm or *no* to cancel."
             )
 
     def _is_chart_request(self, msg_lower: str) -> bool:
@@ -468,6 +605,202 @@ class WhatsAppService:
             except Exception as e:
                 logger.error(f"[WA IMAGE] Error: {e}")
                 return {"success": False, "status": "error", "detail": str(e)}
+
+    # ─── Farm → Users → Phone Numbers ───────────────────────────
+
+    async def get_farm_phone_numbers(self, farm_id: str) -> List[str]:
+        """
+        Get all WhatsApp phone numbers linked to a farm.
+        Includes the farm owner + all active farm members with a phone.
+        """
+        supabase = get_supabase_admin()
+        phones: List[str] = []
+        seen: set = set()
+
+        # 1. Farm owner
+        try:
+            farm = supabase.table("farms").select("owner_id").eq("id", farm_id).limit(1).execute()
+            if farm.data:
+                owner = supabase.table("users").select("phone").eq("id", farm.data[0]["owner_id"]).execute()
+                if owner.data and owner.data[0].get("phone"):
+                    p = owner.data[0]["phone"]
+                    phones.append(p)
+                    seen.add(p)
+        except Exception as e:
+            logger.error(f"[WA PHONES] Failed to get farm owner phone: {e}")
+
+        # 2. All active members
+        try:
+            members = supabase.table("farm_memberships").select("user_id").eq("farm_id", farm_id).eq("is_active", True).execute()
+            if members.data:
+                user_ids = [m["user_id"] for m in members.data]
+                for uid in user_ids:
+                    user = supabase.table("users").select("phone").eq("id", uid).execute()
+                    if user.data and user.data[0].get("phone"):
+                        p = user.data[0]["phone"]
+                        if p not in seen:
+                            phones.append(p)
+                            seen.add(p)
+        except Exception as e:
+            logger.error(f"[WA PHONES] Failed to get farm member phones: {e}")
+
+        return phones
+
+    # ─── Anomaly Alert Broadcasting ──────────────────────────────
+
+    async def broadcast_anomaly_alert(
+        self,
+        farm_id: str,
+        anomaly_type: str,
+        severity: str = "medium",
+        zone_name: Optional[str] = None,
+        details: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Send an anomaly alert to ALL users linked to a farm.
+        Returns summary of send results.
+        """
+        phones = await self.get_farm_phone_numbers(farm_id)
+        if not phones:
+            logger.warning(f"[WA ALERT] No recipients for farm {farm_id}")
+            return {"sent": 0, "failed": 0, "warning": "No recipients for this farm"}
+
+        # Build severity emoji
+        severity_emoji = {
+            "low": "⚠️",
+            "medium": "⚠️",
+            "high": "🔴",
+            "critical": "🚨",
+        }
+        emoji = severity_emoji.get(severity, "⚠️")
+
+        # Human-readable anomaly type
+        type_labels = {
+            "low_soil_moisture": "Low Soil Moisture",
+            "irrigation_failure": "Irrigation Failure",
+            "sensor_error": "Sensor Error",
+            "sensor_fault": "Sensor Fault",
+            "pipe_burst": "Pipe Burst",
+            "pressure_drop": "Pressure Drop",
+            "flow_spike": "Flow Spike",
+            "high_temperature": "High Temperature",
+            "low_humidity": "Low Humidity",
+        }
+        type_label = type_labels.get(anomaly_type, anomaly_type.replace("_", " ").title())
+
+        # Build message
+        msg = f"{emoji} *{severity.upper()} Alert*\n\n"
+        msg += f"Type: {type_label}\n"
+        if zone_name:
+            msg += f"Zone: {zone_name}\n"
+        if details:
+            msg += f"{details}\n"
+
+        # Action recommendation
+        action_map = {
+            "low_soil_moisture": "Action: Check irrigation system.",
+            "irrigation_failure": "Action: Inspect valves and pump.",
+            "sensor_error": "Action: Check sensor connections.",
+            "sensor_fault": "Action: Inspect sensor hardware.",
+            "pipe_burst": "Action: Check pipes for leaks immediately.",
+            "pressure_drop": "Action: Check pump and filter system.",
+            "flow_spike": "Action: Inspect zone for blockage or leak.",
+            "high_temperature": "Action: Consider increasing irrigation.",
+            "low_humidity": "Action: Monitor crop stress levels.",
+        }
+        msg += f"\n{action_map.get(anomaly_type, 'Action: Check your farm dashboard.')}\n"
+        msg += '\nReply "help" for available actions.'
+
+        sent = 0
+        failed = 0
+        errors = []
+        for phone in phones:
+            try:
+                result = await self.send_message(phone, msg)
+                if result.get("success"):
+                    sent += 1
+                else:
+                    failed += 1
+                    errors.append({"phone": phone, "error": result.get("detail", "unknown")})
+            except Exception as e:
+                failed += 1
+                errors.append({"phone": phone, "error": str(e)})
+                logger.error(f"[WA ALERT] Failed to send to {phone}: {e}")
+
+        return {"sent": sent, "failed": failed, "total_recipients": len(phones), "errors": errors if errors else None}
+
+    # ─── WhatsApp Test Mode ──────────────────────────────────────
+
+    async def simulate_message(
+        self,
+        phone: str,
+        message: str,
+        test_mode: bool = True,
+    ) -> Dict[str, Any]:
+        """
+        Simulate a WhatsApp conversation for testing.
+        In test_mode=True, messages are NOT sent to real WhatsApp — only logged.
+        In test_mode=False (live mode), messages are sent normally.
+        Returns the full interaction log.
+        """
+        log_entry = {
+            "test_mode": test_mode,
+            "phone": phone,
+            "incoming_message": message,
+            "ai_response": None,
+            "action_taken": None,
+            "session_state": None,
+            "error": None,
+        }
+
+        # Capture the original send_message method
+        original_send = self.send_message
+        captured_responses: List[str] = []
+
+        if test_mode:
+            # In test mode, intercept send_message to capture responses without sending
+            async def mock_send(to_phone: str, msg: str) -> Dict[str, Any]:
+                captured_responses.append(msg)
+                logger.info(f"[WA TEST] Would send to {to_phone}: {msg[:200]}")
+                return {"success": True, "message_id": "test_mode", "status": "simulated"}
+            self.send_message = mock_send  # type: ignore
+
+        try:
+            # Get current session state
+            session = await self._get_ai_session(phone)
+            log_entry["session_state"] = session["state"] if session else "new_user"
+
+            # Process the message through the normal flow
+            await self.handle_incoming_message(phone, message)
+
+            log_entry["ai_response"] = captured_responses if test_mode else "(sent via WhatsApp)"
+
+            # Detect action taken
+            if session and session.get("state") == "awaiting_confirmation":
+                msg_lower = message.strip().lower()
+                words = set(msg_lower.split())
+                if words & self._YES_WORDS or msg_lower in self._YES_WORDS:
+                    pending = self._pending_confirmations.get(phone)
+                    log_entry["action_taken"] = f"irrigation_{pending['action']}" if pending else "confirmed"
+                elif words & self._NO_WORDS or msg_lower in self._NO_WORDS:
+                    log_entry["action_taken"] = "cancelled"
+            elif session and session.get("state") == "connected":
+                msg_lower = message.strip().lower()
+                if self._is_irrigation_start(msg_lower):
+                    log_entry["action_taken"] = "confirmation_requested_start"
+                elif self._is_irrigation_stop(msg_lower):
+                    log_entry["action_taken"] = "confirmation_requested_stop"
+                elif self._is_help_request(msg_lower):
+                    log_entry["action_taken"] = "help_menu_shown"
+
+        except Exception as e:
+            log_entry["error"] = str(e)
+            logger.error(f"[WA TEST] Simulation error: {e}")
+        finally:
+            if test_mode:
+                self.send_message = original_send  # type: ignore
+
+        return log_entry
 
     # ─── AI Session Management (Supabase) ────────────────────────
 

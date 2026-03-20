@@ -369,7 +369,7 @@ async def _persist_anomalies(farm_id: str, anomalies: list[dict]):
 
 
 async def _auto_alert(farm_id: str, critical_anomalies: list[dict]):
-    """Send WhatsApp alerts for high/critical anomalies."""
+    """Send WhatsApp alerts for high/critical anomalies to ALL farm users."""
     if not critical_anomalies:
         return
 
@@ -381,28 +381,31 @@ async def _auto_alert(farm_id: str, critical_anomalies: list[dict]):
     except Exception:
         return
 
-    supabase = get_supabase_admin()
-    farm = supabase.table("farms").select("owner_id").eq("id", farm_id).limit(1).execute()
-    if not farm.data:
-        return
-    owner = supabase.table("users").select("phone").eq("id", farm.data[0]["owner_id"]).limit(1).execute()
-    if not owner.data or not owner.data[0].get("phone"):
+    # Get ALL phone numbers linked to this farm (owner + members)
+    phones = await ws.get_farm_phone_numbers(farm_id)
+    if not phones:
+        logger.warning(f"[AUTO ALERT] No recipients for farm {farm_id}")
         return
 
-    phone = owner.data[0]["phone"]
     for a in critical_anomalies[:3]:  # max 3 alerts per cycle
-        msg = f"⚠️ *{a['severity'].upper()} Anomaly*\n\nType: {a['anomaly_type']}\n"
+        severity = a.get("severity", "high")
+        severity_emoji = {"low": "⚠️", "medium": "⚠️", "high": "🔴", "critical": "🚨"}.get(severity, "⚠️")
+
+        msg = f"{severity_emoji} *{severity.upper()} Alert*\n\n"
+        msg += f"Type: {a['anomaly_type'].replace('_', ' ').title()}\n"
         if a.get("zone_id"):
             msg += f"Zone: {a['zone_id']}\n"
         msg += f"Columns: {', '.join(a['target_columns'])}\n"
         details = a.get("details", {})
         if "message" in details:
-            msg += f"\n{details['message']}"
+            msg += f"\n{details['message']}\n"
+        msg += '\nReply "help" for available actions.'
 
-        try:
-            await ws.send_message(phone, msg)
-        except Exception as e:
-            logger.error(f"Failed to send anomaly alert: {e}")
+        for phone in phones:
+            try:
+                await ws.send_message(phone, msg)
+            except Exception as e:
+                logger.error(f"Failed to send anomaly alert to {phone}: {e}")
 
 
 # ── Query Functions ───────────────────────────────────────────
