@@ -4,6 +4,7 @@ Includes webhook endpoint for incoming messages (AI assistant)
 """
 from fastapi import APIRouter, Depends, HTTPException, Request, status, Query
 from typing import Optional
+from pydantic import BaseModel
 from app.auth import get_current_user
 from app.config import get_settings
 from app.services.whatsapp_service import get_whatsapp_service
@@ -14,6 +15,11 @@ from app.schemas.whatsapp import (
     WhatsAppAlert,
 )
 from app.logging_config import logger, debug, debug_request, debug_response
+
+
+class SimulateMessageRequest(BaseModel):
+    phone: str
+    message: str
 
 router = APIRouter(prefix="/api/whatsapp", tags=["WhatsApp"])
 
@@ -152,3 +158,60 @@ async def whatsapp_webhook(request: Request):
 
     logger.info(f"[WA WEBHOOK] Done processing message from {sender_phone}")
     return {"status": "ok"}
+
+
+# ─── WhatsApp Testing Mode ────────────────────────────────────────
+
+@router.post("/test/simulate")
+async def simulate_incoming_message(
+    request: SimulateMessageRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Testing mode: simulate an incoming WhatsApp message and capture the AI response.
+    Logs the incoming message, the AI reply, and any action taken.
+    Does NOT require WhatsApp to be enabled — processes the full AI flow locally.
+    """
+    from app.supabase_client import get_supabase_admin
+
+    phone = request.phone.strip()
+    if not phone.startswith("+"):
+        phone = f"+{phone}"
+
+    logger.info(f"[WA TEST] Simulating message from {phone}: {request.message[:100]}")
+
+    service = get_whatsapp_service()
+
+    # Capture what messages would be sent back (monkey-patch send_message)
+    sent_replies = []
+    original_send = service.send_message
+
+    async def _capture_send(p: str, msg: str):
+        sent_replies.append({"to": p, "message": msg})
+        logger.info(f"[WA TEST] Would send to {p}: {msg[:200]}")
+        # Still log to Supabase as outbound
+        await service._log_message(phone=p, message=msg, direction="outbound", status="simulated")
+        return {"success": True, "status": "simulated", "message_id": None}
+
+    service.send_message = _capture_send
+
+    try:
+        await service.handle_incoming_message(phone, request.message)
+    finally:
+        service.send_message = original_send
+
+    # Fetch recent messages for this phone to show log
+    supabase = get_supabase_admin()
+    recent = supabase.table("whatsapp_messages").select(
+        "direction, message, status, created_at"
+    ).eq("phone", phone).order("created_at", desc=True).limit(10).execute()
+
+    return {
+        "status": "simulated",
+        "incoming": {
+            "phone": phone,
+            "message": request.message,
+        },
+        "replies": sent_replies,
+        "message_log": recent.data or [],
+    }

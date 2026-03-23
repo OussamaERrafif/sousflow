@@ -683,6 +683,141 @@
                     </div>
                 </div>
             </div>
+
+            <!-- ═══════ FARM ANOMALY INJECTION (with WhatsApp Alerts) ═══════ -->
+            <h5 class="text-secondary mb-3 mt-4" style="font-size: 1rem;">
+                <i class="bi bi-exclamation-triangle me-2"></i>Farm Anomaly Injection & Alerts
+            </h5>
+            <div class="row mb-3">
+                <div class="col-lg-6 mb-3 mb-lg-0">
+                    <div class="card h-100">
+                        <div class="card-header">
+                            <i class="bi bi-broadcast-pin me-2"></i>Inject Anomaly & Alert Users
+                        </div>
+                        <div class="card-body form-admin">
+                            <p class="text-secondary mb-3" style="font-size: 0.85rem;">
+                                Select a farm, anomaly type, and severity. This creates an anomaly event in the database and sends
+                                WhatsApp alerts to <strong>all users linked to that farm</strong>.
+                            </p>
+                            <div class="row g-3">
+                                <div class="col-md-12">
+                                    <label class="form-label">Farm</label>
+                                    <select class="form-select" id="alertFarmSelect">
+                                        <option value="">Loading farms...</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Anomaly Type</label>
+                                    <select class="form-select" id="alertAnomalyType">
+                                        <option value="low_soil_moisture">🌱 Low Soil Moisture</option>
+                                        <option value="irrigation_failure">💧 Irrigation Failure</option>
+                                        <option value="sensor_error">📡 Sensor Error</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Severity</label>
+                                    <select class="form-select" id="alertSeverity">
+                                        <option value="low">⚠️ Low</option>
+                                        <option value="medium" selected>⚠️ Medium</option>
+                                        <option value="critical">🚨 Critical</option>
+                                    </select>
+                                </div>
+                                <div class="col-12">
+                                    <button class="btn btn-danger w-100" onclick="injectFarmAnomaly()" id="injectAnomalyBtn" style="border-radius: 10px;">
+                                        <i class="bi bi-exclamation-triangle me-2"></i>Inject Anomaly & Send Alerts
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Anomaly Injection Results -->
+                <div class="col-lg-6">
+                    <div class="card h-100">
+                        <div class="card-header">
+                            <i class="bi bi-bell me-2"></i>Alert Results
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="log-container-wrapper" style="border-radius: 0 0 12px 12px;">
+                                <div class="scrollable-log" id="alertResultsLog" style="min-height: 200px; max-height: 300px;">
+                                    <div class="text-center text-secondary py-5">
+                                        <i class="bi bi-bell-slash fs-1 d-block mb-2"></i>
+                                        No anomaly alerts sent yet. Use the form to inject an anomaly.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ═══════ WHATSAPP TESTING MODE ═══════ -->
+            <h5 class="text-secondary mb-3 mt-4" style="font-size: 1rem;">
+                <i class="bi bi-whatsapp me-2"></i>WhatsApp Testing Mode
+            </h5>
+            <div class="row mb-3">
+                <div class="col-lg-5 mb-3 mb-lg-0">
+                    <div class="card h-100">
+                        <div class="card-header">
+                            <i class="bi bi-chat-dots me-2"></i>Simulate Incoming Message
+                        </div>
+                        <div class="card-body form-admin">
+                            <p class="text-secondary mb-3" style="font-size: 0.85rem;">
+                                Test the WhatsApp AI assistant without sending real messages. Simulates an incoming message and captures the AI's response.
+                            </p>
+                            <div class="row g-3">
+                                <div class="col-12">
+                                    <label class="form-label">Phone Number</label>
+                                    <input type="text" class="form-control" id="waTestPhone" placeholder="+212612345678" value="+212600000000">
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label">Message</label>
+                                    <textarea class="form-control" id="waTestMessage" rows="3" placeholder="Type a message to simulate...">كيفاش حالة المزرعة؟</textarea>
+                                </div>
+                                <div class="col-12">
+                                    <button class="btn btn-success w-100" onclick="simulateWhatsApp()" id="waTestBtn" style="border-radius: 10px;">
+                                        <i class="bi bi-send me-2"></i>Send Simulated Message
+                                    </button>
+                                </div>
+                            </div>
+                            <!-- Quick test messages -->
+                            <hr class="border-secondary opacity-25 my-3">
+                            <p class="text-secondary mb-2" style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px;">Quick Messages</p>
+                            <div class="d-flex flex-wrap gap-2">
+                                <button class="btn btn-sm btn-outline-custom" onclick="setWaTestMsg('help')" style="border-radius: 8px;">help</button>
+                                <button class="btn btn-sm btn-outline-custom" onclick="setWaTestMsg('رطوبة التربة')" style="border-radius: 8px;">رطوبة التربة</button>
+                                <button class="btn btn-sm btn-outline-custom" onclick="setWaTestMsg('Turn on irrigation')" style="border-radius: 8px;">Turn on irrigation</button>
+                                <button class="btn btn-sm btn-outline-custom" onclick="setWaTestMsg('yes')" style="border-radius: 8px;">yes (confirm)</button>
+                                <button class="btn btn-sm btn-outline-custom" onclick="setWaTestMsg('كيفاش الطقس اليوم؟')" style="border-radius: 8px;">كيفاش الطقس؟</button>
+                                <button class="btn btn-sm btn-outline-custom" onclick="setWaTestMsg('chart')" style="border-radius: 8px;">chart</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- WhatsApp Test Results -->
+                <div class="col-lg-7">
+                    <div class="card h-100">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <span><i class="bi bi-chat-left-text me-2"></i>Conversation Log</span>
+                            <button class="btn btn-sm btn-outline-custom" onclick="document.getElementById('waTestLog').innerHTML = waTestPlaceholder">
+                                <i class="bi bi-trash3"></i> Clear
+                            </button>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="log-container-wrapper" style="border-radius: 0 0 12px 12px;">
+                                <div class="scrollable-log" id="waTestLog" style="min-height: 300px; max-height: 500px;">
+                                    <div class="text-center text-secondary py-5">
+                                        <i class="bi bi-whatsapp fs-1 d-block mb-2"></i>
+                                        Send a simulated message to see the AI response here.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- ============ MONITORING TAB ============ -->
@@ -1535,6 +1670,209 @@
             const data = await simApiFetch(`/api/iot/simulator/inject/soil?zone_id=${zone}&moisture=${moisture}`);
             if (data) simLog(`Soil moisture set: Zone ${zone} = ${data.soil_moisture_pct}%`, 'success');
         }
+
+        // ═══════ Farm Anomaly Injection & Alerts ═══════
+
+        let loadedFarms = [];
+
+        async function loadFarmsForInjection() {
+            try {
+                const res = await apiFetch('/api/admin/owners');
+                if (!res) return;
+                const owners = await res.json();
+                const select = document.getElementById('alertFarmSelect');
+                select.innerHTML = '';
+
+                for (const owner of owners) {
+                    try {
+                        const detailRes = await apiFetch('/api/admin/owners/' + owner.id);
+                        if (!detailRes) continue;
+                        const detail = await detailRes.json();
+                        for (const farm of (detail.farms || [])) {
+                            loadedFarms.push(farm);
+                            const opt = document.createElement('option');
+                            opt.value = farm.id;
+                            opt.textContent = farm.name + ' (' + (owner.full_name || owner.username) + ')';
+                            select.appendChild(opt);
+                        }
+                    } catch(e) {}
+                }
+
+                if (select.options.length === 0) {
+                    select.innerHTML = '<option value="">No farms found</option>';
+                }
+            } catch(err) {
+                document.getElementById('alertFarmSelect').innerHTML = '<option value="">Failed to load farms</option>';
+            }
+        }
+
+        function alertLog(message, type = 'info') {
+            const log = document.getElementById('alertResultsLog');
+            const time = new Date().toLocaleTimeString();
+            const colors = { info: 'var(--accent-blue)', success: 'var(--accent-green)', error: 'var(--accent-red)', warn: 'var(--accent-yellow)' };
+            const icons = { info: 'info-circle', success: 'check-circle', error: 'x-circle', warn: 'exclamation-triangle' };
+            if (log.querySelector('.text-center')) log.innerHTML = '';
+            log.innerHTML += `<div class="log-entry" style="padding: 6px 12px;">
+                <span class="log-timestamp">[${time}]</span>
+                <span style="color:${colors[type]}"><i class="bi bi-${icons[type]} me-1"></i>${message}</span>
+            </div>`;
+            log.scrollTop = log.scrollHeight;
+        }
+
+        async function injectFarmAnomaly() {
+            const farmId = document.getElementById('alertFarmSelect').value;
+            const anomalyType = document.getElementById('alertAnomalyType').value;
+            const severity = document.getElementById('alertSeverity').value;
+
+            if (!farmId) {
+                showToast('Please select a farm first', 'error');
+                return;
+            }
+
+            const btn = document.getElementById('injectAnomalyBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Injecting...';
+
+            alertLog(`Injecting ${severity} ${anomalyType.replace(/_/g, ' ')} anomaly...`, 'info');
+
+            try {
+                const res = await apiFetch('/api/anomalies/inject', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        farm_id: farmId,
+                        anomaly_type: anomalyType,
+                        severity: severity,
+                    })
+                });
+
+                if (!res) return;
+
+                if (!res.ok) {
+                    const err = await res.json();
+                    throw new Error(err.detail || 'Injection failed');
+                }
+
+                const data = await res.json();
+
+                alertLog(`Anomaly injected! Event ID: ${data.event_id?.substring(0, 8)}...`, 'success');
+                alertLog(`Type: ${data.anomaly_type} | Severity: ${data.severity}`, 'info');
+
+                if (data.alerts_sent > 0) {
+                    alertLog(`WhatsApp alerts sent to ${data.alerts_sent} user(s): ${data.recipients.join(', ')}`, 'success');
+                } else if (data.recipients && data.recipients.length === 0) {
+                    alertLog('No users linked to this farm — no alerts sent', 'warn');
+                } else {
+                    alertLog('WhatsApp alerts: 0 sent (check WhatsApp config)', 'warn');
+                }
+
+                showToast(`Anomaly injected — ${data.alerts_sent} alert(s) sent`, 'success');
+                simLog(`Farm anomaly: ${anomalyType} (${severity}) → ${data.alerts_sent} alerts`, 'warn');
+
+            } catch(err) {
+                alertLog('Error: ' + err.message, 'error');
+                showToast(err.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-exclamation-triangle me-2"></i>Inject Anomaly & Send Alerts';
+            }
+        }
+
+        // ═══════ WhatsApp Testing Mode ═══════
+
+        const waTestPlaceholder = '<div class="text-center text-secondary py-5"><i class="bi bi-whatsapp fs-1 d-block mb-2"></i>Send a simulated message to see the AI response here.</div>';
+
+        function setWaTestMsg(msg) {
+            document.getElementById('waTestMessage').value = msg;
+        }
+
+        function waLog(direction, phone, message) {
+            const log = document.getElementById('waTestLog');
+            const time = new Date().toLocaleTimeString();
+            if (log.querySelector('.text-center')) log.innerHTML = '';
+
+            const isInbound = direction === 'inbound';
+            const align = isInbound ? 'flex-start' : 'flex-end';
+            const bgColor = isInbound ? 'rgba(59, 130, 246, 0.1)' : 'rgba(16, 185, 129, 0.1)';
+            const borderColor = isInbound ? 'rgba(59, 130, 246, 0.2)' : 'rgba(16, 185, 129, 0.2)';
+            const icon = isInbound ? 'person' : 'robot';
+            const label = isInbound ? 'User' : 'AI';
+
+            // Escape HTML but preserve line breaks
+            const escaped = message.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+
+            log.innerHTML += `<div style="display:flex; justify-content:${align}; margin: 8px 12px;">
+                <div style="max-width: 85%; background: ${bgColor}; border: 1px solid ${borderColor}; border-radius: 12px; padding: 10px 14px;">
+                    <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+                        <i class="bi bi-${icon}" style="font-size: 0.8rem; color: var(--text-secondary);"></i>
+                        <span style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 600;">${label} · ${phone}</span>
+                        <span style="font-size: 0.7rem; color: var(--text-secondary); margin-left: auto;">${time}</span>
+                    </div>
+                    <div style="font-size: 0.9rem; line-height: 1.5; word-break: break-word;">${escaped}</div>
+                </div>
+            </div>`;
+            log.scrollTop = log.scrollHeight;
+        }
+
+        async function simulateWhatsApp() {
+            const phone = document.getElementById('waTestPhone').value.trim();
+            const message = document.getElementById('waTestMessage').value.trim();
+
+            if (!phone || !message) {
+                showToast('Enter phone number and message', 'error');
+                return;
+            }
+
+            const btn = document.getElementById('waTestBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Processing...';
+
+            // Show user message
+            waLog('inbound', phone, message);
+
+            try {
+                const res = await apiFetch('/api/whatsapp/test/simulate', {
+                    method: 'POST',
+                    body: JSON.stringify({ phone, message })
+                });
+
+                if (!res) return;
+
+                if (!res.ok) {
+                    const err = await res.json();
+                    throw new Error(err.detail || 'Simulation failed');
+                }
+
+                const data = await res.json();
+
+                // Show each AI reply
+                if (data.replies && data.replies.length > 0) {
+                    for (const reply of data.replies) {
+                        waLog('outbound', reply.to, reply.message);
+                    }
+                } else {
+                    waLog('outbound', phone, '(No reply generated)');
+                }
+
+                simLog(`WA Test: "${message.substring(0, 40)}..." → ${data.replies?.length || 0} replies`, 'info');
+
+            } catch(err) {
+                waLog('outbound', phone, '⚠️ Error: ' + err.message);
+                showToast(err.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-send me-2"></i>Send Simulated Message';
+                document.getElementById('waTestMessage').value = '';
+            }
+        }
+
+        // Load farms when simulation tab is opened
+        const origSwitchTab = switchTab;
+        switchTab = function(tabId, btn) {
+            origSwitchTab(tabId, btn);
+            if (tabId === 'simulation' && loadedFarms.length === 0) {
+                loadFarmsForInjection();
+            }
+        };
     </script>
 
     <!-- ═══════ Floating Debug Panel ═══════ -->

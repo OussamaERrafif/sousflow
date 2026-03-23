@@ -368,8 +368,34 @@ async def _persist_anomalies(farm_id: str, anomalies: list[dict]):
             logger.error(f"Failed to persist anomalies: {e}")
 
 
+async def _get_farm_user_phones(farm_id: str) -> list[str]:
+    """Return all phone numbers for users linked to a farm (owner + active members)."""
+    supabase = get_supabase_admin()
+    phones = []
+
+    # Farm owner
+    farm = supabase.table("farms").select("owner_id").eq("id", farm_id).limit(1).execute()
+    if farm.data:
+        owner = supabase.table("users").select("phone").eq("id", farm.data[0]["owner_id"]).limit(1).execute()
+        if owner.data and owner.data[0].get("phone"):
+            phones.append(owner.data[0]["phone"])
+
+    # Active farm members
+    memberships = supabase.table("farm_memberships").select("user_id").eq("farm_id", farm_id).eq("is_active", True).execute()
+    member_ids = [m["user_id"] for m in (memberships.data or [])]
+    if member_ids:
+        members = supabase.table("users").select("phone").in_("id", member_ids).execute()
+        for m in (members.data or []):
+            if m.get("phone") and m["phone"] not in phones:
+                phones.append(m["phone"])
+
+    if not phones:
+        logger.warning(f"[Anomaly Alert] No recipients found for farm {farm_id}")
+    return phones
+
+
 async def _auto_alert(farm_id: str, critical_anomalies: list[dict]):
-    """Send WhatsApp alerts for high/critical anomalies."""
+    """Send WhatsApp alerts for high/critical anomalies to ALL farm users."""
     if not critical_anomalies:
         return
 
@@ -381,15 +407,10 @@ async def _auto_alert(farm_id: str, critical_anomalies: list[dict]):
     except Exception:
         return
 
-    supabase = get_supabase_admin()
-    farm = supabase.table("farms").select("owner_id").eq("id", farm_id).limit(1).execute()
-    if not farm.data:
-        return
-    owner = supabase.table("users").select("phone").eq("id", farm.data[0]["owner_id"]).limit(1).execute()
-    if not owner.data or not owner.data[0].get("phone"):
+    phones = await _get_farm_user_phones(farm_id)
+    if not phones:
         return
 
-    phone = owner.data[0]["phone"]
     for a in critical_anomalies[:3]:  # max 3 alerts per cycle
         msg = f"⚠️ *{a['severity'].upper()} Anomaly*\n\nType: {a['anomaly_type']}\n"
         if a.get("zone_id"):
@@ -398,11 +419,110 @@ async def _auto_alert(farm_id: str, critical_anomalies: list[dict]):
         details = a.get("details", {})
         if "message" in details:
             msg += f"\n{details['message']}"
+        msg += '\n\nReply "help" for available actions.'
 
+        for phone in phones:
+            try:
+                await ws.send_message(phone, msg)
+            except Exception as e:
+                logger.error(f"Failed to send anomaly alert to {phone}: {e}")
+
+
+async def inject_anomaly_manual(
+    farm_id: str,
+    anomaly_type: str,
+    severity: str = "medium",
+    zone_id: Optional[str] = None,
+) -> dict:
+    """
+    Manually inject an anomaly event for a farm (admin action).
+    Persists to DB and sends WhatsApp alerts to all farm users.
+
+    anomaly_type: low_soil_moisture | irrigation_failure | sensor_error
+    severity: low | medium | critical
+    """
+    _TYPE_META = {
+        "low_soil_moisture": {
+            "columns": ["avg_soil_moisture_pct"],
+            "details": {"message": "Soil moisture dropped below critical threshold. Check irrigation system."},
+        },
+        "irrigation_failure": {
+            "columns": ["main_pump_flow_lpm", "zone_flow_lpm"],
+            "details": {"message": "Irrigation system not delivering expected flow. Check pump and valves."},
+        },
+        "sensor_error": {
+            "columns": ["avg_soil_moisture_pct", "air_temperature_c"],
+            "details": {"message": "Sensor readings out of expected range. May require calibration or replacement."},
+        },
+    }
+
+    meta = _TYPE_META.get(anomaly_type, {
+        "columns": [anomaly_type],
+        "details": {"message": f"Manual anomaly injection: {anomaly_type}"},
+    })
+
+    supabase = get_supabase_admin()
+    row = {
+        "farm_id": farm_id,
+        "zone_id": zone_id,
+        "anomaly_type": "injected",
+        "severity": severity,
+        "target_columns": meta["columns"],
+        "details": {**meta["details"], "injected": True, "anomaly_label": anomaly_type},
+    }
+
+    result = supabase.table("anomaly_events").insert(row).execute()
+    event_id = result.data[0]["id"] if result.data else None
+
+    # Build alert message
+    _SEVERITY_EMOJI = {"low": "⚠️", "medium": "⚠️", "critical": "🚨"}
+    _TYPE_LABEL = {
+        "low_soil_moisture": "Low Soil Moisture",
+        "irrigation_failure": "Irrigation Failure",
+        "sensor_error": "Sensor Error",
+    }
+    _ACTION_HINTS = {
+        "low_soil_moisture": "Check irrigation system.",
+        "irrigation_failure": "Inspect pump and valves.",
+        "sensor_error": "Check sensor connections.",
+    }
+
+    emoji = _SEVERITY_EMOJI.get(severity, "⚠️")
+    label = _TYPE_LABEL.get(anomaly_type, anomaly_type.replace("_", " ").title())
+    action = _ACTION_HINTS.get(anomaly_type, "Check your farm system.")
+
+    if severity == "critical":
+        msg = f"🚨 *Critical Alert:* {label} detected on your farm.\n\nAction Required: {action}\n\nReply \"help\" for available actions."
+    else:
+        msg = f"{emoji} *Alert:* An issue detected on your farm.\nType: {label}\nAction Recommended: {action}\n\nReply \"help\" for available actions."
+
+    # Send to all farm users
+    alerts_sent = 0
+    phones = await _get_farm_user_phones(farm_id)
+    if phones:
         try:
-            await ws.send_message(phone, msg)
+            from app.services.whatsapp_service import get_whatsapp_service
+            ws = get_whatsapp_service()
+            if ws.enabled:
+                for phone in phones:
+                    try:
+                        await ws.send_message(phone, msg)
+                        alerts_sent += 1
+                    except Exception as e:
+                        logger.error(f"Failed to send injection alert to {phone}: {e}")
         except Exception as e:
-            logger.error(f"Failed to send anomaly alert: {e}")
+            logger.error(f"WhatsApp service unavailable for injection alert: {e}")
+    else:
+        logger.warning(f"[Anomaly Inject] No recipients for farm {farm_id}")
+
+    return {
+        "event_id": event_id,
+        "farm_id": farm_id,
+        "anomaly_type": anomaly_type,
+        "severity": severity,
+        "alerts_sent": alerts_sent,
+        "recipients": phones,
+    }
 
 
 # ── Query Functions ───────────────────────────────────────────
