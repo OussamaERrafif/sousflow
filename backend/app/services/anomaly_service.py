@@ -417,6 +417,8 @@ async def _auto_alert(farm_id: str, critical_anomalies: list[dict]):
     if not phones:
         return
 
+    supabase = get_supabase_admin()
+
     _SEVERITY_EMOJI_MAP = {"low": "⚠️", "medium": "🟠", "high": "🔴", "critical": "🚨"}
     _TYPE_AR_MAP = {
         "z_score": "قراءة شاذة",
@@ -426,20 +428,42 @@ async def _auto_alert(farm_id: str, critical_anomalies: list[dict]):
         "correlation": "ارتباط مشبوه",
         "injected": "تنبيه يدوي",
     }
+    _TYPE_ACTION_MAP = {
+        "z_score": "راجع المستشعرات للتأكد من القراءات.",
+        "sudden_change": "تحقق من حالة الري والتربة.",
+        "stuck_sensor": "افحص اتصالات المستشعر.",
+        "drift": "راقب التطور خلال الساعة القادمة.",
+        "correlation": "افحص المضخة والصمامات.",
+    }
+
+    # Build a zone name cache to avoid UUIDs in messages
+    zone_name_cache: dict[str, str] = {}
+    try:
+        zone_ids = list({a["zone_id"] for a in critical_anomalies if a.get("zone_id")})
+        if zone_ids:
+            zr = supabase.table("zones").select("id, zone_number, name").in_("id", zone_ids).execute()
+            for z in (zr.data or []):
+                zone_name_cache[z["id"]] = z.get("name") or f"المنطقة {z['zone_number']}"
+    except Exception:
+        pass
 
     for a in critical_anomalies[:3]:  # max 3 alerts per cycle
         sev = a["severity"]
         sev_emoji = _SEVERITY_EMOJI_MAP.get(sev, "⚠️")
         atype_ar = _TYPE_AR_MAP.get(a["anomaly_type"], a["anomaly_type"])
+        action_hint = _TYPE_ACTION_MAP.get(a["anomaly_type"], "")
         details = a.get("details", {})
         detail_msg = details.get("message", "")
 
         msg = f"{sev_emoji} *تنبيه — {atype_ar}*\n\n"
         if a.get("zone_id"):
-            msg += f"📍 المنطقة: {a['zone_id'][:8]}...\n"
+            zone_label = zone_name_cache.get(a["zone_id"], "منطقة غير معروفة")
+            msg += f"📍 {zone_label}\n"
         if detail_msg:
             msg += f"{detail_msg}\n"
-        msg += '\nأرسل *"شنو طرا؟"* لمزيد من التفاصيل.\nأرسل *"help"* لقائمة الأوامر.'
+        if action_hint:
+            msg += f"\n💡 {action_hint}"
+        msg += '\n\nأرسل *"شنو طرا؟"* لمزيد من التفاصيل.'
 
         for phone in phones:
             try:
@@ -494,54 +518,54 @@ async def inject_anomaly_manual(
     result = supabase.table("anomaly_events").insert(row).execute()
     event_id = result.data[0]["id"] if result.data else None
 
-    # Build alert message
-    _SEVERITY_EMOJI = {"low": "⚠️", "medium": "⚠️", "critical": "🚨"}
-    _TYPE_LABEL = {
-        "low_soil_moisture": "Low Soil Moisture",
-        "irrigation_failure": "Irrigation Failure",
-        "sensor_error": "Sensor Error",
-    }
-    _ACTION_HINTS = {
-        "low_soil_moisture": "Check irrigation system.",
-        "irrigation_failure": "Inspect pump and valves.",
-        "sensor_error": "Check sensor connections.",
-    }
+    # Resolve zone name
+    zone_label = None
+    if zone_id:
+        try:
+            zr = supabase.table("zones").select("zone_number, name").eq("id", zone_id).limit(1).execute()
+            if zr.data:
+                zone_label = zr.data[0].get("name") or f"المنطقة {zr.data[0]['zone_number']}"
+        except Exception:
+            pass
 
-    emoji = _SEVERITY_EMOJI.get(severity, "⚠️")
-    label = _TYPE_LABEL.get(anomaly_type, anomaly_type.replace("_", " ").title())
-    action = _ACTION_HINTS.get(anomaly_type, "Check your farm system.")
-
-    _SEVERITY_AR = {"low": "منخفضة", "medium": "متوسطة", "critical": "حرجة"}
+    # Build alert message (Arabic/Darija)
+    _SEVERITY_EMOJI = {"low": "⚠️", "medium": "🟠", "critical": "🚨"}
     _TYPE_AR = {
         "low_soil_moisture": "رطوبة التربة منخفضة",
         "irrigation_failure": "عطل في نظام الري",
         "sensor_error": "خطأ في المستشعر",
     }
     _ACTION_AR = {
-        "low_soil_moisture": "راجع نظام الري وتأكد من ضخ الماء.",
+        "low_soil_moisture": "راجع نظام الري.",
         "irrigation_failure": "افحص المضخة والصمامات.",
         "sensor_error": "تحقق من توصيلات المستشعرات.",
     }
+    _SUGGEST_CMD = {
+        "low_soil_moisture": 'أرسل *"شغل الري"* إذا بغيت تبدأ الري فوراً.',
+        "irrigation_failure": 'أرسل *"شنو طرا؟"* لمزيد من التفاصيل.',
+        "sensor_error": 'أرسل *"شنو طرا؟"* لمزيد من التفاصيل.',
+    }
 
-    severity_ar = _SEVERITY_AR.get(severity, severity)
-    label_ar = _TYPE_AR.get(anomaly_type, label)
-    action_ar = _ACTION_AR.get(anomaly_type, action)
+    emoji = _SEVERITY_EMOJI.get(severity, "⚠️")
+    label_ar = _TYPE_AR.get(anomaly_type, anomaly_type.replace("_", " "))
+    action_ar = _ACTION_AR.get(anomaly_type, "راجع المزرعة.")
+    suggest = _SUGGEST_CMD.get(anomaly_type, 'أرسل *"شنو طرا؟"* لمزيد من التفاصيل.')
+
+    zone_line = f"📍 {zone_label}\n" if zone_label else ""
 
     if severity == "critical":
         msg = (
             f"🚨 *تنبيه حرج — {label_ar}*\n\n"
-            f"تم رصد مشكل حرج في مزرعتك.\n"
-            f"*الإجراء المطلوب:* {action_ar}\n\n"
-            f"أرسل *\"شنو طرا؟\"* لمزيد من التفاصيل.\n"
-            f"أرسل *\"help\"* لقائمة الأوامر."
+            f"{zone_line}"
+            f"🔴 *الإجراء المطلوب:* {action_ar}\n\n"
+            f"💡 {suggest}"
         )
     else:
         msg = (
-            f"{emoji} *تنبيه ({severity_ar}) — {label_ar}*\n\n"
-            f"تم رصد مشكل في مزرعتك.\n"
-            f"*التوصية:* {action_ar}\n\n"
-            f"أرسل *\"شنو طرا؟\"* لمزيد من التفاصيل.\n"
-            f"أرسل *\"help\"* لقائمة الأوامر."
+            f"{emoji} *تنبيه — {label_ar}*\n\n"
+            f"{zone_line}"
+            f"💡 *التوصية:* {action_ar}\n\n"
+            f"{suggest}"
         )
 
     # Send to all farm users

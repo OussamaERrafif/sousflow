@@ -2,6 +2,7 @@
 WhatsApp integration service via WaSenderAPI
 https://wasenderapi.com/api-docs
 """
+import re
 import httpx
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone
@@ -67,8 +68,21 @@ _CONFIRM_NO = {
     "لا لا", "ماشي", "machi", "لأ", "la",
 }
 
-# In-memory pending irrigation confirmations: phone -> "start" or "stop"
-_pending_confirmations: Dict[str, str] = {}
+def _extract_zone(msg: str) -> Optional[int]:
+    """Extract a zone number from a message, e.g. 'المنطقة 1', 'zone 2', 'زون 3'."""
+    for pat in (
+        r'(?:المنطقة|منطقة|الزون|زون)\s*(\d+)',
+        r'(?:zone|zona)\s*(\d+)',
+        r'\bz(\d+)\b',
+    ):
+        m = re.search(pat, msg, re.IGNORECASE)
+        if m:
+            return int(m.group(1))
+    return None
+
+
+# In-memory pending confirmations: phone -> {"action": "start"|"stop", "zone": int|None}
+_pending_confirmations: Dict[str, Dict] = {}
 
 
 class WhatsAppService:
@@ -441,45 +455,57 @@ class WhatsAppService:
 
         # 3. Pending irrigation confirmation — handle BEFORE keyword detection
         if phone in _pending_confirmations:
-            pending_action = _pending_confirmations[phone]
+            pending = _pending_confirmations[phone]
             if msg_lower in _CONFIRM_YES:
                 del _pending_confirmations[phone]
-                await self._execute_irrigation_command(phone, pending_action, session)
+                await self._execute_irrigation_command(phone, pending, session)
             elif msg_lower in _CONFIRM_NO:
                 del _pending_confirmations[phone]
-                await self.send_message(phone, "✅ واخا، ما دير والو.\n_Aucune modification effectuée._")
+                await self.send_message(phone, "✅ واخا، ما دير والو.")
             else:
-                # Not a clear yes/no — re-ask
-                action_label = "تشغيل" if pending_action == "start" else "إيقاف"
+                # Ambiguous — cancel so the user's real question gets answered
+                del _pending_confirmations[phone]
+                action_cmd = "شغل الري" if pending["action"] == "start" else "أوقف الري"
                 await self.send_message(
                     phone,
-                    f"⚠️ من فضلك أكد: هل تريد *{action_label}* الري؟\n"
-                    "• أرسل *نعم* / *واخا* للتأكيد\n"
-                    "• أرسل *لا* / *ماشي* للإلغاء"
+                    f"✅ تم إلغاء طلب الري.\n"
+                    f"إذا بغيت تعاود، أرسل *\"{action_cmd}\"*.\n\n"
+                    "_Commande annulée._"
                 )
-            return
+                # Fall through so the user's actual message is answered
+                # (don't return — continue to OpenAI routing below)
 
-        # 4. Irrigation ON → confirmation gate (NEVER execute directly)
+            if phone not in _pending_confirmations:  # confirmation was resolved
+                if msg_lower not in _CONFIRM_YES and msg_lower not in _CONFIRM_NO:
+                    pass  # fall through to handle real message
+                else:
+                    return  # yes/no handled, done
+
+        # 4. Irrigation ON → confirmation gate (zone-aware, NEVER execute directly)
         if any(k in msg_lower for k in _IRRIGATION_ON_KEYWORDS):
-            _pending_confirmations[phone] = "start"
+            zone = _extract_zone(msg_lower)
+            _pending_confirmations[phone] = {"action": "start", "zone": zone}
+            zone_label = f"المنطقة *{zone}*" if zone else "*جميع المناطق*"
             await self.send_message(
                 phone,
-                "💧 *تأكيد تشغيل الري*\n\n"
-                "واش بغيت تشغل الري فجميع المناطق؟\n\n"
-                "• أرسل *نعم* / *واخا* للتأكيد\n"
-                "• أرسل *لا* / *ماشي* للإلغاء"
+                f"💧 *تأكيد تشغيل الري*\n\n"
+                f"واش بغيت تشغل الري في {zone_label}؟\n\n"
+                "• *نعم* / *واخا* — تأكيد\n"
+                "• *لا* / *ماشي* — إلغاء"
             )
             return
 
-        # 5. Irrigation OFF → confirmation gate (NEVER execute directly)
+        # 5. Irrigation OFF → confirmation gate (zone-aware, NEVER execute directly)
         if any(k in msg_lower for k in _IRRIGATION_OFF_KEYWORDS):
-            _pending_confirmations[phone] = "stop"
+            zone = _extract_zone(msg_lower)
+            _pending_confirmations[phone] = {"action": "stop", "zone": zone}
+            zone_label = f"المنطقة *{zone}*" if zone else "*جميع المناطق*"
             await self.send_message(
                 phone,
-                "🛑 *تأكيد إيقاف الري*\n\n"
-                "واش بغيت توقف الري فجميع المناطق؟\n\n"
-                "• أرسل *نعم* / *واخا* للتأكيد\n"
-                "• أرسل *لا* / *ماشي* للإلغاء"
+                f"🛑 *تأكيد إيقاف الري*\n\n"
+                f"واش بغيت توقف الري في {zone_label}؟\n\n"
+                "• *نعم* / *واخا* — تأكيد\n"
+                "• *لا* / *ماشي* — إلغاء"
             )
             return
 
@@ -566,60 +592,61 @@ class WhatsAppService:
             logger.error(f"WhatsApp chart error: {e}")
             await self.send_message(phone, "⚠️ خطأ في إنشاء الرسم البياني.\n_Erreur lors de la génération du graphique._")
 
-    async def _execute_irrigation_command(self, phone: str, action: str, session: dict) -> None:
-        """Execute irrigation start/stop for all active farm zones after user confirmation."""
+    async def _execute_irrigation_command(self, phone: str, pending: Dict, session: dict) -> None:
+        """Execute irrigation start/stop — for a specific zone or all zones — after confirmation."""
+        action = pending["action"]
+        target_zone_num = pending.get("zone")  # int or None (None = all zones)
+
         farm_id = session.get("farm_id")
         if not farm_id:
-            await self.send_message(phone, "⚠️ ما لقيتش المزرعة. عاود الاتصال بالمزرعة.\n_Ferme introuvable. Reconnectez-vous._")
+            await self.send_message(phone, "⚠️ ما لقيتش المزرعة. عاود الاتصال.\n_Ferme introuvable._")
             return
 
         try:
             from app.services import device_control_service
             supabase = get_supabase_admin()
-            zones = supabase.table("zones").select("id, zone_number, name").eq("farm_id", farm_id).eq("is_active", True).order("zone_number").execute()
 
-            if not zones.data:
-                await self.send_message(phone, "⚠️ ما كاين تا منطقة نشطة.\n_Aucune zone active trouvée._")
+            all_zones = supabase.table("zones").select("id, zone_number, name").eq("farm_id", farm_id).eq("is_active", True).order("zone_number").execute()
+            if not all_zones.data:
+                await self.send_message(phone, "⚠️ ما كاين تا منطقة نشطة.")
                 return
 
-            # Get farm owner id for audit log
+            if target_zone_num is not None:
+                zones_to_control = [z for z in all_zones.data if z["zone_number"] == target_zone_num]
+                if not zones_to_control:
+                    await self.send_message(phone, f"⚠️ ما لقيتش المنطقة {target_zone_num}.")
+                    return
+            else:
+                zones_to_control = all_zones.data
+
             farm = supabase.table("farms").select("owner_id").eq("id", farm_id).limit(1).execute()
             user_id = farm.data[0]["owner_id"] if farm.data else "whatsapp"
 
-            succeeded = []
-            failed = []
-            for zone in zones.data:
+            succeeded, failed = [], []
+            for zone in zones_to_control:
                 try:
                     await device_control_service.control_zone(
                         farm_id, zone["id"], action, user_id, "whatsapp", None
                     )
-                    zone_label = zone.get("name") or f"المنطقة {zone['zone_number']}"
-                    succeeded.append(zone_label)
+                    succeeded.append(zone.get("name") or f"المنطقة {zone['zone_number']}")
                 except Exception as e:
                     logger.error(f"[WA AI] Failed to {action} zone {zone['zone_number']}: {e}")
                     failed.append(f"المنطقة {zone['zone_number']}")
 
-            if action == "start":
-                action_ar = "تشغيل"
-                action_fr = "démarré"
-                emoji = "💧"
-            else:
-                action_ar = "إيقاف"
-                action_fr = "arrêté"
-                emoji = "🛑"
+            emoji = "💧" if action == "start" else "🛑"
+            action_ar = "تشغيل" if action == "start" else "إيقاف"
 
-            lines = [f"{emoji} *تم {action_ar} الري بنجاح*\n"]
+            lines = [f"{emoji} *تم {action_ar} الري*\n"]
             for z in succeeded:
                 lines.append(f"✅ {z}")
             if failed:
-                lines.append(f"\n⚠️ فشل في: {', '.join(failed)}")
-            lines.append(f"\n_Irrigation {action_fr} avec succès._")
+                lines.append(f"\n⚠️ فشل: {', '.join(failed)}")
 
             await self.send_message(phone, "\n".join(lines))
 
         except Exception as e:
             logger.error(f"[WA AI] Irrigation execution error: {e}")
-            await self.send_message(phone, "⚠️ فشل التحكم في الري. حاول مرة أخرى.\n_Échec du contrôle de l'irrigation._")
+            await self.send_message(phone, "⚠️ فشل التحكم في الري. حاول مرة أخرى.")
 
     async def _handle_soil_moisture_check(self, phone: str, session: dict) -> None:
         """Fetch and return soil moisture for all farm zones."""
