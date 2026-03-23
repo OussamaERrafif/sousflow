@@ -36,6 +36,15 @@ from app.routes.infrastructure_routes import router as infrastructure_router
 START_TIME = time.time()
 templates = Jinja2Templates(directory="app/templates")
 
+
+def render_template(name: str, request: Request, context: dict | None = None) -> HTMLResponse:
+    """Render a Jinja2 template in a way compatible with all Starlette versions."""
+    ctx = context or {}
+    ctx["request"] = request
+    template = templates.get_template(name)
+    html = template.render(ctx)
+    return HTMLResponse(html)
+
 _latest_readings_cache = []
 _hierarchical_readings_cache = {}
 _simulator_status_cache = {"running": False}
@@ -308,7 +317,7 @@ async def dashboard_login(request: Request):
     admin_user = _get_admin_from_cookie(request)
     if admin_user:
         return RedirectResponse(url="/dashboard", status_code=302)
-    return templates.TemplateResponse("login.html", context={}, request=request)
+    return render_template("login.html", request)
 
 
 @app.get("/dashboard/logout")
@@ -324,7 +333,7 @@ async def dashboard_logout():
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
     """User sign-in page"""
-    return templates.TemplateResponse("login.html", context={}, request=request)
+    return render_template("login.html", request)
 
 
 def _get_user_from_token(request: Request) -> dict | None:
@@ -355,7 +364,7 @@ async def users_page(request: Request):
     user = _get_user_from_token(request)
     if not user:
         return RedirectResponse(url="/login?return=/users", status_code=302)
-    return templates.TemplateResponse("users.html", context={"current_user": user}, request=request)
+    return render_template("users.html", request, {"current_user": user})
 
 
 @app.get("/dashboard", response_class=HTMLResponse)
@@ -381,7 +390,7 @@ async def dashboard(request: Request):
 
     debug_logs = read_logs("debug.log", 50) if is_debug_mode() else []
 
-    return templates.TemplateResponse("dashboard.html", context={
+    return render_template("dashboard.html", request, {
         "health": health,
         "logs": logs,
         "error_logs": error_logs,
@@ -390,7 +399,7 @@ async def dashboard(request: Request):
         "simulator_running": simulator_running,
         "admin_user": admin_user,
         "debug_mode": is_debug_mode(),
-    }, request=request)
+    })
 
 
 # ─── Debug Mode Endpoints ───────────────────────
