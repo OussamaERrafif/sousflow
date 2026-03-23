@@ -12,47 +12,60 @@ from app.logging_config import logger, debug
 # ─── WhatsApp Command Constants ──────────────────────────────────
 
 HELP_MENU = (
-    "📱 *SoussFlow - قائمة الأوامر*\n\n"
+    "📱 *SoussFlow — قائمة الأوامر*\n\n"
     "💧 *التحكم في الري:*\n"
-    '• "Turn on irrigation" / "شغل الري"\n'
-    '• "Turn off irrigation" / "أوقف الري"\n\n'
+    '• "شغل الري" / "turn on irrigation"\n'
+    '• "أوقف الري" / "turn off irrigation"\n\n'
     "🌱 *حالة المزرعة:*\n"
-    '• "Check soil moisture" / "رطوبة التربة"\n'
-    "• Ask about weather, zones, sensors...\n\n"
-    "📊 *بيانات ونصائح:*\n"
-    "• Ask any question about your farm\n"
-    "• Get olive cultivation advice\n"
-    "• Ask for a chart / رسم بياني\n\n"
-    '🔄 "تغيير المزرعة" - Switch farm\n'
-    '📋 "help" - Show this menu\n\n'
-    "_You can talk in Arabic, Darija, French, or English._"
+    '• "شنو طرا؟" — آش وقع بالمزرعة\n'
+    '• "رطوبة التربة" / "check soil moisture"\n'
+    '• "حالة الري" / "zone status"\n\n'
+    "📊 *أسئلة وتحليل:*\n"
+    "• سولني على الطقس، المناطق، المستشعرات...\n"
+    "• نصائح زراعة الزيتون\n"
+    "• طلب رسم بياني: \"رسم\" / \"chart\"\n\n"
+    '🔄 *تغيير المزرعة:* "تغيير المزرعة"\n'
+    '📋 *هاد القائمة:* "help" أو "مساعدة"\n\n'
+    "_تقدر تكلمني بالدارجة، العربية، الفرنسية، أو الإنجليزية._"
 )
 
 _IRRIGATION_ON_KEYWORDS = {
     "turn on irrigation", "start irrigation", "open irrigation",
-    "ابدأ الري", "شغل الري", "افتح الري", "بدا الري",
+    "ابدأ الري", "شغل الري", "افتح الري", "بدا الري", "بدأ الري",
+    "sقل الري", "دير الري", "حول الري",
     "activer irrigation", "démarrer irrigation", "ouvrir irrigation",
+    "irrigate", "water the farm", "water farm",
 }
 
 _IRRIGATION_OFF_KEYWORDS = {
     "turn off irrigation", "stop irrigation", "close irrigation",
     "أوقف الري", "اوقف الري", "اقفل الري", "أغلق الري", "اغلق الري",
+    "وقف الري", "قف الري", "سد الري",
     "désactiver irrigation", "arrêter irrigation", "fermer irrigation",
+    "stop watering",
 }
 
 _SOIL_MOISTURE_KEYWORDS = {
     "soil moisture", "check moisture", "moisture level", "check soil",
-    "رطوبة التربة", "حالة التربة", "رطوبة", "تربة",
-    "humidité du sol", "vérifier humidité", "humidité",
+    "رطوبة التربة", "حالة التربة",
+    "humidité du sol", "vérifier humidité",
 }
 
 _HELP_KEYWORDS = {
     "help", "menu", "what can you do", "مساعدة", "مساعده",
     "aide", "commands", "options", "قائمة", "ماذا تستطيع",
+    "واش تقدر", "علاش",
 }
 
-_CONFIRM_YES = {"yes", "oui", "نعم", "أيوا", "اه", "ya", "yeah", "yep", "ok", "d'accord", "sure", "confirm"}
-_CONFIRM_NO = {"no", "non", "لا", "nope", "cancel", "إلغاء", "annuler", "لا شكرا"}
+_CONFIRM_YES = {
+    "yes", "oui", "نعم", "أيوا", "اه", "ya", "yeah", "yep", "ok",
+    "d'accord", "sure", "confirm", "aywa", "ايوا", "ايه", "واخا", "wakha",
+    "نعم نعم", "أكد", "اكد",
+}
+_CONFIRM_NO = {
+    "no", "non", "لا", "nope", "cancel", "إلغاء", "annuler", "لا شكرا",
+    "لا لا", "ماشي", "machi", "لأ", "la",
+}
 
 # In-memory pending irrigation confirmations: phone -> "start" or "stop"
 _pending_confirmations: Dict[str, str] = {}
@@ -404,11 +417,11 @@ class WhatsAppService:
 
     async def _handle_ai_chat(self, phone: str, message: str, session: dict) -> None:
         """
-        Full AI assistant with:
-        - Irrigation commands require confirmation before execution (safety)
+        Full AI assistant:
+        - Irrigation commands require explicit confirmation (safety gate)
         - Help menu on demand
         - Chart generation only when explicitly requested
-        - All other messages routed to OpenAI for full AI conversation
+        - Everything else routed to OpenAI (read-only tools on WhatsApp — no auto-actions)
         """
         msg_lower = message.strip().lower()
 
@@ -417,7 +430,7 @@ class WhatsAppService:
             await self._update_ai_session(session["id"], state="awaiting_farm_name", farm_id=None, conversation_id=None)
             await self.send_message(
                 phone,
-                "🔄 من فضلك، أخبرني باسم المزرعة الجديدة.\n_Quel est le nom de la nouvelle ferme?_"
+                "🔄 *تغيير المزرعة*\n\nأرسل اسم المزرعة الجديدة.\n_Envoyez le nom de la nouvelle ferme._"
             )
             return
 
@@ -426,27 +439,48 @@ class WhatsAppService:
             await self.send_message(phone, HELP_MENU)
             return
 
-        # 3. Pending irrigation confirmation — must handle before anything else
+        # 3. Pending irrigation confirmation — handle BEFORE keyword detection
         if phone in _pending_confirmations:
             pending_action = _pending_confirmations[phone]
             if msg_lower in _CONFIRM_YES:
                 del _pending_confirmations[phone]
                 await self._execute_irrigation_command(phone, pending_action, session)
-            else:
+            elif msg_lower in _CONFIRM_NO:
                 del _pending_confirmations[phone]
-                await self.send_message(phone, "✅ Okay, no changes were made.")
+                await self.send_message(phone, "✅ واخا، ما دير والو.\n_Aucune modification effectuée._")
+            else:
+                # Not a clear yes/no — re-ask
+                action_label = "تشغيل" if pending_action == "start" else "إيقاف"
+                await self.send_message(
+                    phone,
+                    f"⚠️ من فضلك أكد: هل تريد *{action_label}* الري؟\n"
+                    "• أرسل *نعم* / *واخا* للتأكيد\n"
+                    "• أرسل *لا* / *ماشي* للإلغاء"
+                )
             return
 
-        # 4. Irrigation ON command → ask for confirmation (NEVER execute directly)
+        # 4. Irrigation ON → confirmation gate (NEVER execute directly)
         if any(k in msg_lower for k in _IRRIGATION_ON_KEYWORDS):
             _pending_confirmations[phone] = "start"
-            await self.send_message(phone, "🔔 Are you sure you want to turn *on* the irrigation?")
+            await self.send_message(
+                phone,
+                "💧 *تأكيد تشغيل الري*\n\n"
+                "واش بغيت تشغل الري فجميع المناطق؟\n\n"
+                "• أرسل *نعم* / *واخا* للتأكيد\n"
+                "• أرسل *لا* / *ماشي* للإلغاء"
+            )
             return
 
-        # 5. Irrigation OFF command → ask for confirmation (NEVER execute directly)
+        # 5. Irrigation OFF → confirmation gate (NEVER execute directly)
         if any(k in msg_lower for k in _IRRIGATION_OFF_KEYWORDS):
             _pending_confirmations[phone] = "stop"
-            await self.send_message(phone, "🔔 Are you sure you want to turn *off* the irrigation?")
+            await self.send_message(
+                phone,
+                "🛑 *تأكيد إيقاف الري*\n\n"
+                "واش بغيت توقف الري فجميع المناطق؟\n\n"
+                "• أرسل *نعم* / *واخا* للتأكيد\n"
+                "• أرسل *لا* / *ماشي* للإلغاء"
+            )
             return
 
         # 6. Soil moisture quick-check (faster than OpenAI round-trip)
@@ -462,7 +496,7 @@ class WhatsAppService:
             await self._handle_chart_request(phone, farm_id, conversation_id)
             return
 
-        # 8. Route everything else to OpenAI for full AI assistant
+        # 8. Route everything else to OpenAI (WhatsApp = read-only, no device control)
         try:
             from app.services.openai_service import chat
             user_context = None
@@ -484,12 +518,12 @@ class WhatsAppService:
                 user_context=user_context,
             )
 
-            # Force-convert markdown to WhatsApp formatting
+            # Convert any remaining markdown to WhatsApp format
             ai_response = self._convert_to_whatsapp_format(ai_response)
 
-            # WhatsApp has a 4096 char limit — truncate if needed
+            # WhatsApp 4096 char limit
             if len(ai_response) > 4000:
-                ai_response = ai_response[:3990] + "\n..."
+                ai_response = ai_response[:3990] + "\n\n_...الرسالة طويلة، اسأل عن جزء محدد._"
 
             await self.send_message(phone, ai_response)
 
@@ -497,7 +531,7 @@ class WhatsAppService:
             logger.error(f"WhatsApp AI chat error: {e}")
             await self.send_message(
                 phone,
-                "⚠️ عذراً، حدث خطأ. حاول مرة أخرى.\n_Erreur, réessayez._"
+                "⚠️ حدث خطأ، عاود المحاولة.\n_Erreur, réessayez._"
             )
 
     def _is_chart_request(self, msg_lower: str) -> bool:
@@ -533,39 +567,59 @@ class WhatsAppService:
             await self.send_message(phone, "⚠️ خطأ في إنشاء الرسم البياني.\n_Erreur lors de la génération du graphique._")
 
     async def _execute_irrigation_command(self, phone: str, action: str, session: dict) -> None:
-        """Execute irrigation start/stop for all farm zones after confirmation."""
+        """Execute irrigation start/stop for all active farm zones after user confirmation."""
         farm_id = session.get("farm_id")
         if not farm_id:
-            await self.send_message(phone, "⚠️ Farm not found. Please reconnect.")
+            await self.send_message(phone, "⚠️ ما لقيتش المزرعة. عاود الاتصال بالمزرعة.\n_Ferme introuvable. Reconnectez-vous._")
             return
 
         try:
             from app.services import device_control_service
             supabase = get_supabase_admin()
-            zones = supabase.table("zones").select("id, zone_number").eq("farm_id", farm_id).eq("is_active", True).execute()
+            zones = supabase.table("zones").select("id, zone_number, name").eq("farm_id", farm_id).eq("is_active", True).order("zone_number").execute()
 
             if not zones.data:
-                await self.send_message(phone, "⚠️ No active zones found for your farm.")
+                await self.send_message(phone, "⚠️ ما كاين تا منطقة نشطة.\n_Aucune zone active trouvée._")
                 return
 
             # Get farm owner id for audit log
             farm = supabase.table("farms").select("owner_id").eq("id", farm_id).limit(1).execute()
             user_id = farm.data[0]["owner_id"] if farm.data else "whatsapp"
 
+            succeeded = []
+            failed = []
             for zone in zones.data:
                 try:
                     await device_control_service.control_zone(
                         farm_id, zone["id"], action, user_id, "whatsapp", None
                     )
+                    zone_label = zone.get("name") or f"المنطقة {zone['zone_number']}"
+                    succeeded.append(zone_label)
                 except Exception as e:
                     logger.error(f"[WA AI] Failed to {action} zone {zone['zone_number']}: {e}")
+                    failed.append(f"المنطقة {zone['zone_number']}")
 
-            action_label = "turned on" if action == "start" else "turned off"
-            await self.send_message(phone, f"✅ Irrigation {action_label} successfully.")
+            if action == "start":
+                action_ar = "تشغيل"
+                action_fr = "démarré"
+                emoji = "💧"
+            else:
+                action_ar = "إيقاف"
+                action_fr = "arrêté"
+                emoji = "🛑"
+
+            lines = [f"{emoji} *تم {action_ar} الري بنجاح*\n"]
+            for z in succeeded:
+                lines.append(f"✅ {z}")
+            if failed:
+                lines.append(f"\n⚠️ فشل في: {', '.join(failed)}")
+            lines.append(f"\n_Irrigation {action_fr} avec succès._")
+
+            await self.send_message(phone, "\n".join(lines))
 
         except Exception as e:
             logger.error(f"[WA AI] Irrigation execution error: {e}")
-            await self.send_message(phone, "⚠️ Failed to control irrigation. Please try again.")
+            await self.send_message(phone, "⚠️ فشل التحكم في الري. حاول مرة أخرى.\n_Échec du contrôle de l'irrigation._")
 
     async def _handle_soil_moisture_check(self, phone: str, session: dict) -> None:
         """Fetch and return soil moisture for all farm zones."""
@@ -595,23 +649,32 @@ class WhatsAppService:
                 if r["zone_id"] not in latest:
                     latest[r["zone_id"]] = r
 
-            lines = ["🌱 *Soil Moisture Status*\n"]
+            needs_irrigation = []
+            lines = ["🌱 *رطوبة التربة — Soil Moisture*\n"]
             for z in zones.data:
                 r = latest.get(z["id"])
-                name = z.get("name") or f"Zone {z['zone_number']}"
+                name = z.get("name") or f"المنطقة {z['zone_number']}"
                 if r and r.get("avg_soil_moisture_pct") is not None:
                     moisture = r["avg_soil_moisture_pct"]
                     if moisture < 30:
-                        status = "⚠️ _Low — needs irrigation_"
-                    elif moisture > 60:
-                        status = "💧 _High_"
+                        status = "🔴 _منخفضة — تحتاج ري_"
+                        needs_irrigation.append(name)
+                    elif moisture < 40:
+                        status = "🟡 _معقولة_"
+                    elif moisture > 65:
+                        status = "🔵 _مرتفعة_"
                     else:
-                        status = "✅ _Good_"
+                        status = "🟢 _جيدة_"
                     lines.append(f"• *{name}:* {moisture:.1f}% {status}")
                 else:
-                    lines.append(f"• *{name}:* No recent data")
+                    lines.append(f"• *{name}:* ما كاين تا قراءة حديثة")
 
-            lines.append('\n_Reply "help" for available commands._')
+            if needs_irrigation:
+                lines.append(f'\n⚠️ *{", ".join(needs_irrigation)}* تحتاج ري.')
+                lines.append('أرسل *"شغل الري"* إذا بغيت تبدأ.')
+            else:
+                lines.append("\n✅ جميع المناطق في حالة جيدة.")
+
             await self.send_message(phone, "\n".join(lines))
 
         except Exception as e:
