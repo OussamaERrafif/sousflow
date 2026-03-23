@@ -9,6 +9,54 @@ from app.config import get_settings
 from app.supabase_client import get_supabase_admin
 from app.logging_config import logger, debug
 
+# ─── WhatsApp Command Constants ──────────────────────────────────
+
+HELP_MENU = (
+    "📱 *SoussFlow - قائمة الأوامر*\n\n"
+    "💧 *التحكم في الري:*\n"
+    '• "Turn on irrigation" / "شغل الري"\n'
+    '• "Turn off irrigation" / "أوقف الري"\n\n'
+    "🌱 *حالة المزرعة:*\n"
+    '• "Check soil moisture" / "رطوبة التربة"\n'
+    "• Ask about weather, zones, sensors...\n\n"
+    "📊 *بيانات ونصائح:*\n"
+    "• Ask any question about your farm\n"
+    "• Get olive cultivation advice\n"
+    "• Ask for a chart / رسم بياني\n\n"
+    '🔄 "تغيير المزرعة" - Switch farm\n'
+    '📋 "help" - Show this menu\n\n'
+    "_You can talk in Arabic, Darija, French, or English._"
+)
+
+_IRRIGATION_ON_KEYWORDS = {
+    "turn on irrigation", "start irrigation", "open irrigation",
+    "ابدأ الري", "شغل الري", "افتح الري", "بدا الري",
+    "activer irrigation", "démarrer irrigation", "ouvrir irrigation",
+}
+
+_IRRIGATION_OFF_KEYWORDS = {
+    "turn off irrigation", "stop irrigation", "close irrigation",
+    "أوقف الري", "اوقف الري", "اقفل الري", "أغلق الري", "اغلق الري",
+    "désactiver irrigation", "arrêter irrigation", "fermer irrigation",
+}
+
+_SOIL_MOISTURE_KEYWORDS = {
+    "soil moisture", "check moisture", "moisture level", "check soil",
+    "رطوبة التربة", "حالة التربة", "رطوبة", "تربة",
+    "humidité du sol", "vérifier humidité", "humidité",
+}
+
+_HELP_KEYWORDS = {
+    "help", "menu", "what can you do", "مساعدة", "مساعده",
+    "aide", "commands", "options", "قائمة", "ماذا تستطيع",
+}
+
+_CONFIRM_YES = {"yes", "oui", "نعم", "أيوا", "اه", "ya", "yeah", "yep", "ok", "d'accord", "sure", "confirm"}
+_CONFIRM_NO = {"no", "non", "لا", "nope", "cancel", "إلغاء", "annuler", "لا شكرا"}
+
+# In-memory pending irrigation confirmations: phone -> "start" or "stop"
+_pending_confirmations: Dict[str, str] = {}
+
 
 class WhatsAppService:
     """Service for sending and receiving WhatsApp messages via WaSenderAPI"""
@@ -347,16 +395,24 @@ class WhatsAppService:
             f"_Connecté à {farm['name']}! Posez vos questions._"
         )
 
-    # Keywords that mean the user wants a chart
+    # Explicit chart keywords — only trigger on real chart requests, NOT generic
+    # affirmatives like "yes", "ok", "نعم" which were causing false positives
     _CHART_KEYWORDS = {
-        "نعم", "أيوا", "اه", "رسم", "رسم بياني", "بياني", "chart", "graph",
-        "plot", "oui", "graphique", "yes", "yeah", "ok", "d'accord",
+        "رسم", "رسم بياني", "بياني", "chart", "graph", "plot",
+        "graphique", "diagramme",
     }
 
     async def _handle_ai_chat(self, phone: str, message: str, session: dict) -> None:
-        """Route message to OpenAI with farm context, or generate chart if requested"""
-        # Check for farm switch command
+        """
+        Full AI assistant with:
+        - Irrigation commands require confirmation before execution (safety)
+        - Help menu on demand
+        - Chart generation only when explicitly requested
+        - All other messages routed to OpenAI for full AI conversation
+        """
         msg_lower = message.strip().lower()
+
+        # 1. Farm switch command
         if msg_lower in ("تغيير المزرعة", "changer ferme", "switch farm", "تغيير"):
             await self._update_ai_session(session["id"], state="awaiting_farm_name", farm_id=None, conversation_id=None)
             await self.send_message(
@@ -365,17 +421,50 @@ class WhatsAppService:
             )
             return
 
+        # 2. Help menu
+        if msg_lower in _HELP_KEYWORDS:
+            await self.send_message(phone, HELP_MENU)
+            return
+
+        # 3. Pending irrigation confirmation — must handle before anything else
+        if phone in _pending_confirmations:
+            pending_action = _pending_confirmations[phone]
+            if msg_lower in _CONFIRM_YES:
+                del _pending_confirmations[phone]
+                await self._execute_irrigation_command(phone, pending_action, session)
+            else:
+                del _pending_confirmations[phone]
+                await self.send_message(phone, "✅ Okay, no changes were made.")
+            return
+
+        # 4. Irrigation ON command → ask for confirmation (NEVER execute directly)
+        if any(k in msg_lower for k in _IRRIGATION_ON_KEYWORDS):
+            _pending_confirmations[phone] = "start"
+            await self.send_message(phone, "🔔 Are you sure you want to turn *on* the irrigation?")
+            return
+
+        # 5. Irrigation OFF command → ask for confirmation (NEVER execute directly)
+        if any(k in msg_lower for k in _IRRIGATION_OFF_KEYWORDS):
+            _pending_confirmations[phone] = "stop"
+            await self.send_message(phone, "🔔 Are you sure you want to turn *off* the irrigation?")
+            return
+
+        # 6. Soil moisture quick-check (faster than OpenAI round-trip)
+        if any(k in msg_lower for k in _SOIL_MOISTURE_KEYWORDS):
+            await self._handle_soil_moisture_check(phone, session)
+            return
+
         farm_id = session["farm_id"]
         conversation_id = session["conversation_id"]
 
-        # Check if user is requesting a chart
+        # 7. Explicit chart request
         if self._is_chart_request(msg_lower):
             await self._handle_chart_request(phone, farm_id, conversation_id)
             return
 
+        # 8. Route everything else to OpenAI for full AI assistant
         try:
             from app.services.openai_service import chat
-            # Look up farm owner as user context for AI tool permission checks
             user_context = None
             try:
                 _supabase = get_supabase_admin()
@@ -412,7 +501,8 @@ class WhatsAppService:
             )
 
     def _is_chart_request(self, msg_lower: str) -> bool:
-        """Check if the message is a request for a chart"""
+        """Check if the message is an explicit request for a chart.
+        Only matches real chart words — NOT generic affirmatives like 'yes'."""
         words = set(msg_lower.split())
         return bool(words & self._CHART_KEYWORDS)
 
@@ -441,6 +531,92 @@ class WhatsAppService:
         except Exception as e:
             logger.error(f"WhatsApp chart error: {e}")
             await self.send_message(phone, "⚠️ خطأ في إنشاء الرسم البياني.\n_Erreur lors de la génération du graphique._")
+
+    async def _execute_irrigation_command(self, phone: str, action: str, session: dict) -> None:
+        """Execute irrigation start/stop for all farm zones after confirmation."""
+        farm_id = session.get("farm_id")
+        if not farm_id:
+            await self.send_message(phone, "⚠️ Farm not found. Please reconnect.")
+            return
+
+        try:
+            from app.services import device_control_service
+            supabase = get_supabase_admin()
+            zones = supabase.table("zones").select("id, zone_number").eq("farm_id", farm_id).eq("is_active", True).execute()
+
+            if not zones.data:
+                await self.send_message(phone, "⚠️ No active zones found for your farm.")
+                return
+
+            # Get farm owner id for audit log
+            farm = supabase.table("farms").select("owner_id").eq("id", farm_id).limit(1).execute()
+            user_id = farm.data[0]["owner_id"] if farm.data else "whatsapp"
+
+            for zone in zones.data:
+                try:
+                    await device_control_service.control_zone(
+                        farm_id, zone["id"], action, user_id, "whatsapp", None
+                    )
+                except Exception as e:
+                    logger.error(f"[WA AI] Failed to {action} zone {zone['zone_number']}: {e}")
+
+            action_label = "turned on" if action == "start" else "turned off"
+            await self.send_message(phone, f"✅ Irrigation {action_label} successfully.")
+
+        except Exception as e:
+            logger.error(f"[WA AI] Irrigation execution error: {e}")
+            await self.send_message(phone, "⚠️ Failed to control irrigation. Please try again.")
+
+    async def _handle_soil_moisture_check(self, phone: str, session: dict) -> None:
+        """Fetch and return soil moisture for all farm zones."""
+        farm_id = session.get("farm_id")
+        if not farm_id:
+            await self.send_message(phone, "⚠️ Farm not found. Please reconnect.")
+            return
+
+        try:
+            from datetime import timedelta
+            supabase = get_supabase_admin()
+            three_hours_ago = (datetime.now(timezone.utc) - timedelta(hours=3)).isoformat()
+
+            # Get zones with names
+            zones = supabase.table("zones").select("id, zone_number, name").eq("farm_id", farm_id).eq("is_active", True).order("zone_number").execute()
+            if not zones.data:
+                await self.send_message(phone, "⚠️ No active zones found.")
+                return
+
+            # Get latest zone health readings
+            zone_ids = [z["id"] for z in zones.data]
+            health = supabase.table("zone_health_readings").select("zone_id, avg_soil_moisture_pct, health_score").eq("farm_id", farm_id).gte("timestamp", three_hours_ago).order("timestamp", desc=True).limit(50).execute()
+
+            # Latest reading per zone
+            latest = {}
+            for r in (health.data or []):
+                if r["zone_id"] not in latest:
+                    latest[r["zone_id"]] = r
+
+            lines = ["🌱 *Soil Moisture Status*\n"]
+            for z in zones.data:
+                r = latest.get(z["id"])
+                name = z.get("name") or f"Zone {z['zone_number']}"
+                if r and r.get("avg_soil_moisture_pct") is not None:
+                    moisture = r["avg_soil_moisture_pct"]
+                    if moisture < 30:
+                        status = "⚠️ _Low — needs irrigation_"
+                    elif moisture > 60:
+                        status = "💧 _High_"
+                    else:
+                        status = "✅ _Good_"
+                    lines.append(f"• *{name}:* {moisture:.1f}% {status}")
+                else:
+                    lines.append(f"• *{name}:* No recent data")
+
+            lines.append('\n_Reply "help" for available commands._')
+            await self.send_message(phone, "\n".join(lines))
+
+        except Exception as e:
+            logger.error(f"[WA AI] Soil moisture check error: {e}")
+            await self.send_message(phone, "⚠️ Failed to fetch soil moisture. Please try again.")
 
     async def _send_image(self, phone: str, image_url: str, caption: str = "") -> Dict[str, Any]:
         """Send an image via WaSenderAPI"""

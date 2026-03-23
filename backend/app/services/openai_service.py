@@ -148,13 +148,8 @@ Use rich markdown in your answers:
 - > Blockquotes for important warnings or tips
 - ### Headings to organize sections
 
-## Chart Offer
-When your response contains numerical data that could be visualized (sensor values, zone comparisons, trends, percentages), add a short question at the very end asking the user if they want a chart. Match the user's language:
-- Arabic: "📊 _هل تريد رسم بياني لهذه البيانات؟_"
-- French: "📊 _Voulez-vous un graphique de ces données ?_"
-- English: "📊 _Would you like a chart of this data?_"
-
-Only ask this when there are at least 2 data points that make a chart meaningful. Do NOT ask if you already included an SVG chart in the response, or if the user explicitly asked for a chart (in that case, just include the SVG directly).
+## Charts
+Only include SVG charts when the user explicitly asks for a chart, graph, or visualization. Do NOT offer or suggest charts unless asked.
 """
 
 WHATSAPP_SYSTEM_PROMPT = _BASE_PROMPT + """
@@ -205,13 +200,8 @@ You are responding via WhatsApp. Use ONLY WhatsApp-compatible formatting:
 2. المنطقة 1 تحتاج ري خلال ساعتين
 3. المنطقة 2 لا تحتاج ري حالياً
 
-## Chart Offer
-When your response contains numerical data that could be visualized (sensor values, zone comparisons, trends, percentages), add a short question at the very end asking the user if they want a chart. Match the user's language:
-- Arabic: "📊 _هل تريد رسم بياني لهذه البيانات؟_"
-- French: "📊 _Voulez-vous un graphique ?_"
-- English: "📊 _Would you like a chart?_"
-
-Only offer when there are at least 2 data points. Do NOT offer if the user explicitly asked for a chart.
+## Charts
+Do NOT suggest or offer charts in your responses. The user can request a chart separately if they want one.
 """
 
 CHART_GENERATION_PROMPT = """You are a chart data generator. Given the conversation context, generate a Chart.js configuration as PURE JSON (no markdown, no code fences, no explanation — ONLY valid JSON).
