@@ -389,8 +389,8 @@ async def _get_farm_user_phones(farm_id: str) -> list[str]:
             if m.get("phone") and m["phone"] not in phones:
                 phones.append(m["phone"])
 
-    # WhatsApp AI sessions connected to this farm
-    wa_sessions = supabase.table("whatsapp_ai_sessions").select("phone").eq("farm_id", farm_id).eq("state", "connected").execute()
+    # All WhatsApp AI sessions linked to this farm (connected or previously connected)
+    wa_sessions = supabase.table("whatsapp_ai_sessions").select("phone").eq("farm_id", farm_id).execute()
     for s in (wa_sessions.data or []):
         if s.get("phone") and s["phone"] not in phones:
             phones.append(s["phone"])
@@ -417,15 +417,29 @@ async def _auto_alert(farm_id: str, critical_anomalies: list[dict]):
     if not phones:
         return
 
+    _SEVERITY_EMOJI_MAP = {"low": "⚠️", "medium": "🟠", "high": "🔴", "critical": "🚨"}
+    _TYPE_AR_MAP = {
+        "z_score": "قراءة شاذة",
+        "sudden_change": "تغيير مفاجئ",
+        "stuck_sensor": "مستشعر متعطل",
+        "drift": "انجراف تدريجي",
+        "correlation": "ارتباط مشبوه",
+        "injected": "تنبيه يدوي",
+    }
+
     for a in critical_anomalies[:3]:  # max 3 alerts per cycle
-        msg = f"⚠️ *{a['severity'].upper()} Anomaly*\n\nType: {a['anomaly_type']}\n"
-        if a.get("zone_id"):
-            msg += f"Zone: {a['zone_id']}\n"
-        msg += f"Columns: {', '.join(a['target_columns'])}\n"
+        sev = a["severity"]
+        sev_emoji = _SEVERITY_EMOJI_MAP.get(sev, "⚠️")
+        atype_ar = _TYPE_AR_MAP.get(a["anomaly_type"], a["anomaly_type"])
         details = a.get("details", {})
-        if "message" in details:
-            msg += f"\n{details['message']}"
-        msg += '\n\nReply "help" for available actions.'
+        detail_msg = details.get("message", "")
+
+        msg = f"{sev_emoji} *تنبيه — {atype_ar}*\n\n"
+        if a.get("zone_id"):
+            msg += f"📍 المنطقة: {a['zone_id'][:8]}...\n"
+        if detail_msg:
+            msg += f"{detail_msg}\n"
+        msg += '\nأرسل *"شنو طرا؟"* لمزيد من التفاصيل.\nأرسل *"help"* لقائمة الأوامر.'
 
         for phone in phones:
             try:
@@ -497,10 +511,38 @@ async def inject_anomaly_manual(
     label = _TYPE_LABEL.get(anomaly_type, anomaly_type.replace("_", " ").title())
     action = _ACTION_HINTS.get(anomaly_type, "Check your farm system.")
 
+    _SEVERITY_AR = {"low": "منخفضة", "medium": "متوسطة", "critical": "حرجة"}
+    _TYPE_AR = {
+        "low_soil_moisture": "رطوبة التربة منخفضة",
+        "irrigation_failure": "عطل في نظام الري",
+        "sensor_error": "خطأ في المستشعر",
+    }
+    _ACTION_AR = {
+        "low_soil_moisture": "راجع نظام الري وتأكد من ضخ الماء.",
+        "irrigation_failure": "افحص المضخة والصمامات.",
+        "sensor_error": "تحقق من توصيلات المستشعرات.",
+    }
+
+    severity_ar = _SEVERITY_AR.get(severity, severity)
+    label_ar = _TYPE_AR.get(anomaly_type, label)
+    action_ar = _ACTION_AR.get(anomaly_type, action)
+
     if severity == "critical":
-        msg = f"🚨 *Critical Alert:* {label} detected on your farm.\n\nAction Required: {action}\n\nReply \"help\" for available actions."
+        msg = (
+            f"🚨 *تنبيه حرج — {label_ar}*\n\n"
+            f"تم رصد مشكل حرج في مزرعتك.\n"
+            f"*الإجراء المطلوب:* {action_ar}\n\n"
+            f"أرسل *\"شنو طرا؟\"* لمزيد من التفاصيل.\n"
+            f"أرسل *\"help\"* لقائمة الأوامر."
+        )
     else:
-        msg = f"{emoji} *Alert:* An issue detected on your farm.\nType: {label}\nAction Recommended: {action}\n\nReply \"help\" for available actions."
+        msg = (
+            f"{emoji} *تنبيه ({severity_ar}) — {label_ar}*\n\n"
+            f"تم رصد مشكل في مزرعتك.\n"
+            f"*التوصية:* {action_ar}\n\n"
+            f"أرسل *\"شنو طرا؟\"* لمزيد من التفاصيل.\n"
+            f"أرسل *\"help\"* لقائمة الأوامر."
+        )
 
     # Send to all farm users
     alerts_sent = 0
