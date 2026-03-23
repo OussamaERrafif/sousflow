@@ -102,7 +102,7 @@ async def get_current_user(request: Request) -> dict:
         # Determine active farm from X-Farm-ID header
         x_farm_id = request.headers.get("X-Farm-ID")
         active_farm_id = None
-        if x_farm_id and x_farm_id in all_farm_ids:
+        if x_farm_id and (x_farm_id in all_farm_ids or user["role"] == "superadmin"):
             active_farm_id = x_farm_id
         elif all_farm_ids:
             active_farm_id = all_farm_ids[0]
@@ -184,6 +184,8 @@ async def require_control_permission(current_user: dict = Depends(get_current_us
 
 def require_farm_access(farm_id: str, current_user: dict = Depends(get_current_user)) -> dict:
     """Dependency that checks if the user has access to the specified farm."""
+    if current_user.get("role") == "superadmin":
+        return current_user
     if farm_id not in current_user.get("farm_ids", []):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -201,7 +203,7 @@ class OptionalFarm:
         x_farm_id = request.headers.get("X-Farm-ID")
 
         if x_farm_id:
-            if x_farm_id not in current_user.get("farm_ids", []):
+            if x_farm_id not in current_user.get("farm_ids", []) and current_user.get("role") != "superadmin":
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="You don't have access to this farm",

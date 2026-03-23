@@ -369,9 +369,9 @@ async def _persist_anomalies(farm_id: str, anomalies: list[dict]):
 
 
 async def _get_farm_user_phones(farm_id: str) -> list[str]:
-    """Return all phone numbers for users linked to a farm (owner + active members)."""
+    """Return all phone numbers for users linked to a farm (owner + active members + WhatsApp AI sessions)."""
     supabase = get_supabase_admin()
-    phones = []
+    phones: list[str] = []
 
     # Farm owner
     farm = supabase.table("farms").select("owner_id").eq("id", farm_id).limit(1).execute()
@@ -388,6 +388,12 @@ async def _get_farm_user_phones(farm_id: str) -> list[str]:
         for m in (members.data or []):
             if m.get("phone") and m["phone"] not in phones:
                 phones.append(m["phone"])
+
+    # WhatsApp AI sessions connected to this farm
+    wa_sessions = supabase.table("whatsapp_ai_sessions").select("phone").eq("farm_id", farm_id).eq("state", "connected").execute()
+    for s in (wa_sessions.data or []):
+        if s.get("phone") and s["phone"] not in phones:
+            phones.append(s["phone"])
 
     if not phones:
         logger.warning(f"[Anomaly Alert] No recipients found for farm {farm_id}")

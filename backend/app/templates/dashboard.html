@@ -299,6 +299,12 @@
                 SoussFlow Analytics
             </span>
             <span class="text-end d-flex align-items-center gap-3">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-tree" style="color: var(--accent-green); font-size: 1rem;"></i>
+                    <select class="form-select form-select-sm" id="globalFarmSelect" onchange="onGlobalFarmChange()" style="background-color: var(--bg-terminal); border: 1px solid var(--border); color: var(--text-primary); border-radius: 8px; min-width: 180px; font-size: 0.85rem;">
+                        <option value="">Loading farms...</option>
+                    </select>
+                </div>
                 <div class="form-check form-switch">
                     <input class="form-check-input" type="checkbox" id="debugModeToggle" {% if debug_mode %}checked{% endif %} onchange="toggleDebugMode()">
                     <label class="form-check-label text-warning" for="debugModeToggle">
@@ -696,16 +702,10 @@
                         </div>
                         <div class="card-body form-admin">
                             <p class="text-secondary mb-3" style="font-size: 0.85rem;">
-                                Select a farm, anomaly type, and severity. This creates an anomaly event in the database and sends
+                                Uses the farm selected in the top bar. Creates an anomaly event and sends
                                 WhatsApp alerts to <strong>all users linked to that farm</strong>.
                             </p>
                             <div class="row g-3">
-                                <div class="col-md-12">
-                                    <label class="form-label">Farm</label>
-                                    <select class="form-select" id="alertFarmSelect">
-                                        <option value="">Loading farms...</option>
-                                    </select>
-                                </div>
                                 <div class="col-md-6">
                                     <label class="form-label">Anomaly Type</label>
                                     <select class="form-select" id="alertAnomalyType">
@@ -1368,6 +1368,67 @@
         }
         connectSSE();
 
+        // ═══════ Global Farm Selector ═══════
+
+        let globalFarms = [];
+        let globalFarmOwners = {};  // farmId -> ownerName
+
+        function getSelectedFarmId() {
+            return document.getElementById('globalFarmSelect').value || '';
+        }
+
+        async function loadGlobalFarms() {
+            const select = document.getElementById('globalFarmSelect');
+            try {
+                const token = getAdminToken();
+                const res = await fetch('/api/admin/owners', {
+                    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }
+                });
+                if (!res.ok) return;
+                const owners = await res.json();
+                globalFarms = [];
+                globalFarmOwners = {};
+                select.innerHTML = '';
+
+                for (const owner of owners) {
+                    try {
+                        const detailRes = await fetch('/api/admin/owners/' + owner.id, {
+                            headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }
+                        });
+                        if (!detailRes.ok) continue;
+                        const detail = await detailRes.json();
+                        for (const farm of (detail.farms || [])) {
+                            globalFarms.push(farm);
+                            const ownerLabel = owner.full_name || owner.username;
+                            globalFarmOwners[farm.id] = ownerLabel;
+                            const opt = document.createElement('option');
+                            opt.value = farm.id;
+                            opt.textContent = farm.name + ' — ' + ownerLabel;
+                            select.appendChild(opt);
+                        }
+                    } catch(e) {}
+                }
+
+                if (select.options.length === 0) {
+                    select.innerHTML = '<option value="">No farms found</option>';
+                } else {
+                    // Restore previously selected farm from sessionStorage
+                    const saved = sessionStorage.getItem('selectedFarmId');
+                    if (saved && globalFarms.some(f => f.id === saved)) {
+                        select.value = saved;
+                    }
+                    onGlobalFarmChange();
+                }
+            } catch(err) {
+                select.innerHTML = '<option value="">Failed to load farms</option>';
+            }
+        }
+
+        function onGlobalFarmChange() {
+            const farmId = getSelectedFarmId();
+            if (farmId) sessionStorage.setItem('selectedFarmId', farmId);
+        }
+
         // ═══════ Admin Management ═══════
 
         function getAdminToken() {
@@ -1399,6 +1460,8 @@
             const token = getAdminToken();
             const headers = { 'Content-Type': 'application/json', ...options.headers };
             if (token) headers['Authorization'] = 'Bearer ' + token;
+            const farmId = getSelectedFarmId();
+            if (farmId) headers['X-Farm-ID'] = farmId;
             const res = await fetch(url, { ...options, headers });
             if (res.status === 401) {
                 window.location.href = '/dashboard/login';
@@ -1673,39 +1736,6 @@
 
         // ═══════ Farm Anomaly Injection & Alerts ═══════
 
-        let loadedFarms = [];
-
-        async function loadFarmsForInjection() {
-            try {
-                const res = await apiFetch('/api/admin/owners');
-                if (!res) return;
-                const owners = await res.json();
-                const select = document.getElementById('alertFarmSelect');
-                select.innerHTML = '';
-
-                for (const owner of owners) {
-                    try {
-                        const detailRes = await apiFetch('/api/admin/owners/' + owner.id);
-                        if (!detailRes) continue;
-                        const detail = await detailRes.json();
-                        for (const farm of (detail.farms || [])) {
-                            loadedFarms.push(farm);
-                            const opt = document.createElement('option');
-                            opt.value = farm.id;
-                            opt.textContent = farm.name + ' (' + (owner.full_name || owner.username) + ')';
-                            select.appendChild(opt);
-                        }
-                    } catch(e) {}
-                }
-
-                if (select.options.length === 0) {
-                    select.innerHTML = '<option value="">No farms found</option>';
-                }
-            } catch(err) {
-                document.getElementById('alertFarmSelect').innerHTML = '<option value="">Failed to load farms</option>';
-            }
-        }
-
         function alertLog(message, type = 'info') {
             const log = document.getElementById('alertResultsLog');
             const time = new Date().toLocaleTimeString();
@@ -1720,12 +1750,12 @@
         }
 
         async function injectFarmAnomaly() {
-            const farmId = document.getElementById('alertFarmSelect').value;
+            const farmId = getSelectedFarmId();
             const anomalyType = document.getElementById('alertAnomalyType').value;
             const severity = document.getElementById('alertSeverity').value;
 
             if (!farmId) {
-                showToast('Please select a farm first', 'error');
+                showToast('Please select a farm in the top bar first', 'error');
                 return;
             }
 
@@ -1865,14 +1895,8 @@
             }
         }
 
-        // Load farms when simulation tab is opened
-        const origSwitchTab = switchTab;
-        switchTab = function(tabId, btn) {
-            origSwitchTab(tabId, btn);
-            if (tabId === 'simulation' && loadedFarms.length === 0) {
-                loadFarmsForInjection();
-            }
-        };
+        // Load global farms on page init
+        loadGlobalFarms();
     </script>
 
     <!-- ═══════ Floating Debug Panel ═══════ -->
