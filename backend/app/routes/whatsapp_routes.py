@@ -101,9 +101,15 @@ async def whatsapp_webhook(request: Request):
     # Verify webhook signature
     settings = get_settings()
     signature = request.headers.get("x-webhook-signature", "")
-    if settings.WASSENDER_WEBHOOK_SECRET and signature != settings.WASSENDER_WEBHOOK_SECRET:
-        logger.warning("WhatsApp webhook: invalid signature")
-        raise HTTPException(status_code=401, detail="Invalid webhook signature")
+    if settings.WASSENDER_WEBHOOK_SECRET:
+        if signature != settings.WASSENDER_WEBHOOK_SECRET:
+            logger.warning("WhatsApp webhook: invalid signature")
+            raise HTTPException(status_code=401, detail="Invalid webhook signature")
+    else:
+        logger.warning(
+            "[WA WEBHOOK] No WASSENDER_WEBHOOK_SECRET configured — "
+            "webhook is unauthenticated. Set this in production!"
+        )
 
     try:
         payload = await request.json()

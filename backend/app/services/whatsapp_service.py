@@ -2,9 +2,13 @@
 WhatsApp integration service via WaSenderAPI
 https://wasenderapi.com/api-docs
 """
+import hashlib
 import httpx
+import re
+from collections import defaultdict
+from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict, Any
-from datetime import datetime, timezone
+
 from app.config import get_settings
 from app.supabase_client import get_supabase_admin
 from app.logging_config import logger, debug
@@ -23,7 +27,7 @@ HELP_MENU = (
     "📊 *أسئلة وتحليل:*\n"
     "• سولني على الطقس، المناطق، المستشعرات...\n"
     "• نصائح زراعة الزيتون\n"
-    "• طلب رسم بياني: \"رسم\" / \"chart\"\n\n"
+    '• طلب رسم بياني: "رسم" / "chart"\n\n'
     '🔄 *تغيير المزرعة:* "تغيير المزرعة"\n'
     '📋 *هاد القائمة:* "help" أو "مساعدة"\n\n'
     "_تقدر تكلمني بالدارجة، العربية، الفرنسية، أو الإنجليزية._"
@@ -57,6 +61,15 @@ _HELP_KEYWORDS = {
     "واش تقدر", "علاش",
 }
 
+_FARM_SWITCH_KEYWORDS = {
+    "تغيير المزرعة", "changer ferme", "switch farm", "تغيير",
+}
+
+_CHART_KEYWORDS = {
+    "رسم", "رسم بياني", "بياني", "chart", "graph", "plot",
+    "graphique", "diagramme",
+}
+
 _CONFIRM_YES = {
     "yes", "oui", "نعم", "أيوا", "اه", "ya", "yeah", "yep", "ok",
     "d'accord", "sure", "confirm", "aywa", "ايوا", "ايه", "واخا", "wakha",
@@ -67,8 +80,24 @@ _CONFIRM_NO = {
     "لا لا", "ماشي", "machi", "لأ", "la",
 }
 
-# In-memory pending irrigation confirmations: phone -> "start" or "stop"
-_pending_confirmations: Dict[str, str] = {}
+# Confirmation timeout — pending actions expire after this duration
+_CONFIRMATION_TTL = timedelta(minutes=5)
+
+# ─── Per-phone rate limiting (in-memory, resets on restart) ──────
+_RATE_LIMIT_MAX = 20  # max messages per window
+_RATE_LIMIT_WINDOW = 60  # seconds
+_rate_limit_log: Dict[str, List[float]] = defaultdict(list)
+
+
+def _is_rate_limited(phone: str) -> bool:
+    """Check if a phone number has exceeded the rate limit."""
+    now = datetime.now(timezone.utc).timestamp()
+    cutoff = now - _RATE_LIMIT_WINDOW
+    _rate_limit_log[phone] = [t for t in _rate_limit_log[phone] if t > cutoff]
+    if len(_rate_limit_log[phone]) >= _RATE_LIMIT_MAX:
+        return True
+    _rate_limit_log[phone].append(now)
+    return False
 
 
 class WhatsAppService:
@@ -86,6 +115,134 @@ class WhatsAppService:
             "Authorization": f"Bearer {self.api_key}" if self.api_key else "",
         }
         logger.info(f"[WhatsApp Init] enabled={self.enabled}, api_url={self.api_url}, device_id={self.device_id}, api_key_set={bool(self.api_key)}")
+
+        # Warn if webhook secret is empty (endpoint is wide open)
+        if self.enabled and not self.webhook_secret:
+            logger.warning(
+                "[WhatsApp Init] WASSENDER_WEBHOOK_SECRET is empty — "
+                "webhook endpoint is unauthenticated. Set this in production!"
+            )
+
+    # ─── Intent Router ────────────────────────────────────────────
+    # Each handler returns True if it handled the message, False to pass.
+    # Checked in priority order — first match wins.
+
+    async def _intent_farm_switch(self, phone: str, msg_lower: str, session: dict) -> bool:
+        if msg_lower not in _FARM_SWITCH_KEYWORDS:
+            return False
+        await self._update_ai_session(session["id"], state="awaiting_farm_name", farm_id=None, conversation_id=None)
+        await self.send_message(
+            phone,
+            "🔄 *تغيير المزرعة*\n\nأرسل اسم المزرعة الجديدة.\n_Envoyez le nom de la nouvelle ferme._"
+        )
+        return True
+
+    async def _intent_help(self, phone: str, msg_lower: str, session: dict) -> bool:
+        if msg_lower not in _HELP_KEYWORDS:
+            return False
+        await self.send_message(phone, HELP_MENU)
+        return True
+
+    async def _intent_pending_confirmation(self, phone: str, msg_lower: str, session: dict) -> bool:
+        """Handle pending irrigation confirmation from DB."""
+        pending_action = session.get("pending_action")
+        pending_expires = session.get("pending_expires_at")
+        if not pending_action:
+            return False
+
+        # Check expiry
+        expired = False
+        if pending_expires:
+            try:
+                expires_dt = datetime.fromisoformat(pending_expires.replace("Z", "+00:00"))
+                if datetime.now(timezone.utc) > expires_dt:
+                    expired = True
+            except (ValueError, TypeError):
+                expired = True
+
+        # Always clear pending state
+        await self._clear_pending_action(session["id"])
+
+        if expired:
+            await self.send_message(phone, "⏰ انتهت صلاحية التأكيد. عاود من الأول.\n_La confirmation a expiré._")
+            return True
+
+        if msg_lower in _CONFIRM_YES:
+            await self._execute_irrigation_command(phone, pending_action, session)
+        elif msg_lower in _CONFIRM_NO:
+            await self.send_message(phone, "✅ واخا، ما دير والو.\n_Aucune modification effectuée._")
+        else:
+            # Not a clear yes/no — re-ask and re-set the pending action
+            action_label = "تشغيل" if pending_action == "start" else "إيقاف"
+            await self._set_pending_action(session["id"], pending_action)
+            await self.send_message(
+                phone,
+                f"⚠️ من فضلك أكد: هل تريد *{action_label}* الري؟\n"
+                "• أرسل *نعم* / *واخا* للتأكيد\n"
+                "• أرسل *لا* / *ماشي* للإلغاء"
+            )
+        return True
+
+    async def _intent_irrigation_on(self, phone: str, msg_lower: str, session: dict) -> bool:
+        if not any(k in msg_lower for k in _IRRIGATION_ON_KEYWORDS):
+            return False
+        await self._set_pending_action(session["id"], "start")
+        await self.send_message(
+            phone,
+            "💧 *تأكيد تشغيل الري*\n\n"
+            "واش بغيت تشغل الري فجميع المناطق؟\n\n"
+            "• أرسل *نعم* / *واخا* للتأكيد\n"
+            "• أرسل *لا* / *ماشي* للإلغاء"
+        )
+        return True
+
+    async def _intent_irrigation_off(self, phone: str, msg_lower: str, session: dict) -> bool:
+        if not any(k in msg_lower for k in _IRRIGATION_OFF_KEYWORDS):
+            return False
+        await self._set_pending_action(session["id"], "stop")
+        await self.send_message(
+            phone,
+            "🛑 *تأكيد إيقاف الري*\n\n"
+            "واش بغيت توقف الري فجميع المناطق؟\n\n"
+            "• أرسل *نعم* / *واخا* للتأكيد\n"
+            "• أرسل *لا* / *ماشي* للإلغاء"
+        )
+        return True
+
+    async def _intent_soil_moisture(self, phone: str, msg_lower: str, session: dict) -> bool:
+        if not any(k in msg_lower for k in _SOIL_MOISTURE_KEYWORDS):
+            return False
+        await self._handle_soil_moisture_check(phone, session)
+        return True
+
+    async def _intent_chart(self, phone: str, msg_lower: str, session: dict) -> bool:
+        words = set(msg_lower.split())
+        if not (words & _CHART_KEYWORDS):
+            return False
+        farm_id = session["farm_id"]
+        conversation_id = session["conversation_id"]
+        await self._handle_chart_request(phone, farm_id, conversation_id)
+        return True
+
+    async def _intent_ai_chat(self, phone: str, msg_lower: str, session: dict) -> bool:
+        """Fallback: route to OpenAI. Always returns True."""
+        await self._handle_openai_chat(phone, msg_lower, session)
+        return True
+
+    # Ordered intent handlers — first match wins
+    def _get_intent_handlers(self):
+        return [
+            self._intent_farm_switch,
+            self._intent_help,
+            self._intent_pending_confirmation,
+            self._intent_irrigation_on,
+            self._intent_irrigation_off,
+            self._intent_soil_moisture,
+            self._intent_chart,
+            self._intent_ai_chat,  # fallback — always matches
+        ]
+
+    # ─── Sending Messages ─────────────────────────────────────────
 
     async def send_message(self, phone: str, message: str) -> Dict[str, Any]:
         """Send a text message via WhatsApp using WaSenderAPI"""
@@ -153,6 +310,45 @@ class WhatsAppService:
                     "detail": str(e),
                 }
 
+    async def _send_multi_message(self, phone: str, text: str) -> None:
+        """Split long messages at paragraph boundaries instead of hard truncation."""
+        max_len = 4000
+
+        if len(text) <= max_len:
+            await self.send_message(phone, text)
+            return
+
+        paragraphs = text.split("\n\n")
+        chunks: List[str] = []
+        current = ""
+
+        for para in paragraphs:
+            candidate = f"{current}\n\n{para}" if current else para
+            if len(candidate) <= max_len:
+                current = candidate
+            else:
+                if current:
+                    chunks.append(current)
+                if len(para) > max_len:
+                    lines = para.split("\n")
+                    current = ""
+                    for line in lines:
+                        line_candidate = f"{current}\n{line}" if current else line
+                        if len(line_candidate) <= max_len:
+                            current = line_candidate
+                        else:
+                            if current:
+                                chunks.append(current)
+                            current = line[:max_len]
+                else:
+                    current = para
+
+        if current:
+            chunks.append(current)
+
+        for chunk in chunks:
+            await self.send_message(phone, chunk)
+
     async def get_messages(
         self,
         page: int = 1,
@@ -197,6 +393,8 @@ class WhatsAppService:
                 logger.error(f"Device status check failed: {e}")
                 return {"status": "error", "detail": str(e)}
 
+    # ─── Alerts (with deduplication) ──────────────────────────────
+
     async def send_alert(
         self,
         phone: str,
@@ -205,14 +403,57 @@ class WhatsAppService:
         value: Optional[float] = None,
         threshold: Optional[float] = None,
         custom_message: Optional[str] = None,
+        cooldown_minutes: int = 30,
     ) -> Dict[str, Any]:
-        """Send an automated alert via WhatsApp"""
+        """Send an automated alert via WhatsApp with deduplication."""
+        alert_hash = hashlib.md5(f"{alert_type}:{sensor_id or ''}".encode()).hexdigest()
+        if await self._is_alert_on_cooldown(phone, alert_hash):
+            logger.info(f"[WA ALERT] Skipping duplicate alert {alert_type} for {phone} (on cooldown)")
+            return {"success": False, "status": "cooldown", "detail": "Alert on cooldown"}
+
         if custom_message:
             message = custom_message
         else:
             message = self._build_alert_message(alert_type, sensor_id, value, threshold)
 
-        return await self.send_message(phone, message)
+        result = await self.send_message(phone, message)
+
+        if result.get("success"):
+            await self._record_alert_cooldown(phone, alert_hash, cooldown_minutes)
+
+        return result
+
+    async def _is_alert_on_cooldown(self, phone: str, alert_hash: str) -> bool:
+        """Check if an alert is still within its cooldown window."""
+        try:
+            supabase = get_supabase_admin()
+            now = datetime.now(timezone.utc).isoformat()
+            result = (
+                supabase.table("whatsapp_alert_log")
+                .select("id")
+                .eq("phone", phone)
+                .eq("alert_hash", alert_hash)
+                .gt("cooldown_until", now)
+                .limit(1)
+                .execute()
+            )
+            return bool(result.data)
+        except Exception as e:
+            logger.error(f"[WA ALERT] Cooldown check failed: {e}")
+            return False  # Fail open — send the alert
+
+    async def _record_alert_cooldown(self, phone: str, alert_hash: str, cooldown_minutes: int) -> None:
+        """Record an alert send with cooldown expiry."""
+        try:
+            supabase = get_supabase_admin()
+            cooldown_until = (datetime.now(timezone.utc) + timedelta(minutes=cooldown_minutes)).isoformat()
+            supabase.table("whatsapp_alert_log").insert({
+                "phone": phone,
+                "alert_hash": alert_hash,
+                "cooldown_until": cooldown_until,
+            }).execute()
+        except Exception as e:
+            logger.error(f"[WA ALERT] Failed to record cooldown: {e}")
 
     def _build_alert_message(
         self,
@@ -251,8 +492,6 @@ class WhatsAppService:
     @staticmethod
     def _convert_to_whatsapp_format(text: str) -> str:
         """Convert markdown to WhatsApp-compatible formatting"""
-        import re
-
         # Remove SVG blocks
         text = re.sub(r'<svg[\s\S]*?</svg>', '', text)
         # Remove any remaining HTML tags
@@ -276,9 +515,7 @@ class WhatsAppService:
         text = re.sub(r'^>\s*', '', text, flags=re.MULTILINE)
 
         # Convert markdown tables to simple lines
-        # Remove table separator rows (|---|---|)
         text = re.sub(r'^\|[-: |]+\|$', '', text, flags=re.MULTILINE)
-        # Convert table rows |a|b|c| to "a | b | c"
         def _convert_table_row(m):
             cells = [c.strip() for c in m.group(0).strip('|').split('|')]
             return ' | '.join(cells)
@@ -294,12 +531,23 @@ class WhatsAppService:
     async def handle_incoming_message(self, sender_phone: str, message_body: str) -> None:
         """
         Handle an incoming WhatsApp message with AI assistant flow:
-        1. If no session exists → ask for farm name
-        2. If awaiting farm name → look up farm, connect
-        3. If connected → route to OpenAI with farm context
+        1. Rate limit check
+        2. If no session exists -> ask for farm name
+        3. If awaiting farm name -> look up farm, connect
+        4. If connected -> route through intent handlers
+        5. If disconnected (zombie session) -> re-onboard
         """
         try:
             logger.info(f"[WA AI] >>> Incoming from {sender_phone}: {message_body[:100]}")
+
+            # Rate limiting
+            if _is_rate_limited(sender_phone):
+                logger.warning(f"[WA AI] Rate limited: {sender_phone}")
+                await self.send_message(
+                    sender_phone,
+                    "⚠️ بزاف ديال الرسائل. تسنا شوية.\n_Trop de messages. Patientez._"
+                )
+                return
 
             # Log inbound message
             await self._log_message(
@@ -323,12 +571,26 @@ class WhatsAppService:
                     "من فضلك، أخبرني باسم مزرعتك للبدء.\n\n"
                     "🇫🇷 _Bienvenue sur SoussFlow! Quel est le nom de votre ferme?_"
                 )
-            elif session["state"] == "awaiting_farm_name":
-                # User is responding with farm name
+                return
+
+            # Detect zombie "connected" sessions with null farm_id
+            if session["state"] == "connected" and not session.get("farm_id"):
+                logger.warning(f"[WA AI] Zombie session for {sender_phone}: connected but farm_id is NULL")
+                await self._update_ai_session(session["id"], state="disconnected", farm_id=None, conversation_id=None)
+                session["state"] = "disconnected"
+
+            if session["state"] == "awaiting_farm_name":
                 await self._handle_farm_lookup(sender_phone, message_body, session)
             elif session["state"] == "connected":
-                # User is connected — route to AI
                 await self._handle_ai_chat(sender_phone, message_body, session)
+            elif session["state"] == "disconnected":
+                # Graceful re-onboarding
+                await self._update_ai_session(session["id"], state="awaiting_farm_name", farm_id=None, conversation_id=None)
+                await self.send_message(
+                    sender_phone,
+                    "🔄 المزرعة السابقة لم تعد متاحة. من فضلك، أخبرني باسم مزرعتك.\n"
+                    "_Your previous farm is no longer available. Please provide your farm name._"
+                )
             else:
                 # Unknown state — reset
                 await self._update_ai_session(session["id"], state="awaiting_farm_name", farm_id=None, conversation_id=None)
@@ -366,7 +628,6 @@ class WhatsAppService:
             return
 
         if len(result.data) > 1:
-            # Multiple matches — let user pick
             farm_list = "\n".join([f"• {f['name']}" for f in result.data[:5]])
             await self.send_message(
                 phone,
@@ -379,8 +640,6 @@ class WhatsAppService:
         farm = result.data[0]
         farm_id = farm["id"]
 
-        # Create a conversation for this WhatsApp session
-        # user_id is required — use the farm owner as the conversation owner
         conv_result = supabase.table("conversations").insert({
             "user_id": farm["owner_id"],
             "farm_id": farm_id,
@@ -388,7 +647,6 @@ class WhatsAppService:
         }).execute()
         conversation_id = conv_result.data[0]["id"]
 
-        # Update session to connected
         await self._update_ai_session(
             session["id"],
             state="connected",
@@ -408,95 +666,55 @@ class WhatsAppService:
             f"_Connecté à {farm['name']}! Posez vos questions._"
         )
 
-    # Explicit chart keywords — only trigger on real chart requests, NOT generic
-    # affirmatives like "yes", "ok", "نعم" which were causing false positives
-    _CHART_KEYWORDS = {
-        "رسم", "رسم بياني", "بياني", "chart", "graph", "plot",
-        "graphique", "diagramme",
-    }
-
     async def _handle_ai_chat(self, phone: str, message: str, session: dict) -> None:
-        """
-        Full AI assistant:
-        - Irrigation commands require explicit confirmation (safety gate)
-        - Help menu on demand
-        - Chart generation only when explicitly requested
-        - Everything else routed to OpenAI (read-only tools on WhatsApp — no auto-actions)
-        """
+        """Route message through priority-ordered intent handlers."""
         msg_lower = message.strip().lower()
 
-        # 1. Farm switch command
-        if msg_lower in ("تغيير المزرعة", "changer ferme", "switch farm", "تغيير"):
-            await self._update_ai_session(session["id"], state="awaiting_farm_name", farm_id=None, conversation_id=None)
-            await self.send_message(
-                phone,
-                "🔄 *تغيير المزرعة*\n\nأرسل اسم المزرعة الجديدة.\n_Envoyez le nom de la nouvelle ferme._"
-            )
-            return
+        for handler in self._get_intent_handlers():
+            if await handler(phone, msg_lower, session):
+                return
 
-        # 2. Help menu
-        if msg_lower in _HELP_KEYWORDS:
-            await self.send_message(phone, HELP_MENU)
-            return
+    async def _handle_chart_request(self, phone: str, farm_id: str, conversation_id: str) -> None:
+        """Use QuickChart POST endpoint for short URLs instead of query param."""
+        try:
+            from app.services.openai_service import generate_chart_config
+            config = await generate_chart_config(farm_id, conversation_id)
 
-        # 3. Pending irrigation confirmation — handle BEFORE keyword detection
-        if phone in _pending_confirmations:
-            pending_action = _pending_confirmations[phone]
-            if msg_lower in _CONFIRM_YES:
-                del _pending_confirmations[phone]
-                await self._execute_irrigation_command(phone, pending_action, session)
-            elif msg_lower in _CONFIRM_NO:
-                del _pending_confirmations[phone]
-                await self.send_message(phone, "✅ واخا، ما دير والو.\n_Aucune modification effectuée._")
-            else:
-                # Not a clear yes/no — re-ask
-                action_label = "تشغيل" if pending_action == "start" else "إيقاف"
-                await self.send_message(
-                    phone,
-                    f"⚠️ من فضلك أكد: هل تريد *{action_label}* الري؟\n"
-                    "• أرسل *نعم* / *واخا* للتأكيد\n"
-                    "• أرسل *لا* / *ماشي* للإلغاء"
+            if not config:
+                await self.send_message(phone, "⚠️ لم أتمكن من إنشاء الرسم البياني. حاول مرة أخرى.\n_Impossible de générer le graphique._")
+                return
+
+            # POST to QuickChart to get a short URL (avoids URL length limits)
+            async with httpx.AsyncClient() as client:
+                qc_response = await client.post(
+                    "https://quickchart.io/chart/create",
+                    json={
+                        "chart": config,
+                        "width": 600,
+                        "height": 400,
+                        "backgroundColor": "white",
+                    },
+                    timeout=15.0,
                 )
-            return
+                qc_response.raise_for_status()
+                chart_url = qc_response.json().get("url")
 
-        # 4. Irrigation ON → confirmation gate (NEVER execute directly)
-        if any(k in msg_lower for k in _IRRIGATION_ON_KEYWORDS):
-            _pending_confirmations[phone] = "start"
-            await self.send_message(
-                phone,
-                "💧 *تأكيد تشغيل الري*\n\n"
-                "واش بغيت تشغل الري فجميع المناطق؟\n\n"
-                "• أرسل *نعم* / *واخا* للتأكيد\n"
-                "• أرسل *لا* / *ماشي* للإلغاء"
-            )
-            return
+            if not chart_url:
+                await self.send_message(phone, "⚠️ خطأ في إنشاء الرسم البياني.\n_Erreur lors de la génération du graphique._")
+                return
 
-        # 5. Irrigation OFF → confirmation gate (NEVER execute directly)
-        if any(k in msg_lower for k in _IRRIGATION_OFF_KEYWORDS):
-            _pending_confirmations[phone] = "stop"
-            await self.send_message(
-                phone,
-                "🛑 *تأكيد إيقاف الري*\n\n"
-                "واش بغيت توقف الري فجميع المناطق؟\n\n"
-                "• أرسل *نعم* / *واخا* للتأكيد\n"
-                "• أرسل *لا* / *ماشي* للإلغاء"
-            )
-            return
+            logger.info(f"[WA CHART] Sending chart to {phone}, url={chart_url}")
+            await self._send_image(phone, chart_url, "📊 SoussFlow Chart")
 
-        # 6. Soil moisture quick-check (faster than OpenAI round-trip)
-        if any(k in msg_lower for k in _SOIL_MOISTURE_KEYWORDS):
-            await self._handle_soil_moisture_check(phone, session)
-            return
+        except Exception as e:
+            logger.error(f"WhatsApp chart error: {e}")
+            await self.send_message(phone, "⚠️ خطأ في إنشاء الرسم البياني.\n_Erreur lors de la génération du graphique._")
 
+    async def _handle_openai_chat(self, phone: str, message: str, session: dict) -> None:
+        """Route message to OpenAI for full AI conversation."""
         farm_id = session["farm_id"]
         conversation_id = session["conversation_id"]
 
-        # 7. Explicit chart request
-        if self._is_chart_request(msg_lower):
-            await self._handle_chart_request(phone, farm_id, conversation_id)
-            return
-
-        # 8. Route everything else to OpenAI (WhatsApp = read-only, no device control)
         try:
             from app.services.openai_service import chat
             user_context = None
@@ -521,11 +739,8 @@ class WhatsAppService:
             # Convert any remaining markdown to WhatsApp format
             ai_response = self._convert_to_whatsapp_format(ai_response)
 
-            # WhatsApp 4096 char limit
-            if len(ai_response) > 4000:
-                ai_response = ai_response[:3990] + "\n\n_...الرسالة طويلة، اسأل عن جزء محدد._"
-
-            await self.send_message(phone, ai_response)
+            # Split at paragraph boundaries instead of hard truncation
+            await self._send_multi_message(phone, ai_response)
 
         except Exception as e:
             logger.error(f"WhatsApp AI chat error: {e}")
@@ -533,38 +748,6 @@ class WhatsAppService:
                 phone,
                 "⚠️ حدث خطأ، عاود المحاولة.\n_Erreur, réessayez._"
             )
-
-    def _is_chart_request(self, msg_lower: str) -> bool:
-        """Check if the message is an explicit request for a chart.
-        Only matches real chart words — NOT generic affirmatives like 'yes'."""
-        words = set(msg_lower.split())
-        return bool(words & self._CHART_KEYWORDS)
-
-    async def _handle_chart_request(self, phone: str, farm_id: str, conversation_id: str) -> None:
-        """Generate a chart image and send it via WhatsApp"""
-        import json as _json
-        from urllib.parse import quote
-
-        try:
-            from app.services.openai_service import generate_chart_config
-            config = await generate_chart_config(farm_id, conversation_id)
-
-            if not config:
-                await self.send_message(phone, "⚠️ لم أتمكن من إنشاء الرسم البياني. حاول مرة أخرى.\n_Impossible de générer le graphique._")
-                return
-
-            # Build QuickChart.io URL
-            chart_json = _json.dumps(config, ensure_ascii=False)
-            chart_url = f"https://quickchart.io/chart?c={quote(chart_json)}&w=600&h=400&bkg=white"
-
-            logger.info(f"[WA CHART] Sending chart to {phone}, url_len={len(chart_url)}")
-
-            # Send as image via WaSenderAPI
-            await self._send_image(phone, chart_url, "📊 SoussFlow Chart")
-
-        except Exception as e:
-            logger.error(f"WhatsApp chart error: {e}")
-            await self.send_message(phone, "⚠️ خطأ في إنشاء الرسم البياني.\n_Erreur lors de la génération du graphique._")
 
     async def _execute_irrigation_command(self, phone: str, action: str, session: dict) -> None:
         """Execute irrigation start/stop for all active farm zones after user confirmation."""
@@ -582,7 +765,6 @@ class WhatsAppService:
                 await self.send_message(phone, "⚠️ ما كاين تا منطقة نشطة.\n_Aucune zone active trouvée._")
                 return
 
-            # Get farm owner id for audit log
             farm = supabase.table("farms").select("owner_id").eq("id", farm_id).limit(1).execute()
             user_id = farm.data[0]["owner_id"] if farm.data else "whatsapp"
 
@@ -625,25 +807,20 @@ class WhatsAppService:
         """Fetch and return soil moisture for all farm zones."""
         farm_id = session.get("farm_id")
         if not farm_id:
-            await self.send_message(phone, "⚠️ Farm not found. Please reconnect.")
+            await self.send_message(phone, "⚠️ ما لقيتش المزرعة. عاود الاتصال بالمزرعة.\n_Ferme introuvable._")
             return
 
         try:
-            from datetime import timedelta
             supabase = get_supabase_admin()
             three_hours_ago = (datetime.now(timezone.utc) - timedelta(hours=3)).isoformat()
 
-            # Get zones with names
             zones = supabase.table("zones").select("id, zone_number, name").eq("farm_id", farm_id).eq("is_active", True).order("zone_number").execute()
             if not zones.data:
-                await self.send_message(phone, "⚠️ No active zones found.")
+                await self.send_message(phone, "⚠️ ما كاين تا منطقة نشطة.\n_Aucune zone active._")
                 return
 
-            # Get latest zone health readings
-            zone_ids = [z["id"] for z in zones.data]
             health = supabase.table("zone_health_readings").select("zone_id, avg_soil_moisture_pct, health_score").eq("farm_id", farm_id).gte("timestamp", three_hours_ago).order("timestamp", desc=True).limit(50).execute()
 
-            # Latest reading per zone
             latest = {}
             for r in (health.data or []):
                 if r["zone_id"] not in latest:
@@ -679,7 +856,7 @@ class WhatsAppService:
 
         except Exception as e:
             logger.error(f"[WA AI] Soil moisture check error: {e}")
-            await self.send_message(phone, "⚠️ Failed to fetch soil moisture. Please try again.")
+            await self.send_message(phone, "⚠️ فشل جلب بيانات الرطوبة. عاود المحاولة.\n_Échec de récupération des données._")
 
     async def _send_image(self, phone: str, image_url: str, caption: str = "") -> Dict[str, Any]:
         """Send an image via WaSenderAPI"""
@@ -739,14 +916,37 @@ class WhatsAppService:
             update_data["state"] = state
         if farm_id is not None:
             update_data["farm_id"] = farm_id
-        elif state == "awaiting_farm_name":
+        elif state in ("awaiting_farm_name", "disconnected"):
             update_data["farm_id"] = None
         if conversation_id is not None:
             update_data["conversation_id"] = conversation_id
-        elif state == "awaiting_farm_name":
+        elif state in ("awaiting_farm_name", "disconnected"):
             update_data["conversation_id"] = None
+        # Clear pending action when switching states
+        if state in ("awaiting_farm_name", "disconnected"):
+            update_data["pending_action"] = None
+            update_data["pending_expires_at"] = None
 
         supabase.table("whatsapp_ai_sessions").update(update_data).eq("id", session_id).execute()
+
+    async def _set_pending_action(self, session_id: str, action: str) -> None:
+        """Store pending irrigation confirmation in DB."""
+        supabase = get_supabase_admin()
+        expires = (datetime.now(timezone.utc) + _CONFIRMATION_TTL).isoformat()
+        supabase.table("whatsapp_ai_sessions").update({
+            "pending_action": action,
+            "pending_expires_at": expires,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }).eq("id", session_id).execute()
+
+    async def _clear_pending_action(self, session_id: str) -> None:
+        """Clear pending irrigation confirmation."""
+        supabase = get_supabase_admin()
+        supabase.table("whatsapp_ai_sessions").update({
+            "pending_action": None,
+            "pending_expires_at": None,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }).eq("id", session_id).execute()
 
     # ─── Message Logging ─────────────────────────────────────────
 

@@ -441,9 +441,16 @@ async def _auto_alert(farm_id: str, critical_anomalies: list[dict]):
             msg += f"{detail_msg}\n"
         msg += '\nأرسل *"شنو طرا؟"* لمزيد من التفاصيل.\nأرسل *"help"* لقائمة الأوامر.'
 
+        sensor_id = a.get("zone_id")
         for phone in phones:
             try:
-                await ws.send_message(phone, msg)
+                await ws.send_alert(
+                    phone=phone,
+                    alert_type=a["anomaly_type"],
+                    sensor_id=sensor_id,
+                    custom_message=msg,
+                    cooldown_minutes=30,
+                )
             except Exception as e:
                 logger.error(f"Failed to send anomaly alert to {phone}: {e}")
 
