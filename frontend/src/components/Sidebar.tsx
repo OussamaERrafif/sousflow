@@ -2,7 +2,7 @@
 
 import { Home, Leaf, Bell, Settings, Activity, FileText, Globe, LogIn, LogOut, User, Sparkles, Map, Cpu } from "lucide-react";
 import { useTranslations, useLocale } from "next-intl";
-import { usePathname, useRouter } from "@/i18n/routing";
+import { usePathname, useRouter } from "@/i18n/navigation";
 import { useAppSelector, useAppDispatch } from "@/lib/store/hooks";
 import { useSignOutApiAuthSignoutPostMutation } from "@/lib/store/generated/api";
 import { logout } from "@/lib/store/slices/authSlice";

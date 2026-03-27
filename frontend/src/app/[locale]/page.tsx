@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "@/i18n/routing";
+import { useRouter } from "@/i18n/navigation";
 import dynamic from "next/dynamic";
 import Sidebar from "@/components/Sidebar";
 import StatusBanner from "@/components/StatusBanner";
