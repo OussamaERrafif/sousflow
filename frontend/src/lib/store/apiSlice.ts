@@ -40,7 +40,7 @@ async function baseQueryWithFallback(args: any, api: any, extraOptions: any) {
       if (result.data !== undefined || result.error) {
         return result;
       }
-      lastError = new Error(`Request failed with status ${result.error?.status}`);
+      lastError = new Error("Request failed: no response from server");
     } catch (err) {
       if (isDebugMode()) {
         console.debug("[SoussFlow/API] Error:", { url: args.url, error: err });
