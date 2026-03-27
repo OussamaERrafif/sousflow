@@ -35,7 +35,9 @@ async function baseQueryWithFallback(args: any, api: any, extraOptions: any) {
         console.debug("[SoussFlow/API] Response:", { url: args.url, status: result.error?.status || 200, data: result.data, error: result.error });
       }
 
-      if (result.data || result.error?.status === 401 || result.error?.status === 403) {
+      // If we got any HTTP response (data or error), stop trying fallback URLs.
+      // Only fall through to the next URL on a network-level failure (fetch throws).
+      if (result.data !== undefined || result.error) {
         return result;
       }
       lastError = new Error(`Request failed with status ${result.error?.status}`);
