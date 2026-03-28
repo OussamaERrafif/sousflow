@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "@/i18n/routing";
+import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import Sidebar from "@/components/Sidebar";
 import StatusBanner from "@/components/StatusBanner";
@@ -45,7 +45,7 @@ export default function Dashboard() {
       let token: string | null = null;
       try { token = localStorage.getItem("token"); } catch {}
       if (!token) {
-        router.push("/login", { locale: "never" });
+        router.push("/login");
       } else {
         dispatch(setCredentials({ user: { id: "", username: "" }, token }));
       }
