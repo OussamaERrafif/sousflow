@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
+import { getApiBaseUrl } from "@/lib/apiConfig";
 import {
     useGetSimulatorStatusApiIotSimulatorStatusGetQuery,
 } from "@/lib/store/generated/api";
@@ -77,7 +78,7 @@ export default function ZonesPage() {
             if (token) headers["Authorization"] = `Bearer ${token}`;
             if (farmId) headers["X-Farm-ID"] = farmId;
 
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/control/zone/${zoneId}`, {
+            const res = await fetch(`${getApiBaseUrl()}/api/control/zone/${zoneId}`, {
                 method: "POST",
                 headers,
                 body: JSON.stringify({ action, duration_minutes: durationMinutes || null }),
@@ -99,7 +100,7 @@ export default function ZonesPage() {
             if (token) headers["Authorization"] = `Bearer ${token}`;
             if (farmId) headers["X-Farm-ID"] = farmId;
 
-            await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/control/zone/${zoneId}/override`, {
+            await fetch(`${getApiBaseUrl()}/api/control/zone/${zoneId}/override`, {
                 method: "POST",
                 headers,
                 body: JSON.stringify({ enabled }),

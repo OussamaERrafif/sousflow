@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useAppSelector } from "@/lib/store/hooks";
 import { isDebugMode, setDebugMode } from "@/lib/debug";
+import { getApiBaseUrl } from "@/lib/apiConfig";
 import {
   Bug,
   X,
@@ -18,7 +19,7 @@ import {
   Minimize2,
 } from "lucide-react";
 
-const BASE_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/$/, "");
+const BASE_URL = getApiBaseUrl().replace(/\/$/, "");
 
 interface LogEntry {
   id: number;
@@ -53,7 +54,7 @@ if (typeof window !== "undefined") {
   window.fetch = async function (...args) {
     const url = typeof args[0] === "string" ? args[0] : (args[0] as Request)?.url || "";
     const method = (args[1]?.method || "GET").toUpperCase();
-    const isApi = url.includes("/api/") || url.includes("localhost:8000");
+    const isApi = url.includes("/api/") || url.includes("localhost:8000") || url.includes("sousflow.vercel.app");
 
     if (isApi && isDebugMode()) {
       const start = performance.now();

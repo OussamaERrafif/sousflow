@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
+import { getApiBaseUrl } from "@/lib/apiConfig";
 import {
     useListDevicesApiInfrastructureDevicesGetQuery,
     useCreateDeviceApiInfrastructureDevicesPostMutation,
@@ -452,7 +453,7 @@ export default function IoTDevicesPage() {
                                                     if (token) headers["Authorization"] = `Bearer ${token}`;
                                                     if (farmId) headers["X-Farm-ID"] = farmId;
                                                     const isOpen = device.control_state?.valve_open;
-                                                    await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/control/device/${device.id}`, {
+                                                    await fetch(`${getApiBaseUrl()}/api/control/device/${device.id}`, {
                                                         method: "POST",
                                                         headers,
                                                         body: JSON.stringify({ command_type: isOpen ? "valve_close" : "valve_open" }),

@@ -5,7 +5,7 @@ olive cultivation best practices, and Souss-Massa region context.
 Supports function calling for device control and anomaly queries.
 """
 import json as _json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from app.supabase_client import get_supabase_admin
 from app.config import get_settings
@@ -167,11 +167,14 @@ If the user wants to control irrigation, guide them:
 These trigger a confirmation flow handled separately.
 
 ## Tools Available
-You have two read-only tools:
-- *get_zone_status* — current valve states, soil moisture, flow, health data
+You have these read-only tools — use them proactively:
+- *get_zone_status* — current valve states, soil moisture, flow, health data per zone
 - *get_anomaly_summary* — current alert counts by severity and type
+- *get_farm_dashboard* — complete farm snapshot: weather + infrastructure + all zones
+- *get_environment_status* — current weather: temperature, humidity, wind, rain, solar + recent history
+- *get_infrastructure_status* — reservoir level, filter status, pump flow, main pressure
 
-Use them proactively when the user asks about farm status, what happened, or any anomaly.
+When the user asks about farm status, weather, reservoir, or "what happened", call the relevant tools proactively.
 
 ## Data Model
 You have access to a 26-column IoT dataset:
@@ -341,13 +344,53 @@ DEVICE_CONTROL_TOOLS = [
                 "required": []
             }
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_farm_dashboard",
+            "description": "Get a complete farm IoT dashboard snapshot: environment (weather), infrastructure (reservoir, pump, filter), and all zone health summaries with soil moisture, stress, and health scores.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_environment_status",
+            "description": "Get current weather/environment data: air temperature, humidity, solar radiation, wind speed, precipitation, cloud cover, and recent history (last 8 readings).",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_infrastructure_status",
+            "description": "Get current water infrastructure status: reservoir level (with critical/low/ok label), filter status (clean/partial/clogged), main pressure, and pump flow rate.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        }
     }
 ]
 
 # Read-only tools for WhatsApp channel — no device control allowed
+_WHATSAPP_TOOL_NAMES = {
+    "get_zone_status", "get_anomaly_summary",
+    "get_farm_dashboard", "get_environment_status", "get_infrastructure_status",
+}
 WHATSAPP_READONLY_TOOLS = [
     tool for tool in DEVICE_CONTROL_TOOLS
-    if tool["function"]["name"] in ("get_zone_status", "get_anomaly_summary")
+    if tool["function"]["name"] in _WHATSAPP_TOOL_NAMES
 ]
 
 
@@ -439,6 +482,80 @@ async def _execute_tool(
         elif tool_name == "get_anomaly_summary":
             dashboard = await anomaly_service.get_anomaly_dashboard(farm_id)
             return _json.dumps(dashboard, default=str)
+
+        elif tool_name == "get_farm_dashboard":
+            from app.services import iot_service
+            dashboard = await iot_service.get_hierarchical_dashboard(farm_id)
+            return _json.dumps(dashboard, default=str)
+
+        elif tool_name == "get_environment_status":
+            supabase = get_supabase_admin()
+            three_hours_ago = (
+                datetime.now(timezone.utc) - timedelta(hours=3)
+            ).isoformat()
+            env = supabase.table("environment_readings").select("*").eq(
+                "farm_id", farm_id
+            ).gte("timestamp", three_hours_ago).order(
+                "timestamp", desc=True
+            ).limit(8).execute()
+            if not env.data:
+                return _json.dumps({"message": "No recent environment readings (last 3 hours)"})
+            latest = env.data[0]
+            history = [
+                {
+                    "timestamp": r.get("timestamp"),
+                    "temp_c": r.get("air_temperature_c"),
+                    "humidity_pct": r.get("air_humidity_pct"),
+                    "solar_wm2": r.get("solar_radiation_wm2"),
+                    "wind_kmh": r.get("wind_speed_kmh"),
+                    "rain_mm": r.get("precipitation_mm"),
+                }
+                for r in env.data
+            ]
+            return _json.dumps({
+                "current": {
+                    "air_temperature_c": latest.get("air_temperature_c"),
+                    "air_humidity_pct": latest.get("air_humidity_pct"),
+                    "solar_radiation_wm2": latest.get("solar_radiation_wm2"),
+                    "wind_speed_kmh": latest.get("wind_speed_kmh"),
+                    "precipitation_mm": latest.get("precipitation_mm"),
+                    "cloud_cover_pct": latest.get("cloud_cover_pct"),
+                    "timestamp": latest.get("timestamp"),
+                },
+                "recent_history": history,
+            }, default=str)
+
+        elif tool_name == "get_infrastructure_status":
+            supabase = get_supabase_admin()
+            three_hours_ago = (
+                datetime.now(timezone.utc) - timedelta(hours=3)
+            ).isoformat()
+            infra = supabase.table("infrastructure_readings").select("*").eq(
+                "farm_id", farm_id
+            ).gte("timestamp", three_hours_ago).order(
+                "timestamp", desc=True
+            ).limit(1).execute()
+            if not infra.data:
+                return _json.dumps({"message": "No recent infrastructure readings (last 3 hours)"})
+            r = infra.data[0]
+            reservoir = r.get("reservoir_level_pct")
+            reservoir_label = (
+                "CRITICAL" if reservoir is not None and reservoir < 25
+                else "LOW" if reservoir is not None and reservoir < 40
+                else "OK"
+            )
+            filter_val = r.get("filter_status")
+            filter_label = {0: "clean", 1: "partial_clog", 2: "clogged"}.get(
+                filter_val, f"unknown({filter_val})"
+            ) if filter_val is not None else "unknown"
+            return _json.dumps({
+                "reservoir_level_pct": reservoir,
+                "reservoir_status": reservoir_label,
+                "filter_status": filter_label,
+                "main_pressure_mpa": r.get("main_pressure_mpa"),
+                "main_pump_flow_lpm": r.get("main_pump_flow_lpm"),
+                "timestamp": r.get("timestamp"),
+            }, default=str)
 
         return _json.dumps({"error": f"Unknown tool: {tool_name}"})
 

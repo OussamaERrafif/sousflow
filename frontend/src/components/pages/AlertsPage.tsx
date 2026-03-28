@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
+import { getApiBaseUrl } from "@/lib/apiConfig";
 import {
     useListAlertRulesApiIotAlertsRulesGetQuery,
     useCreateAlertRuleApiIotAlertsRulesPostMutation,
@@ -63,7 +64,7 @@ export default function AlertsPage() {
             const headers: Record<string, string> = {};
             if (token) headers["Authorization"] = `Bearer ${token}`;
             if (farmId) headers["X-Farm-ID"] = farmId;
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/anomalies/dashboard`, { headers });
+            const res = await fetch(`${getApiBaseUrl()}/api/anomalies/dashboard`, { headers });
             if (res.ok) {
                 setAnomalyDashboard(await res.json());
             }
@@ -82,7 +83,7 @@ export default function AlertsPage() {
             const headers: Record<string, string> = { "Content-Type": "application/json" };
             if (token) headers["Authorization"] = `Bearer ${token}`;
             if (farmId) headers["X-Farm-ID"] = farmId;
-            await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/anomalies/acknowledge`, {
+            await fetch(`${getApiBaseUrl()}/api/anomalies/acknowledge`, {
                 method: "POST",
                 headers,
                 body: JSON.stringify({ anomaly_ids: ids }),

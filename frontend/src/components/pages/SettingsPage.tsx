@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter, usePathname } from "@/i18n/routing";
+import { getApiBaseUrl } from "@/lib/apiConfig";
 import { useLocale } from "next-intl";
 import { useGetProfileApiAuthProfileGetQuery, useSignOutApiAuthSignoutPostMutation } from "@/lib/store/generated/api";
 import { useAppDispatch, useAppSelector } from "@/lib/store/hooks";
@@ -11,7 +12,7 @@ import { useTheme } from "@/components/ThemeProvider";
 import { isDebugMode, setDebugMode, debugLog } from "@/lib/debug";
 import { Bug, User, Bell, Lock, Wifi, Globe, Moon, Sun, Save, RefreshCw, LogOut, Smartphone, CheckCircle, AlertCircle } from "lucide-react";
 
-const BASE_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/$/, "");
+const BASE_URL = getApiBaseUrl().replace(/\/$/, "");
 
 export default function SettingsPage() {
     const t = useTranslations("Sidebar");

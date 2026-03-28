@@ -20,12 +20,14 @@ HELP_MENU = (
     "💧 *التحكم في الري:*\n"
     '• "شغل الري" / "turn on irrigation"\n'
     '• "أوقف الري" / "turn off irrigation"\n\n'
-    "🌱 *حالة المزرعة:*\n"
-    '• "شنو طرا؟" — آش وقع بالمزرعة\n'
-    '• "رطوبة التربة" / "check soil moisture"\n'
-    '• "حالة الري" / "zone status"\n\n'
+    "🌱 *حالة المزرعة والمستشعرات:*\n"
+    '• "حالة المزرعة" / "farm status" — ملخص شامل\n'
+    '• "رطوبة التربة" / "soil moisture" — رطوبة كل منطقة\n'
+    '• "الطقس" / "weather" — حرارة، رياح، أمطار\n'
+    '• "الخزان" / "reservoir" — مستوى الماء والفلتر\n'
+    '• "شنو طرا؟" — آش وقع بالمزرعة\n\n'
     "📊 *أسئلة وتحليل:*\n"
-    "• سولني على الطقس، المناطق، المستشعرات...\n"
+    "• سولني على المناطق، المستشعرات، التوقعات...\n"
     "• نصائح زراعة الزيتون\n"
     '• طلب رسم بياني: "رسم" / "chart"\n\n'
     '🔄 *تغيير المزرعة:* "تغيير المزرعة"\n'
@@ -68,6 +70,24 @@ _FARM_SWITCH_KEYWORDS = {
 _CHART_KEYWORDS = {
     "رسم", "رسم بياني", "بياني", "chart", "graph", "plot",
     "graphique", "diagramme",
+}
+
+_FARM_STATUS_KEYWORDS = {
+    "حالة المزرعة", "حالة الري", "zone status", "farm status",
+    "état ferme", "état irrigation", "شنو طرا", "واش كولشي مزيان",
+    "شنو واقع", "status", "حالة",
+}
+
+_WEATHER_KEYWORDS = {
+    "الطقس", "حرارة", "رياح", "درجة الحرارة", "weather", "temperature",
+    "météo", "température", "wind", "vent", "rain", "مطر", "pluie",
+    "شحال الحرارة", "واش غادي يصب الشتا",
+}
+
+_RESERVOIR_KEYWORDS = {
+    "الخزان", "المضخة", "الفلتر", "reservoir", "pump", "filter",
+    "réservoir", "pompe", "filtre", "ضغط الماء", "حالة الخزان",
+    "water level", "niveau eau", "شحال فالخزان",
 }
 
 _CONFIRM_YES = {
@@ -215,6 +235,24 @@ class WhatsAppService:
         await self._handle_soil_moisture_check(phone, session)
         return True
 
+    async def _intent_farm_status(self, phone: str, msg_lower: str, session: dict) -> bool:
+        if not any(k in msg_lower for k in _FARM_STATUS_KEYWORDS):
+            return False
+        await self._handle_farm_status_check(phone, session)
+        return True
+
+    async def _intent_weather(self, phone: str, msg_lower: str, session: dict) -> bool:
+        if not any(k in msg_lower for k in _WEATHER_KEYWORDS):
+            return False
+        await self._handle_weather_check(phone, session)
+        return True
+
+    async def _intent_reservoir(self, phone: str, msg_lower: str, session: dict) -> bool:
+        if not any(k in msg_lower for k in _RESERVOIR_KEYWORDS):
+            return False
+        await self._handle_reservoir_check(phone, session)
+        return True
+
     async def _intent_chart(self, phone: str, msg_lower: str, session: dict) -> bool:
         words = set(msg_lower.split())
         if not (words & _CHART_KEYWORDS):
@@ -238,6 +276,9 @@ class WhatsAppService:
             self._intent_irrigation_on,
             self._intent_irrigation_off,
             self._intent_soil_moisture,
+            self._intent_farm_status,
+            self._intent_weather,
+            self._intent_reservoir,
             self._intent_chart,
             self._intent_ai_chat,  # fallback — always matches
         ]
@@ -802,6 +843,242 @@ class WhatsAppService:
         except Exception as e:
             logger.error(f"[WA AI] Irrigation execution error: {e}")
             await self.send_message(phone, "⚠️ فشل التحكم في الري. حاول مرة أخرى.\n_Échec du contrôle de l'irrigation._")
+
+    async def _handle_farm_status_check(self, phone: str, session: dict) -> None:
+        """Fetch full farm IoT status and send a summary."""
+        farm_id = session.get("farm_id")
+        if not farm_id:
+            await self.send_message(phone, "⚠️ ما لقيتش المزرعة. عاود الاتصال بالمزرعة.\n_Ferme introuvable._")
+            return
+
+        try:
+            supabase = get_supabase_admin()
+            three_hours_ago = (datetime.now(timezone.utc) - timedelta(hours=3)).isoformat()
+
+            # Fetch zones, environment, infrastructure, zone health in parallel
+            zones = supabase.table("zones").select("id, zone_number, name").eq("farm_id", farm_id).eq("is_active", True).order("zone_number").execute()
+            env = supabase.table("environment_readings").select("air_temperature_c, air_humidity_pct, solar_radiation_wm2, wind_speed_kmh, precipitation_mm").eq("farm_id", farm_id).gte("timestamp", three_hours_ago).order("timestamp", desc=True).limit(1).execute()
+            infra = supabase.table("infrastructure_readings").select("reservoir_level_pct, filter_status, main_pressure_mpa, main_pump_flow_lpm").eq("farm_id", farm_id).gte("timestamp", three_hours_ago).order("timestamp", desc=True).limit(1).execute()
+            health = supabase.table("zone_health_readings").select("zone_id, avg_soil_moisture_pct, stress_score, health_score, water_efficiency_pct, is_anomaly").eq("farm_id", farm_id).gte("timestamp", three_hours_ago).order("timestamp", desc=True).limit(50).execute()
+
+            lines = ["🏡 *حالة المزرعة — Farm Status*\n"]
+
+            # Environment
+            if env.data:
+                e = env.data[0]
+                lines.append("🌤️ *الطقس:*")
+                lines.append(f"• الحرارة: *{e.get('air_temperature_c', '—')}°C*")
+                lines.append(f"• الرطوبة: *{e.get('air_humidity_pct', '—')}%*")
+                wind = e.get('wind_speed_kmh')
+                if wind:
+                    lines.append(f"• الرياح: *{wind} km/h*")
+                rain = e.get('precipitation_mm', 0)
+                if rain and rain > 0:
+                    lines.append(f"• 🌧️ أمطار: *{rain} mm*")
+                lines.append("")
+
+            # Infrastructure
+            if infra.data:
+                i = infra.data[0]
+                reservoir = i.get('reservoir_level_pct')
+                if reservoir is not None:
+                    r_emoji = "🔴" if reservoir < 25 else "🟡" if reservoir < 40 else "🟢"
+                    lines.append(f"💧 *الخزان:* {r_emoji} *{reservoir:.0f}%*")
+                filt = i.get('filter_status')
+                if filt is not None:
+                    f_label = {0: "🟢 نظيف", 1: "🟡 جزئي", 2: "🔴 مسدود"}.get(filt, "—")
+                    lines.append(f"🔧 *الفلتر:* {f_label}")
+                pressure = i.get('main_pressure_mpa')
+                if pressure:
+                    lines.append(f"• الضغط: *{pressure:.3f} MPa*")
+                lines.append("")
+
+            # Zone health
+            if zones.data:
+                latest = {}
+                for r in (health.data or []):
+                    if r["zone_id"] not in latest:
+                        latest[r["zone_id"]] = r
+
+                lines.append("🌱 *المناطق:*")
+                anomaly_zones = []
+                for z in zones.data:
+                    r = latest.get(z["id"])
+                    name = z.get("name") or f"المنطقة {z['zone_number']}"
+                    if r:
+                        moisture = r.get("avg_soil_moisture_pct")
+                        health_s = r.get("health_score")
+                        stress = r.get("stress_score")
+                        m_str = f"{moisture:.0f}%" if moisture is not None else "—"
+                        h_str = f"{health_s:.1f}/10" if health_s is not None else "—"
+                        emoji = "🔴" if (health_s or 0) < 4 else "🟡" if (health_s or 0) < 7 else "🟢"
+                        lines.append(f"  {emoji} *{name}:* رطوبة {m_str} | صحة {h_str}")
+                        if r.get("is_anomaly"):
+                            anomaly_zones.append(name)
+                    else:
+                        lines.append(f"  ⚪ *{name}:* لا توجد بيانات حديثة")
+
+                if anomaly_zones:
+                    lines.append(f"\n⚠️ شذوذ في: *{', '.join(anomaly_zones)}*")
+
+            if not env.data and not infra.data and not zones.data:
+                lines.append("لا توجد بيانات حديثة في آخر 3 ساعات.")
+
+            await self.send_message(phone, "\n".join(lines))
+
+        except Exception as e:
+            logger.error(f"[WA AI] Farm status check error: {e}")
+            await self.send_message(phone, "⚠️ فشل جلب حالة المزرعة. عاود المحاولة.\n_Échec de récupération._")
+
+    async def _handle_weather_check(self, phone: str, session: dict) -> None:
+        """Fetch and return current weather data."""
+        farm_id = session.get("farm_id")
+        if not farm_id:
+            await self.send_message(phone, "⚠️ ما لقيتش المزرعة.\n_Ferme introuvable._")
+            return
+
+        try:
+            supabase = get_supabase_admin()
+            three_hours_ago = (datetime.now(timezone.utc) - timedelta(hours=3)).isoformat()
+
+            env = supabase.table("environment_readings").select(
+                "air_temperature_c, air_humidity_pct, solar_radiation_wm2, wind_speed_kmh, precipitation_mm, cloud_cover_pct, timestamp"
+            ).eq("farm_id", farm_id).gte("timestamp", three_hours_ago).order("timestamp", desc=True).limit(5).execute()
+
+            if not env.data:
+                await self.send_message(phone, "⚠️ ما كاين تا قراءة ديال الطقس فآخر 3 ساعات.\n_Pas de données météo récentes._")
+                return
+
+            latest = env.data[0]
+            temp = latest.get("air_temperature_c")
+            humidity = latest.get("air_humidity_pct")
+            solar = latest.get("solar_radiation_wm2")
+            wind = latest.get("wind_speed_kmh")
+            rain = latest.get("precipitation_mm", 0)
+            clouds = latest.get("cloud_cover_pct")
+
+            # Temperature advice for olives
+            temp_advice = ""
+            if temp is not None:
+                if temp > 40:
+                    temp_advice = "🔴 _حرارة مرتفعة بزاف — خطر على الزيتون_"
+                elif temp > 35:
+                    temp_advice = "🟡 _حرارة مرتفعة — راقب الإجهاد_"
+                elif temp < 5:
+                    temp_advice = "🔴 _خطر الصقيع!_"
+                elif temp < 10:
+                    temp_advice = "🟡 _حرارة منخفضة_"
+                else:
+                    temp_advice = "🟢 _حرارة مناسبة للزيتون_"
+
+            lines = [
+                "🌤️ *حالة الطقس — Weather*\n",
+                f"🌡️ *الحرارة:* {temp:.1f}°C" if temp is not None else "🌡️ *الحرارة:* —",
+            ]
+            if temp_advice:
+                lines.append(f"   {temp_advice}")
+            lines.extend([
+                f"💧 *الرطوبة:* {humidity:.0f}%" if humidity is not None else "💧 *الرطوبة:* —",
+                f"☀️ *الإشعاع الشمسي:* {solar:.0f} W/m²" if solar is not None else "",
+                f"💨 *الرياح:* {wind:.1f} km/h" if wind is not None else "",
+                f"☁️ *الغيوم:* {clouds:.0f}%" if clouds is not None else "",
+            ])
+            if rain and rain > 0:
+                lines.append(f"🌧️ *أمطار:* {rain:.1f} mm")
+
+            # Show trend from recent readings
+            if len(env.data) >= 3:
+                temps = [r.get("air_temperature_c") for r in env.data if r.get("air_temperature_c") is not None]
+                if len(temps) >= 3:
+                    trend = "📈 ترتافع" if temps[0] > temps[-1] + 1 else "📉 تنخافض" if temps[0] < temps[-1] - 1 else "➡️ مستقرة"
+                    lines.append(f"\n📊 *اتجاه الحرارة:* {trend}")
+
+            # Filter empty lines
+            lines = [l for l in lines if l]
+            await self.send_message(phone, "\n".join(lines))
+
+        except Exception as e:
+            logger.error(f"[WA AI] Weather check error: {e}")
+            await self.send_message(phone, "⚠️ فشل جلب بيانات الطقس.\n_Échec météo._")
+
+    async def _handle_reservoir_check(self, phone: str, session: dict) -> None:
+        """Fetch and return reservoir/infrastructure status."""
+        farm_id = session.get("farm_id")
+        if not farm_id:
+            await self.send_message(phone, "⚠️ ما لقيتش المزرعة.\n_Ferme introuvable._")
+            return
+
+        try:
+            supabase = get_supabase_admin()
+            three_hours_ago = (datetime.now(timezone.utc) - timedelta(hours=3)).isoformat()
+
+            infra = supabase.table("infrastructure_readings").select(
+                "reservoir_level_pct, filter_status, main_pressure_mpa, main_pump_flow_lpm, timestamp"
+            ).eq("farm_id", farm_id).gte("timestamp", three_hours_ago).order("timestamp", desc=True).limit(5).execute()
+
+            if not infra.data:
+                await self.send_message(phone, "⚠️ ما كاين تا قراءة ديال البنية التحتية فآخر 3 ساعات.\n_Pas de données infrastructure._")
+                return
+
+            latest = infra.data[0]
+            reservoir = latest.get("reservoir_level_pct")
+            filt = latest.get("filter_status")
+            pressure = latest.get("main_pressure_mpa")
+            flow = latest.get("main_pump_flow_lpm")
+
+            lines = ["💧 *حالة البنية التحتية — Infrastructure*\n"]
+
+            # Reservoir
+            if reservoir is not None:
+                if reservoir < 25:
+                    r_status = "🔴 *حرج! — CRITICAL*"
+                    r_advice = "⚠️ _يجب ملء الخزان فوراً_"
+                elif reservoir < 40:
+                    r_status = "🟡 *منخفض — LOW*"
+                    r_advice = "⚠️ _خطط لملء الخزان قريباً_"
+                else:
+                    r_status = "🟢 *جيد — OK*"
+                    r_advice = ""
+                lines.append(f"🏊 *مستوى الخزان:* {reservoir:.0f}% {r_status}")
+                if r_advice:
+                    lines.append(f"   {r_advice}")
+            else:
+                lines.append("🏊 *الخزان:* لا توجد بيانات")
+
+            lines.append("")
+
+            # Filter
+            if filt is not None:
+                f_info = {
+                    0: ("🟢 نظيف — Clean", ""),
+                    1: ("🟡 انسداد جزئي — Partial Clog", "⚠️ _خطط لتنظيف الفلتر_"),
+                    2: ("🔴 مسدود — Clogged!", "🚨 _يجب تنظيف الفلتر فوراً!_"),
+                }.get(filt, (f"غير معروف ({filt})", ""))
+                lines.append(f"🔧 *الفلتر:* {f_info[0]}")
+                if f_info[1]:
+                    lines.append(f"   {f_info[1]}")
+            lines.append("")
+
+            # Pressure & flow
+            if pressure is not None:
+                p_emoji = "🟢" if 0.04 <= pressure <= 0.15 else "🟡" if pressure <= 0.2 else "🔴"
+                lines.append(f"📊 *الضغط الرئيسي:* {p_emoji} {pressure:.3f} MPa")
+            if flow is not None:
+                lines.append(f"🚿 *تدفق المضخة:* {flow:.1f} L/min")
+
+            # Show reservoir trend
+            if len(infra.data) >= 3:
+                levels = [r.get("reservoir_level_pct") for r in infra.data if r.get("reservoir_level_pct") is not None]
+                if len(levels) >= 3:
+                    trend = "📈 يرتفع" if levels[0] > levels[-1] + 2 else "📉 ينخفض" if levels[0] < levels[-1] - 2 else "➡️ مستقر"
+                    lines.append(f"\n📊 *اتجاه الخزان:* {trend}")
+
+            lines = [l for l in lines if l]
+            await self.send_message(phone, "\n".join(lines))
+
+        except Exception as e:
+            logger.error(f"[WA AI] Reservoir check error: {e}")
+            await self.send_message(phone, "⚠️ فشل جلب حالة البنية التحتية.\n_Échec infrastructure._")
 
     async def _handle_soil_moisture_check(self, phone: str, session: dict) -> None:
         """Fetch and return soil moisture for all farm zones."""
