@@ -39,11 +39,14 @@ async def get_baselines(user=Depends(get_current_user)):
 
 @router.get("/health")
 async def get_health(user=Depends(get_current_user)):
-    """Get farm health scores (overall + domain scores)."""
+    """Get farm health scores — returns latest snapshot, computing one fresh if none exists."""
     farm_id = _extract_farm_id(user)
     if not farm_id:
         raise HTTPException(400, "No active farm")
-    return await health_service.get_latest_health(uuid.UUID(farm_id))
+    result = await health_service.get_latest_health(uuid.UUID(farm_id))
+    if result is None:
+        result = await health_service.compute_health_scores(uuid.UUID(farm_id))
+    return result
 
 
 @router.get("/timeline")
