@@ -1,709 +1,561 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { MapContainer, TileLayer, Polygon, Polyline, CircleMarker, Popup, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
-import { Leaf, Droplets, Waves, Network, Plus, Pencil, Trash2, ChevronDown, ChevronRight, Eye, EyeOff, Map, Grid3X3 } from "lucide-react";
+import {
+  Leaf, Droplets, Waves, Network, Plus, ChevronDown, ChevronRight,
+  Map, Grid3X3, WifiOff,
+} from "lucide-react";
 import FarmMapSVG from "./FarmMapSVG";
 import {
-    useGetMapDataApiInfrastructureMapGetQuery,
-    useCreateZoneApiInfrastructureZonesPostMutation,
-    useCreateReservoirApiInfrastructureReservoirsPostMutation,
-    useCreatePipeApiInfrastructurePipesPostMutation,
+  useGetMapDataApiInfrastructureMapGetQuery,
+  useCreateZoneApiInfrastructureZonesPostMutation,
+  useCreateReservoirApiInfrastructureReservoirsPostMutation,
+  useCreatePipeApiInfrastructurePipesPostMutation,
 } from "@/lib/store/generated/api";
 import { useAppSelector } from "@/lib/store/hooks";
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 function MapBoundsSetter({ bounds }: { bounds: number[][] }) {
-    const map = useMap();
-    useEffect(() => {
-        if (bounds && bounds.length >= 2) {
-            map.fitBounds(bounds as [number, number][]);
-        }
-    }, [map, bounds]);
-    return null;
+  const map = useMap();
+  useEffect(() => {
+    if (bounds?.length >= 2) map.fitBounds(bounds as [number, number][]);
+  }, [map, bounds]);
+  return null;
 }
 
+const ZONE_COLORS = [
+  "#22c55e", "#3b82f6", "#f59e0b", "#ef4444",
+  "#8b5cf6", "#ec4899", "#14b8a6", "#f97316",
+];
+const getZoneColor = (i: number) => ZONE_COLORS[i % ZONE_COLORS.length];
+
+// ─── Component ────────────────────────────────────────────────────────────────
 export default function MapPage() {
-    const t = useTranslations("MapPage");
-    const { activeFarmId } = useAppSelector((state) => state.auth);
-    const [mapView, setMapView] = useState<"geographic" | "schematic">("geographic");
-    const [showAddZone, setShowAddZone] = useState(false);
-    const [showAddReservoir, setShowAddReservoir] = useState(false);
-    const [showAddPipe, setShowAddPipe] = useState(false);
+  const t = useTranslations("MapPage");
+  const { activeFarmId }       = useAppSelector((state) => state.auth);
+  const { zones: sseZones }    = useAppSelector((state) => state.iot);
 
-    const { data: mapData, isLoading, error } = useGetMapDataApiInfrastructureMapGetQuery(
-        undefined,
-        { skip: !activeFarmId }
+  const [mapView, setMapView]         = useState<"geographic" | "schematic">("geographic");
+  const [mapInstanceId]              = useState(() => `leaflet-map-${Date.now()}`);
+  const [mounted, setMounted]         = useState(false);
+  const [showAddZone, setShowAddZone] = useState(false);
+  const [showAddReservoir, setShowAddReservoir] = useState(false);
+  const [showAddPipe, setShowAddPipe] = useState(false);
+  const [newZoneName, setNewZoneName] = useState("");
+  const [newReservoirName, setNewReservoirName] = useState("");
+  const [newPipeName, setNewPipeName] = useState("");
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const { data: mapData, isLoading, error } = useGetMapDataApiInfrastructureMapGetQuery(
+    undefined, { skip: !activeFarmId }
+  );
+
+  const [createZone]      = useCreateZoneApiInfrastructureZonesPostMutation();
+  const [createReservoir] = useCreateReservoirApiInfrastructureReservoirsPostMutation();
+  const [createPipe]      = useCreatePipeApiInfrastructurePipesPostMutation();
+
+  // Layer visibility
+  const [selZones,      setSelZones]      = useState<Set<string>>(new Set());
+  const [selReservoirs, setSelReservoirs] = useState<Set<string>>(new Set());
+  const [selDevices,    setSelDevices]    = useState<Set<string>>(new Set());
+  const [selPipes,      setSelPipes]      = useState<Set<string>>(new Set());
+  const [zonesExp,      setZonesExp]      = useState(true);
+  const [reservoirsExp, setReservoirsExp] = useState(true);
+  const [devicesExp,    setDevicesExp]    = useState(true);
+  const [pipesExp,      setPipesExp]      = useState(true);
+  const [initialized,   setInitialized]  = useState(false);
+
+  useEffect(() => {
+    if (mapData && !initialized) {
+      setSelZones(new Set((mapData.zones ?? []).map((z: any) => z.id)));
+      setSelReservoirs(new Set((mapData.reservoirs ?? []).map((r: any) => r.id)));
+      setSelDevices(new Set((mapData.devices ?? []).map((d: any) => d.id)));
+      setSelPipes(new Set((mapData.pipes ?? []).map((p: any) => p.id)));
+      setInitialized(true);
+    }
+  }, [mapData, initialized]);
+
+  const toggle = (set: Set<string>, setFn: (s: Set<string>) => void, id: string) => {
+    const n = new Set(set);
+    n.has(id) ? n.delete(id) : n.add(id);
+    setFn(n);
+  };
+
+  const toggleAll = (items: any[], set: Set<string>, setFn: (s: Set<string>) => void) => {
+    const ids = items.map((i: any) => i.id);
+    setFn(ids.every(id => set.has(id)) ? new Set() : new Set(ids));
+  };
+
+  if (!activeFarmId) return (
+    <div className="w-full">
+      <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20">
+        <p className="text-amber-600 dark:text-amber-400 font-medium text-sm">{t("no_farm_selected")}</p>
+      </div>
+    </div>
+  );
+
+  if (isLoading) return (
+    <div className="w-full space-y-4">
+      <div className="h-7 bg-muted rounded-xl animate-pulse w-40" />
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[1, 2, 3, 4].map(i => <div key={i} className="h-20 bg-muted rounded-2xl animate-pulse" />)}
+      </div>
+      <div className="h-[600px] bg-muted rounded-2xl animate-pulse" />
+    </div>
+  );
+
+  if (error) return (
+    <div className="w-full">
+      <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20">
+        <p className="text-red-600 dark:text-red-400 font-medium text-sm">{t("error_loading")}</p>
+      </div>
+    </div>
+  );
+
+  const zones      = mapData?.zones      ?? [];
+  const reservoirs = mapData?.reservoirs ?? [];
+  const pipes      = mapData?.pipes      ?? [];
+  const devices    = mapData?.devices    ?? [];
+
+  // Collect all coords for map bounds
+  const allCoords: number[][] = [];
+  zones.forEach((z: any) => {
+    (z.geometry?.coordinates ?? []).forEach((ring: number[][]) =>
+      ring.forEach(c => allCoords.push(c))
     );
+    if (z.center_latitude && z.center_longitude)
+      allCoords.push([z.center_latitude, z.center_longitude]);
+  });
+  reservoirs.forEach((r: any) => {
+    if (r.latitude && r.longitude) allCoords.push([r.latitude, r.longitude]);
+  });
 
-    const [createZone] = useCreateZoneApiInfrastructureZonesPostMutation();
-    const [createReservoir] = useCreateReservoirApiInfrastructureReservoirsPostMutation();
-    const [createPipe] = useCreatePipeApiInfrastructurePipesPostMutation();
+  // Handlers
+  const handleAddZone = async () => {
+    if (!newZoneName || !activeFarmId) return;
+    try {
+      await createZone({ appRoutesInfrastructureRoutesZoneCreate: { zone_number: zones.length + 1, name: newZoneName } });
+      setNewZoneName(""); setShowAddZone(false);
+    } catch (e) { console.error(e); }
+  };
+  const handleAddReservoir = async () => {
+    if (!newReservoirName || !activeFarmId) return;
+    try {
+      await createReservoir({ reservoirCreate: { name: newReservoirName } });
+      setNewReservoirName(""); setShowAddReservoir(false);
+    } catch (e) { console.error(e); }
+  };
+  const handleAddPipe = async () => {
+    if (!newPipeName || !activeFarmId) return;
+    try {
+      await createPipe({ pipeCreate: { name: newPipeName, pipe_type: "main" } });
+      setNewPipeName(""); setShowAddPipe(false);
+    } catch (e) { console.error(e); }
+  };
 
-    const [newZoneName, setNewZoneName] = useState("");
-    const [newReservoirName, setNewReservoirName] = useState("");
-    const [newPipeName, setNewPipeName] = useState("");
-
-    // Layer visibility & selection state
-    const [selectedZoneIds, setSelectedZoneIds] = useState<Set<string>>(new Set());
-    const [selectedReservoirIds, setSelectedReservoirIds] = useState<Set<string>>(new Set());
-    const [selectedDeviceIds, setSelectedDeviceIds] = useState<Set<string>>(new Set());
-    const [selectedPipeIds, setSelectedPipeIds] = useState<Set<string>>(new Set());
-    const [zonesExpanded, setZonesExpanded] = useState(true);
-    const [reservoirsExpanded, setReservoirsExpanded] = useState(true);
-    const [devicesExpanded, setDevicesExpanded] = useState(true);
-    const [pipesExpanded, setPipesExpanded] = useState(true);
-    const [initialized, setInitialized] = useState(false);
-
-    // Initialize selections when data loads (select all by default)
-    useEffect(() => {
-        if (mapData && !initialized) {
-            const zoneIds = new Set((mapData.zones || []).map((z: any) => z.id));
-            const reservoirIds = new Set((mapData.reservoirs || []).map((r: any) => r.id));
-            const deviceIds = new Set((mapData.devices || []).map((d: any) => d.id));
-            const pipeIds = new Set((mapData.pipes || []).map((p: any) => p.id));
-            setSelectedZoneIds(zoneIds);
-            setSelectedReservoirIds(reservoirIds);
-            setSelectedDeviceIds(deviceIds);
-            setSelectedPipeIds(pipeIds);
-            setInitialized(true);
-        }
-    }, [mapData, initialized]);
-
-    const toggleItem = (set: Set<string>, setFn: (s: Set<string>) => void, id: string) => {
-        const next = new Set(set);
-        if (next.has(id)) next.delete(id);
-        else next.add(id);
-        setFn(next);
-    };
-
-    const toggleAll = (items: any[], set: Set<string>, setFn: (s: Set<string>) => void) => {
-        const allIds = items.map((i: any) => i.id);
-        const allSelected = allIds.every((id: string) => set.has(id));
-        if (allSelected) {
-            setFn(new Set());
-        } else {
-            setFn(new Set(allIds));
-        }
-    };
-
-    const defaultCenter: [number, number] = [30.0, -9.5];
-    const defaultZoom = 14;
-
-    if (!activeFarmId) {
-        return (
-            <div className="w-full">
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-                    <p className="text-amber-800 font-medium">{t("no_farm_selected")}</p>
-                </div>
-            </div>
-        );
-    }
-
-    if (isLoading) {
-        return (
-            <div className="w-full">
-                <div className="h-8 bg-muted rounded-xl animate-pulse w-48 mb-6"></div>
-                <div className="h-96 bg-muted rounded-2xl animate-pulse"></div>
-            </div>
-        );
-    }
-
-    if (error) {
-        return (
-            <div className="w-full">
-                <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-                    <p className="text-red-800 font-medium">{t("error_loading")}</p>
-                </div>
-            </div>
-        );
-    }
-
-    const zones = mapData?.zones || [];
-    const reservoirs = mapData?.reservoirs || [];
-    const pipes = mapData?.pipes || [];
-    const devices = mapData?.devices || [];
-
-    const handleAddZone = async () => {
-        if (!newZoneName || !activeFarmId) return;
-        try {
-            await createZone({
-                appRoutesInfrastructureRoutesZoneCreate: {
-                    zone_number: zones.length + 1,
-                    name: newZoneName,
-                },
-            });
-            setNewZoneName("");
-            setShowAddZone(false);
-        } catch (err) {
-            console.error("Failed to create zone:", err);
-        }
-    };
-
-    const handleAddReservoir = async () => {
-        if (!newReservoirName || !activeFarmId) return;
-        try {
-            await createReservoir({
-                reservoirCreate: {
-                    name: newReservoirName,
-                },
-            });
-            setNewReservoirName("");
-            setShowAddReservoir(false);
-        } catch (err) {
-            console.error("Failed to create reservoir:", err);
-        }
-    };
-
-    const handleAddPipe = async () => {
-        if (!newPipeName || !activeFarmId) return;
-        try {
-            await createPipe({
-                pipeCreate: {
-                    name: newPipeName,
-                    pipe_type: "main",
-                },
-            });
-            setNewPipeName("");
-            setShowAddPipe(false);
-        } catch (err) {
-            console.error("Failed to create pipe:", err);
-        }
-    };
-
-    const allCoords: number[][] = [];
-    zones.forEach((zone: any) => {
-        if (zone.geometry?.coordinates) {
-            zone.geometry.coordinates.forEach((ring: number[][]) => {
-                ring.forEach((coord: number[]) => allCoords.push(coord));
-            });
-        }
-        if (zone.center_latitude && zone.center_longitude) {
-            allCoords.push([zone.center_latitude, zone.center_longitude]);
-        }
-    });
-    reservoirs.forEach((r: any) => {
-        if (r.latitude && r.longitude) {
-            allCoords.push([r.latitude, r.longitude]);
-        }
-    });
-
-    const getZoneColor = (index: number) => {
-        const colors = ["#22c55e", "#3b82f6", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#14b8a6", "#f97316"];
-        return colors[index % colors.length];
-    };
-
-    return (
-        <div className="w-full">
-            <div className="mb-6 flex items-start justify-between">
-                <div>
-                    <h1 className="text-3xl font-black text-foreground tracking-tight">{t("title")}</h1>
-                    <p className="text-muted-foreground font-bold mt-1">{t("subtitle")}</p>
-                    <div className="flex items-center gap-1 mt-3 bg-muted rounded-lg p-1">
-                        <button
-                            onClick={() => setMapView("geographic")}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                                mapView === "geographic"
-                                    ? "bg-card text-foreground shadow-sm"
-                                    : "text-muted-foreground hover:text-foreground"
-                            }`}
-                        >
-                            <Map className="w-4 h-4" />
-                            {t("geographic_view") ?? "Géographique"}
-                        </button>
-                        <button
-                            onClick={() => setMapView("schematic")}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                                mapView === "schematic"
-                                    ? "bg-card text-foreground shadow-sm"
-                                    : "text-muted-foreground hover:text-foreground"
-                            }`}
-                        >
-                            <Grid3X3 className="w-4 h-4" />
-                            {t("schematic_view") ?? "Schématique"}
-                        </button>
-                    </div>
-                </div>
-                <div className="flex gap-2">
-                    <button
-                        onClick={() => setShowAddZone(!showAddZone)}
-                        className="flex items-center gap-2 px-3 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium"
-                    >
-                        <Plus className="w-4 h-4" />
-                        {t("add_zone")}
-                    </button>
-                    <button
-                        onClick={() => setShowAddReservoir(!showAddReservoir)}
-                        className="flex items-center gap-2 px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium"
-                    >
-                        <Waves className="w-4 h-4" />
-                        {t("add_reservoir")}
-                    </button>
-                    <button
-                        onClick={() => setShowAddPipe(!showAddPipe)}
-                        className="flex items-center gap-2 px-3 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors text-sm font-medium"
-                    >
-                        <Network className="w-4 h-4" />
-                        {t("add_pipe")}
-                    </button>
-                </div>
-            </div>
-
-            {(showAddZone || showAddReservoir || showAddPipe) && (
-                <div className="mb-6 p-4 bg-card rounded-xl border border-border">
-                    {showAddZone && (
-                        <div className="flex gap-2 items-center mb-2">
-                            <input
-                                type="text"
-                                placeholder={t("zone_name_placeholder")}
-                                value={newZoneName}
-                                onChange={(e) => setNewZoneName(e.target.value)}
-                                className="flex-1 px-3 py-2 border border-border rounded-lg"
-                            />
-                            <button
-                                onClick={handleAddZone}
-                                className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
-                            >
-                                {t("save")}
-                            </button>
-                            <button
-                                onClick={() => setShowAddZone(false)}
-                                className="px-4 py-2 bg-muted rounded-lg"
-                            >
-                                {t("cancel")}
-                            </button>
-                        </div>
-                    )}
-                    {showAddReservoir && (
-                        <div className="flex gap-2 items-center mb-2">
-                            <input
-                                type="text"
-                                placeholder={t("reservoir_name_placeholder")}
-                                value={newReservoirName}
-                                onChange={(e) => setNewReservoirName(e.target.value)}
-                                className="flex-1 px-3 py-2 border border-border rounded-lg"
-                            />
-                            <button
-                                onClick={handleAddReservoir}
-                                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
-                            >
-                                {t("save")}
-                            </button>
-                            <button
-                                onClick={() => setShowAddReservoir(false)}
-                                className="px-4 py-2 bg-muted rounded-lg"
-                            >
-                                {t("cancel")}
-                            </button>
-                        </div>
-                    )}
-                    {showAddPipe && (
-                        <div className="flex gap-2 items-center">
-                            <input
-                                type="text"
-                                placeholder={t("pipe_name_placeholder")}
-                                value={newPipeName}
-                                onChange={(e) => setNewPipeName(e.target.value)}
-                                className="flex-1 px-3 py-2 border border-border rounded-lg"
-                            />
-                            <button
-                                onClick={handleAddPipe}
-                                className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600"
-                            >
-                                {t("save")}
-                            </button>
-                            <button
-                                onClick={() => setShowAddPipe(false)}
-                                className="px-4 py-2 bg-muted rounded-lg"
-                            >
-                                {t("cancel")}
-                            </button>
-                        </div>
-                    )}
-                </div>
-            )}
-
-            <div className="grid grid-cols-4 gap-4 mb-6">
-                <div className="bg-card rounded-xl p-4 border border-border">
-                    <div className="flex items-center gap-2 mb-1">
-                        <Leaf className="w-4 h-4 text-green-500" />
-                        <span className="text-xs font-bold text-muted-foreground uppercase">{t("zones")}</span>
-                    </div>
-                    <p className="text-2xl font-black text-foreground">{zones.length}</p>
-                </div>
-                <div className="bg-card rounded-xl p-4 border border-border">
-                    <div className="flex items-center gap-2 mb-1">
-                        <Waves className="w-4 h-4 text-blue-500" />
-                        <span className="text-xs font-bold text-muted-foreground uppercase">{t("reservoirs")}</span>
-                    </div>
-                    <p className="text-2xl font-black text-foreground">{reservoirs.length}</p>
-                </div>
-                <div className="bg-card rounded-xl p-4 border border-border">
-                    <div className="flex items-center gap-2 mb-1">
-                        <Network className="w-4 h-4 text-amber-500" />
-                        <span className="text-xs font-bold text-muted-foreground uppercase">{t("pipes")}</span>
-                    </div>
-                    <p className="text-2xl font-black text-foreground">{pipes.length}</p>
-                </div>
-                <div className="bg-card rounded-xl p-4 border border-border">
-                    <div className="flex items-center gap-2 mb-1">
-                        <Droplets className="w-4 h-4 text-purple-500" />
-                        <span className="text-xs font-bold text-muted-foreground uppercase">{t("devices")}</span>
-                    </div>
-                    <p className="text-2xl font-black text-foreground">{devices.length}</p>
-                </div>
-            </div>
-
-            {mapView === "schematic" ? (
-                <div style={{ height: "550px" }}>
-                    <FarmMapSVG />
-                </div>
-            ) : (
-            <div className="flex gap-4" style={{ height: "550px" }}>
-                {/* Layer Selection Panel */}
-                <div className="w-72 shrink-0 bg-card rounded-2xl border border-border overflow-y-auto">
-                    <div className="p-3 border-b border-border">
-                        <h3 className="text-sm font-bold text-foreground uppercase tracking-wide">{t("layers")}</h3>
-                    </div>
-
-                    {/* Zones Section */}
-                    {zones.length > 0 && (
-                        <div className="border-b border-border">
-                            <button
-                                onClick={() => setZonesExpanded(!zonesExpanded)}
-                                className="w-full flex items-center justify-between p-3 hover:bg-muted/50 transition-colors"
-                            >
-                                <div className="flex items-center gap-2">
-                                    <Leaf className="w-4 h-4 text-green-500" />
-                                    <span className="text-sm font-bold">{t("zones")} ({zones.length})</span>
-                                </div>
-                                {zonesExpanded ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
-                            </button>
-                            {zonesExpanded && (
-                                <div className="px-3 pb-3">
-                                    <button
-                                        onClick={() => toggleAll(zones, selectedZoneIds, setSelectedZoneIds)}
-                                        className="text-xs text-primary hover:underline mb-2 font-medium"
-                                    >
-                                        {zones.every((z: any) => selectedZoneIds.has(z.id)) ? t("deselect_all") : t("select_all")}
-                                    </button>
-                                    <div className="space-y-1">
-                                        {zones.map((zone: any, index: number) => (
-                                            <label
-                                                key={zone.id}
-                                                className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors ${selectedZoneIds.has(zone.id) ? "bg-muted/70" : "hover:bg-muted/30 opacity-60"}`}
-                                            >
-                                                <input
-                                                    type="checkbox"
-                                                    checked={selectedZoneIds.has(zone.id)}
-                                                    onChange={() => toggleItem(selectedZoneIds, setSelectedZoneIds, zone.id)}
-                                                    className="rounded border-border"
-                                                />
-                                                <span
-                                                    className="w-3 h-3 rounded-full shrink-0"
-                                                    style={{ backgroundColor: getZoneColor(index) }}
-                                                />
-                                                <span className="text-sm font-medium truncate">{zone.name}</span>
-                                            </label>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {/* Reservoirs Section */}
-                    {reservoirs.length > 0 && (
-                        <div className="border-b border-border">
-                            <button
-                                onClick={() => setReservoirsExpanded(!reservoirsExpanded)}
-                                className="w-full flex items-center justify-between p-3 hover:bg-muted/50 transition-colors"
-                            >
-                                <div className="flex items-center gap-2">
-                                    <Waves className="w-4 h-4 text-blue-500" />
-                                    <span className="text-sm font-bold">{t("reservoirs")} ({reservoirs.length})</span>
-                                </div>
-                                {reservoirsExpanded ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
-                            </button>
-                            {reservoirsExpanded && (
-                                <div className="px-3 pb-3">
-                                    <button
-                                        onClick={() => toggleAll(reservoirs, selectedReservoirIds, setSelectedReservoirIds)}
-                                        className="text-xs text-primary hover:underline mb-2 font-medium"
-                                    >
-                                        {reservoirs.every((r: any) => selectedReservoirIds.has(r.id)) ? t("deselect_all") : t("select_all")}
-                                    </button>
-                                    <div className="space-y-1">
-                                        {reservoirs.map((reservoir: any) => (
-                                            <label
-                                                key={reservoir.id}
-                                                className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors ${selectedReservoirIds.has(reservoir.id) ? "bg-muted/70" : "hover:bg-muted/30 opacity-60"}`}
-                                            >
-                                                <input
-                                                    type="checkbox"
-                                                    checked={selectedReservoirIds.has(reservoir.id)}
-                                                    onChange={() => toggleItem(selectedReservoirIds, setSelectedReservoirIds, reservoir.id)}
-                                                    className="rounded border-border"
-                                                />
-                                                <span className="w-3 h-3 rounded-full shrink-0 bg-blue-500" />
-                                                <div className="min-w-0">
-                                                    <span className="text-sm font-medium truncate block">{reservoir.name}</span>
-                                                    {reservoir.current_level_pct != null && (
-                                                        <span className="text-xs text-muted-foreground">{reservoir.current_level_pct.toFixed(0)}%</span>
-                                                    )}
-                                                </div>
-                                            </label>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {/* Devices Section */}
-                    {devices.length > 0 && (
-                        <div className="border-b border-border">
-                            <button
-                                onClick={() => setDevicesExpanded(!devicesExpanded)}
-                                className="w-full flex items-center justify-between p-3 hover:bg-muted/50 transition-colors"
-                            >
-                                <div className="flex items-center gap-2">
-                                    <Droplets className="w-4 h-4 text-purple-500" />
-                                    <span className="text-sm font-bold">{t("devices")} ({devices.length})</span>
-                                </div>
-                                {devicesExpanded ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
-                            </button>
-                            {devicesExpanded && (
-                                <div className="px-3 pb-3">
-                                    <button
-                                        onClick={() => toggleAll(devices, selectedDeviceIds, setSelectedDeviceIds)}
-                                        className="text-xs text-primary hover:underline mb-2 font-medium"
-                                    >
-                                        {devices.every((d: any) => selectedDeviceIds.has(d.id)) ? t("deselect_all") : t("select_all")}
-                                    </button>
-                                    <div className="space-y-1">
-                                        {devices.map((device: any) => (
-                                            <label
-                                                key={device.id}
-                                                className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors ${selectedDeviceIds.has(device.id) ? "bg-muted/70" : "hover:bg-muted/30 opacity-60"}`}
-                                            >
-                                                <input
-                                                    type="checkbox"
-                                                    checked={selectedDeviceIds.has(device.id)}
-                                                    onChange={() => toggleItem(selectedDeviceIds, setSelectedDeviceIds, device.id)}
-                                                    className="rounded border-border"
-                                                />
-                                                <span
-                                                    className="w-3 h-3 rounded-full shrink-0"
-                                                    style={{
-                                                        backgroundColor: device.status === "online" ? "#22c55e" : device.status === "error" ? "#ef4444" : "#6b7280",
-                                                    }}
-                                                />
-                                                <div className="min-w-0">
-                                                    <span className="text-sm font-medium truncate block">{device.name}</span>
-                                                    <span className="text-xs text-muted-foreground capitalize">{device.device_type?.replace("_", " ")}</span>
-                                                </div>
-                                            </label>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {/* Pipes Section */}
-                    {pipes.length > 0 && (
-                        <div>
-                            <button
-                                onClick={() => setPipesExpanded(!pipesExpanded)}
-                                className="w-full flex items-center justify-between p-3 hover:bg-muted/50 transition-colors"
-                            >
-                                <div className="flex items-center gap-2">
-                                    <Network className="w-4 h-4 text-amber-500" />
-                                    <span className="text-sm font-bold">{t("pipes")} ({pipes.length})</span>
-                                </div>
-                                {pipesExpanded ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
-                            </button>
-                            {pipesExpanded && (
-                                <div className="px-3 pb-3">
-                                    <button
-                                        onClick={() => toggleAll(pipes, selectedPipeIds, setSelectedPipeIds)}
-                                        className="text-xs text-primary hover:underline mb-2 font-medium"
-                                    >
-                                        {pipes.every((p: any) => selectedPipeIds.has(p.id)) ? t("deselect_all") : t("select_all")}
-                                    </button>
-                                    <div className="space-y-1">
-                                        {pipes.map((pipe: any) => (
-                                            <label
-                                                key={pipe.id}
-                                                className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors ${selectedPipeIds.has(pipe.id) ? "bg-muted/70" : "hover:bg-muted/30 opacity-60"}`}
-                                            >
-                                                <input
-                                                    type="checkbox"
-                                                    checked={selectedPipeIds.has(pipe.id)}
-                                                    onChange={() => toggleItem(selectedPipeIds, setSelectedPipeIds, pipe.id)}
-                                                    className="rounded border-border"
-                                                />
-                                                <span
-                                                    className="w-3 h-3 rounded-full shrink-0"
-                                                    style={{ backgroundColor: pipe.pipe_type === "main" ? "#f59e0b" : "#a855f7" }}
-                                                />
-                                                <div className="min-w-0">
-                                                    <span className="text-sm font-medium truncate block">{pipe.name}</span>
-                                                    <span className="text-xs text-muted-foreground capitalize">{pipe.pipe_type}</span>
-                                                </div>
-                                            </label>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    )}
-                </div>
-
-                {/* Map */}
-                <div className="flex-1 bg-card rounded-2xl border border-border overflow-hidden">
-                    <MapContainer
-                        center={defaultCenter}
-                        zoom={defaultZoom}
-                        style={{ height: "100%", width: "100%" }}
-                        className="z-0"
-                    >
-                        <TileLayer
-                            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                        />
-                        {allCoords.length > 0 && <MapBoundsSetter bounds={allCoords} />}
-
-                        {zones.filter((z: any) => selectedZoneIds.has(z.id)).map((zone: any, _: number) => {
-                            const index = zones.indexOf(zone);
-                            return zone.geometry?.coordinates && zone.geometry.coordinates.length > 0 ? (
-                                <Polygon
-                                    key={`zone-${zone.id}`}
-                                    positions={zone.geometry.coordinates[0] as [number, number][]}
-                                    pathOptions={{
-                                        color: getZoneColor(index),
-                                        fillColor: getZoneColor(index),
-                                        fillOpacity: 0.3,
-                                        weight: 2,
-                                    }}
-                                >
-                                    <Popup>
-                                        <div className="p-2">
-                                            <h3 className="font-bold">{zone.name}</h3>
-                                            <p className="text-sm text-gray-600">Zone {zone.zone_number}</p>
-                                            {zone.area_hectares && (
-                                                <p className="text-sm">{zone.area_hectares} hectares</p>
-                                            )}
-                                        </div>
-                                    </Popup>
-                                </Polygon>
-                            ) : zone.center_latitude && zone.center_longitude ? (
-                                <CircleMarker
-                                    key={`zone-point-${zone.id}`}
-                                    center={[zone.center_latitude, zone.center_longitude]}
-                                    radius={20}
-                                    pathOptions={{
-                                        color: getZoneColor(index),
-                                        fillColor: getZoneColor(index),
-                                        fillOpacity: 0.5,
-                                    }}
-                                >
-                                    <Popup>
-                                        <div className="p-2">
-                                            <h3 className="font-bold">{zone.name}</h3>
-                                            <p className="text-sm text-gray-600">Zone {zone.zone_number}</p>
-                                        </div>
-                                    </Popup>
-                                </CircleMarker>
-                            ) : null;
-                        })}
-
-                        {reservoirs.filter((r: any) => selectedReservoirIds.has(r.id)).map((reservoir: any) => (
-                            reservoir.latitude && reservoir.longitude ? (
-                                <CircleMarker
-                                    key={`reservoir-${reservoir.id}`}
-                                    center={[reservoir.latitude, reservoir.longitude]}
-                                    radius={15}
-                                    pathOptions={{
-                                        color: "#3b82f6",
-                                        fillColor: "#3b82f6",
-                                        fillOpacity: 0.7,
-                                    }}
-                                >
-                                    <Popup>
-                                        <div className="p-2">
-                                            <h3 className="font-bold text-blue-600">{reservoir.name}</h3>
-                                            <p className="text-sm">Level: {reservoir.current_level_pct?.toFixed(0)}%</p>
-                                            <p className="text-sm">Capacity: {reservoir.capacity_liters?.toLocaleString()} L</p>
-                                        </div>
-                                    </Popup>
-                                </CircleMarker>
-                            ) : null
-                        ))}
-
-                        {pipes.filter((p: any) => selectedPipeIds.has(p.id)).map((pipe: any) => (
-                            (pipe.from_latitude && pipe.from_longitude && pipe.to_latitude && pipe.to_longitude) ? (
-                                <Polyline
-                                    key={`pipe-${pipe.id}`}
-                                    positions={[
-                                        [pipe.from_latitude, pipe.from_longitude],
-                                        [pipe.to_latitude, pipe.to_longitude],
-                                    ]}
-                                    pathOptions={{
-                                        color: pipe.pipe_type === "main" ? "#f59e0b" : "#a855f7",
-                                        weight: pipe.pipe_type === "main" ? 4 : 2,
-                                        opacity: 0.8,
-                                    }}
-                                >
-                                    <Popup>
-                                        <div className="p-2">
-                                            <h3 className="font-bold text-amber-600">{pipe.name}</h3>
-                                            <p className="text-sm capitalize">{pipe.pipe_type} pipe</p>
-                                            {pipe.diameter_mm && <p className="text-sm">{pipe.diameter_mm} mm</p>}
-                                            {pipe.length_meters && <p className="text-sm">{pipe.length_meters} m</p>}
-                                        </div>
-                                    </Popup>
-                                </Polyline>
-                            ) : null
-                        ))}
-
-                        {devices.filter((d: any) => selectedDeviceIds.has(d.id)).map((device: any) => (
-                            device.latitude && device.longitude ? (
-                                <CircleMarker
-                                    key={`device-${device.id}`}
-                                    center={[device.latitude, device.longitude]}
-                                    radius={8}
-                                    pathOptions={{
-                                        color: device.status === "online" ? "#22c55e" : device.status === "error" ? "#ef4444" : "#6b7280",
-                                        fillColor: device.status === "online" ? "#22c55e" : device.status === "error" ? "#ef4444" : "#6b7280",
-                                        fillOpacity: 0.9,
-                                    }}
-                                >
-                                    <Popup>
-                                        <div className="p-2">
-                                            <h3 className="font-bold">{device.name}</h3>
-                                            <p className="text-sm capitalize">{device.device_type?.replace("_", " ")}</p>
-                                            <p className="text-sm">Status: <span className={device.status === "online" ? "text-green-600" : "text-red-600"}>{device.status}</span></p>
-                                            {device.last_battery_pct && <p className="text-sm">Battery: {device.last_battery_pct}%</p>}
-                                        </div>
-                                    </Popup>
-                                </CircleMarker>
-                            ) : null
-                        ))}
-                    </MapContainer>
-                </div>
-            </div>
-            )}
-
-            {zones.length === 0 && reservoirs.length === 0 && pipes.length === 0 && (
-                <div className="mt-6 p-8 bg-muted/30 rounded-xl border border-dashed border-border text-center">
-                    <Leaf className="w-12 h-12 mx-auto text-muted-foreground/50 mb-4" />
-                    <h3 className="text-lg font-bold text-foreground mb-2">{t("empty_title")}</h3>
-                    <p className="text-muted-foreground">{t("empty_description")}</p>
-                </div>
-            )}
+  return (
+    <div className="w-full">
+      {/* ── Header ─────────────────────────────────────────────────────── */}
+      <div className="mb-5 flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-xl font-semibold text-foreground tracking-tight">{t("title")}</h1>
+          <p className="text-sm text-muted-foreground mt-1">{t("subtitle")}</p>
+          {/* View toggle */}
+          <div className="flex items-center gap-1 mt-3 bg-muted rounded-lg p-1 w-fit">
+            {(["geographic", "schematic"] as const).map(view => (
+              <button key={view}
+                onClick={() => setMapView(view)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  mapView === view
+                    ? "bg-card text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {view === "geographic" ? <Map className="w-4 h-4" /> : <Grid3X3 className="w-4 h-4" />}
+                {view === "geographic" ? (t("geographic_view") ?? "Geographic") : (t("schematic_view") ?? "Schematic")}
+              </button>
+            ))}
+          </div>
         </div>
-    );
+
+        {/* Add buttons */}
+        <div className="flex flex-wrap gap-2">
+          <button onClick={() => setShowAddZone(!showAddZone)}
+            className="flex items-center gap-1.5 px-3 py-2 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 rounded-xl text-sm font-medium transition-colors">
+            <Plus className="w-4 h-4" />{t("add_zone")}
+          </button>
+          <button onClick={() => setShowAddReservoir(!showAddReservoir)}
+            className="flex items-center gap-1.5 px-3 py-2 bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 hover:bg-blue-500/20 rounded-xl text-sm font-medium transition-colors">
+            <Waves className="w-4 h-4" />{t("add_reservoir")}
+          </button>
+          <button onClick={() => setShowAddPipe(!showAddPipe)}
+            className="flex items-center gap-1.5 px-3 py-2 bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 rounded-xl text-sm font-medium transition-colors">
+            <Network className="w-4 h-4" />{t("add_pipe")}
+          </button>
+        </div>
+      </div>
+
+      {/* ── Add forms ──────────────────────────────────────────────────── */}
+      {(showAddZone || showAddReservoir || showAddPipe) && (
+        <div className="mb-5 p-4 bg-card rounded-xl border border-border space-y-2">
+          {showAddZone && (
+            <div className="flex gap-2">
+              <input type="text" placeholder={t("zone_name_placeholder")} value={newZoneName}
+                onChange={e => setNewZoneName(e.target.value)}
+                className="flex-1 px-3 py-2 border border-border rounded-lg bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+              <button onClick={handleAddZone} className="px-4 py-2 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 rounded-lg text-sm font-medium hover:bg-emerald-500/20 transition-colors">{t("save")}</button>
+              <button onClick={() => setShowAddZone(false)} className="px-4 py-2 bg-muted rounded-lg text-sm">{t("cancel")}</button>
+            </div>
+          )}
+          {showAddReservoir && (
+            <div className="flex gap-2">
+              <input type="text" placeholder={t("reservoir_name_placeholder")} value={newReservoirName}
+                onChange={e => setNewReservoirName(e.target.value)}
+                className="flex-1 px-3 py-2 border border-border rounded-lg bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+              <button onClick={handleAddReservoir} className="px-4 py-2 bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 rounded-lg text-sm font-medium hover:bg-blue-500/20 transition-colors">{t("save")}</button>
+              <button onClick={() => setShowAddReservoir(false)} className="px-4 py-2 bg-muted rounded-lg text-sm">{t("cancel")}</button>
+            </div>
+          )}
+          {showAddPipe && (
+            <div className="flex gap-2">
+              <input type="text" placeholder={t("pipe_name_placeholder")} value={newPipeName}
+                onChange={e => setNewPipeName(e.target.value)}
+                className="flex-1 px-3 py-2 border border-border rounded-lg bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+              <button onClick={handleAddPipe} className="px-4 py-2 bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 rounded-lg text-sm font-medium hover:bg-amber-500/20 transition-colors">{t("save")}</button>
+              <button onClick={() => setShowAddPipe(false)} className="px-4 py-2 bg-muted rounded-lg text-sm">{t("cancel")}</button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Stats row ──────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+        {[
+          { icon: Leaf,     color: "text-emerald-500", bg: "bg-emerald-500/10 border-emerald-500/20", label: t("zones"),      value: zones.length      },
+          { icon: Waves,    color: "text-blue-500",    bg: "bg-blue-500/10 border-blue-500/20",       label: t("reservoirs"), value: reservoirs.length },
+          { icon: Network,  color: "text-amber-500",   bg: "bg-amber-500/10 border-amber-500/20",     label: t("pipes"),      value: pipes.length      },
+          { icon: Droplets, color: "text-purple-500",  bg: "bg-purple-500/10 border-purple-500/20",   label: t("devices"),    value: devices.length    },
+        ].map(({ icon: Icon, color, bg, label, value }) => (
+          <div key={label} className="bg-card rounded-xl p-4 border border-border flex items-center gap-3 hover:shadow-md hover:shadow-black/5 transition-shadow">
+            <div className={`w-9 h-9 rounded-lg flex items-center justify-center border shrink-0 ${bg}`}>
+              <Icon className={`w-4 h-4 ${color}`} />
+            </div>
+            <div>
+              <p className="text-xl font-bold text-foreground leading-none">{value}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Schematic view ─────────────────────────────────────────────── */}
+      {mapView === "schematic" ? (
+        <div className="rounded-2xl border border-border overflow-hidden" style={{ height: 620 }}>
+          <FarmMapSVG
+            zones={zones.map((z: any) => ({
+              id: z.id,
+              name: z.name,
+              zone_number: z.zone_number,
+              area_hectares: z.area_hectares,
+            }))}
+            devices={devices.map((d: any) => ({
+              id: d.id,
+              name: d.name,
+              device_type: d.device_type,
+              status: d.status,
+              zone_id: d.zone_id ?? null,
+            }))}
+            reservoirs={reservoirs.map((r: any) => ({
+              id: r.id,
+              name: r.name,
+              current_level_pct: r.current_level_pct,
+              capacity_liters: r.capacity_liters,
+            }))}
+            liveZones={sseZones}
+          />
+        </div>
+      ) : mounted ? (
+        /* ── Geographic view ─────────────────────────────────────────── */
+        <div className="flex gap-4" style={{ height: 620 }} key={`geo-view-${mapInstanceId}`}>
+          {/* Layer panel */}
+          <div className="w-60 shrink-0 bg-card rounded-2xl border border-border overflow-y-auto">
+            <div className="px-4 py-3 border-b border-border">
+              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">{t("layers")}</p>
+            </div>
+
+            {/* Zones */}
+            {zones.length > 0 && (
+              <LayerSection
+                label={`${t("zones")} (${zones.length})`}
+                icon={<Leaf className="w-3.5 h-3.5 text-emerald-500" />}
+                expanded={zonesExp}
+                onToggle={() => setZonesExp(v => !v)}
+              >
+                <button onClick={() => toggleAll(zones, selZones, setSelZones)}
+                  className="text-xs text-primary hover:underline mb-2 font-medium">
+                  {zones.every((z: any) => selZones.has(z.id)) ? t("deselect_all") : t("select_all")}
+                </button>
+                {zones.map((zone: any, i: number) => (
+                  <LayerItem key={zone.id}
+                    checked={selZones.has(zone.id)}
+                    onChange={() => toggle(selZones, setSelZones, zone.id)}
+                    dotColor={getZoneColor(i)}
+                    label={zone.name}
+                  />
+                ))}
+              </LayerSection>
+            )}
+
+            {/* Reservoirs */}
+            {reservoirs.length > 0 && (
+              <LayerSection
+                label={`${t("reservoirs")} (${reservoirs.length})`}
+                icon={<Waves className="w-3.5 h-3.5 text-blue-500" />}
+                expanded={reservoirsExp}
+                onToggle={() => setReservoirsExp(v => !v)}
+              >
+                <button onClick={() => toggleAll(reservoirs, selReservoirs, setSelReservoirs)}
+                  className="text-xs text-primary hover:underline mb-2 font-medium">
+                  {reservoirs.every((r: any) => selReservoirs.has(r.id)) ? t("deselect_all") : t("select_all")}
+                </button>
+                {reservoirs.map((r: any) => (
+                  <LayerItem key={r.id}
+                    checked={selReservoirs.has(r.id)}
+                    onChange={() => toggle(selReservoirs, setSelReservoirs, r.id)}
+                    dotColor="#3b82f6"
+                    label={r.name}
+                    sub={r.current_level_pct != null ? `${r.current_level_pct.toFixed(0)}%` : undefined}
+                  />
+                ))}
+              </LayerSection>
+            )}
+
+            {/* Devices */}
+            {devices.length > 0 && (
+              <LayerSection
+                label={`${t("devices")} (${devices.length})`}
+                icon={<Droplets className="w-3.5 h-3.5 text-purple-500" />}
+                expanded={devicesExp}
+                onToggle={() => setDevicesExp(v => !v)}
+              >
+                <button onClick={() => toggleAll(devices, selDevices, setSelDevices)}
+                  className="text-xs text-primary hover:underline mb-2 font-medium">
+                  {devices.every((d: any) => selDevices.has(d.id)) ? t("deselect_all") : t("select_all")}
+                </button>
+                {devices.map((d: any) => (
+                  <LayerItem key={d.id}
+                    checked={selDevices.has(d.id)}
+                    onChange={() => toggle(selDevices, setSelDevices, d.id)}
+                    dotColor={d.status === "online" ? "#22c55e" : d.status === "error" ? "#ef4444" : "#6b7280"}
+                    label={d.name}
+                    sub={d.device_type?.replace(/_/g, " ")}
+                  />
+                ))}
+              </LayerSection>
+            )}
+
+            {/* Pipes */}
+            {pipes.length > 0 && (
+              <LayerSection
+                label={`${t("pipes")} (${pipes.length})`}
+                icon={<Network className="w-3.5 h-3.5 text-amber-500" />}
+                expanded={pipesExp}
+                onToggle={() => setPipesExp(v => !v)}
+              >
+                <button onClick={() => toggleAll(pipes, selPipes, setSelPipes)}
+                  className="text-xs text-primary hover:underline mb-2 font-medium">
+                  {pipes.every((p: any) => selPipes.has(p.id)) ? t("deselect_all") : t("select_all")}
+                </button>
+                {pipes.map((p: any) => (
+                  <LayerItem key={p.id}
+                    checked={selPipes.has(p.id)}
+                    onChange={() => toggle(selPipes, setSelPipes, p.id)}
+                    dotColor={p.pipe_type === "main" ? "#f59e0b" : "#a855f7"}
+                    label={p.name}
+                    sub={p.pipe_type}
+                  />
+                ))}
+              </LayerSection>
+            )}
+
+            {zones.length === 0 && reservoirs.length === 0 && devices.length === 0 && (
+              <div className="p-4 text-center">
+                <WifiOff className="w-6 h-6 mx-auto text-muted-foreground/40 mb-2" />
+                <p className="text-xs text-muted-foreground">No layers yet</p>
+              </div>
+            )}
+          </div>
+
+          {/* Leaflet map */}
+          <div className="flex-1 rounded-2xl border border-border overflow-hidden" key={`map-container-${mapView}`}>
+            <MapContainer
+              id={mapInstanceId}
+              center={[30.0, -9.5]}
+              zoom={14}
+              style={{ height: "100%", width: "100%" }}
+              className="z-0"
+              preferCanvas={true}
+              whenReady={() => console.log("Map ready")}
+            >
+              <TileLayer
+                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              />
+              {allCoords.length > 0 && <MapBoundsSetter bounds={allCoords} />}
+
+              {zones.filter((z: any) => selZones.has(z.id)).map((zone: any) => {
+                const idx = zones.indexOf(zone);
+                const color = getZoneColor(idx);
+                if (zone.geometry?.coordinates?.length > 0) {
+                  return (
+                    <Polygon key={`zone-${zone.id}`}
+                      positions={zone.geometry.coordinates[0] as [number, number][]}
+                      pathOptions={{ color, fillColor: color, fillOpacity: 0.28, weight: 2 }}>
+                      <Popup>
+                        <div className="p-1.5">
+                          <p className="font-semibold">{zone.name}</p>
+                          <p className="text-xs text-gray-500">Zone {zone.zone_number}</p>
+                          {zone.area_hectares && <p className="text-xs">{zone.area_hectares} ha</p>}
+                        </div>
+                      </Popup>
+                    </Polygon>
+                  );
+                }
+                if (zone.center_latitude && zone.center_longitude) {
+                  return (
+                    <CircleMarker key={`zone-pt-${zone.id}`}
+                      center={[zone.center_latitude, zone.center_longitude]} radius={20}
+                      pathOptions={{ color, fillColor: color, fillOpacity: 0.45 }}>
+                      <Popup>
+                        <div className="p-1.5">
+                          <p className="font-semibold">{zone.name}</p>
+                          <p className="text-xs text-gray-500">Zone {zone.zone_number}</p>
+                        </div>
+                      </Popup>
+                    </CircleMarker>
+                  );
+                }
+                return null;
+              })}
+
+              {reservoirs.filter((r: any) => selReservoirs.has(r.id)).map((r: any) =>
+                r.latitude && r.longitude ? (
+                  <CircleMarker key={`res-${r.id}`}
+                    center={[r.latitude, r.longitude]} radius={14}
+                    pathOptions={{ color: "#3b82f6", fillColor: "#3b82f6", fillOpacity: 0.65 }}>
+                    <Popup>
+                      <div className="p-1.5">
+                        <p className="font-semibold text-blue-600">{r.name}</p>
+                        <p className="text-xs">Level: {r.current_level_pct?.toFixed(0)}%</p>
+                        {r.capacity_liters && <p className="text-xs">{r.capacity_liters.toLocaleString()} L</p>}
+                      </div>
+                    </Popup>
+                  </CircleMarker>
+                ) : null
+              )}
+
+              {pipes.filter((p: any) => selPipes.has(p.id)).map((p: any) =>
+                (p.from_latitude && p.from_longitude && p.to_latitude && p.to_longitude) ? (
+                  <Polyline key={`pipe-${p.id}`}
+                    positions={[[p.from_latitude, p.from_longitude], [p.to_latitude, p.to_longitude]]}
+                    pathOptions={{ color: p.pipe_type === "main" ? "#f59e0b" : "#a855f7", weight: p.pipe_type === "main" ? 4 : 2, opacity: 0.75 }}>
+                    <Popup>
+                      <div className="p-1.5">
+                        <p className="font-semibold text-amber-600">{p.name}</p>
+                        <p className="text-xs capitalize">{p.pipe_type} pipe</p>
+                        {p.diameter_mm && <p className="text-xs">{p.diameter_mm} mm</p>}
+                      </div>
+                    </Popup>
+                  </Polyline>
+                ) : null
+              )}
+
+              {devices.filter((d: any) => selDevices.has(d.id)).map((d: any) =>
+                d.latitude && d.longitude ? (
+                  <CircleMarker key={`dev-${d.id}`}
+                    center={[d.latitude, d.longitude]} radius={7}
+                    pathOptions={{
+                      color:       d.status === "online" ? "#22c55e" : d.status === "error" ? "#ef4444" : "#6b7280",
+                      fillColor:   d.status === "online" ? "#22c55e" : d.status === "error" ? "#ef4444" : "#6b7280",
+                      fillOpacity: 0.85,
+                    }}>
+                    <Popup>
+                      <div className="p-1.5">
+                        <p className="font-semibold">{d.name}</p>
+                        <p className="text-xs capitalize">{d.device_type?.replace(/_/g, " ")}</p>
+                        <p className="text-xs">
+                          Status: <span className={d.status === "online" ? "text-green-600" : "text-red-600"}>{d.status}</span>
+                        </p>
+                        {d.last_battery_pct != null && <p className="text-xs">Battery: {d.last_battery_pct}%</p>}
+                      </div>
+                    </Popup>
+                  </CircleMarker>
+                ) : null
+              )}
+            </MapContainer>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Empty farm prompt */}
+      {zones.length === 0 && reservoirs.length === 0 && pipes.length === 0 && (
+        <div className="mt-5 p-8 bg-muted/20 rounded-xl border border-dashed border-border text-center">
+          <Leaf className="w-10 h-10 mx-auto text-muted-foreground/40 mb-3" />
+          <h3 className="text-base font-semibold text-foreground mb-1">{t("empty_title")}</h3>
+          <p className="text-sm text-muted-foreground">{t("empty_description")}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Small reusable sub-components ────────────────────────────────────────────
+function LayerSection({
+  label, icon, expanded, onToggle, children,
+}: {
+  label: string; icon: React.ReactNode;
+  expanded: boolean; onToggle: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="border-b border-border last:border-b-0">
+      <button onClick={onToggle}
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/40 transition-colors">
+        <div className="flex items-center gap-2">
+          {icon}
+          <span className="text-sm font-medium text-foreground">{label}</span>
+        </div>
+        {expanded
+          ? <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+          : <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />}
+      </button>
+      {expanded && <div className="px-4 pb-3">{children}</div>}
+    </div>
+  );
+}
+
+function LayerItem({
+  checked, onChange, dotColor, label, sub,
+}: {
+  checked: boolean; onChange: () => void;
+  dotColor: string; label: string; sub?: string;
+}) {
+  return (
+    <label className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors ${
+      checked ? "bg-muted/60" : "hover:bg-muted/30 opacity-55"
+    }`}>
+      <input type="checkbox" checked={checked} onChange={onChange} className="rounded border-border shrink-0" />
+      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: dotColor }} />
+      <div className="min-w-0">
+        <span className="text-sm font-medium text-foreground truncate block">{label}</span>
+        {sub && <span className="text-xs text-muted-foreground capitalize">{sub}</span>}
+      </div>
+    </label>
+  );
 }
