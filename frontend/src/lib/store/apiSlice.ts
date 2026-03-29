@@ -35,10 +35,12 @@ async function baseQueryWithFallback(args: any, api: any, extraOptions: any) {
         console.debug("[SoussFlow/API] Response:", { url: args.url, status: result.error?.status || 200, data: result.data, error: result.error });
       }
 
-      if (result.data || result.error?.status === 401 || result.error?.status === 403) {
+      // Return immediately on any HTTP response (success or error).
+      // Only fall through to the next URL on a true network failure (fetch throws).
+      if (result.data !== undefined || result.error) {
         return result;
       }
-      lastError = new Error(`Request failed with status ${result.error?.status}`);
+      lastError = new Error("No response received");
     } catch (err) {
       if (isDebugMode()) {
         console.debug("[SoussFlow/API] Error:", { url: args.url, error: err });

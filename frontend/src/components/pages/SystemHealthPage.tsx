@@ -39,9 +39,11 @@ export function SystemHealthPage({ healthData }: SystemHealthPageProps) {
         const fetchHealth = async () => {
             try {
                 const token = localStorage.getItem("token");
-                const res = await fetch(`${getApiBaseUrl()}/api/anomalies/health`, {
-                    headers: { Authorization: `Bearer ${token}` },
-                });
+                const farmId = localStorage.getItem("activeFarmId");
+                const headers: Record<string, string> = {};
+                if (token) headers["Authorization"] = `Bearer ${token}`;
+                if (farmId) headers["X-Farm-ID"] = farmId;
+                const res = await fetch(`${getApiBaseUrl()}/api/anomalies/health`, { headers });
                 if (res.ok) {
                     const json = await res.json();
                     setData(json);

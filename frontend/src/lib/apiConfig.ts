@@ -14,9 +14,9 @@ export const API_URLS = process.env.NEXT_PUBLIC_API_URL
     : [DEPLOYED_URL, LOCAL_URL];
 
 export function getApiBaseUrl(): string {
-  return process.env.NEXT_PUBLIC_API_URL || (isLocalDev ? LOCAL_URL : DEPLOYED_URL);
+  return (process.env.NEXT_PUBLIC_API_URL || (isLocalDev ? LOCAL_URL : DEPLOYED_URL)).replace(/\/$/, "");
 }
 
 export function getSseBaseUrl(): string {
-  return process.env.NEXT_PUBLIC_API_URL || (isLocalDev ? LOCAL_URL : DEPLOYED_URL);
+  return (process.env.NEXT_PUBLIC_API_URL || (isLocalDev ? LOCAL_URL : DEPLOYED_URL)).replace(/\/$/, "");
 }

@@ -277,8 +277,9 @@ class DebugLoggingMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
         if not is_debug_mode():
             return await call_next(request)
-        # Skip SSE and static
-        if request.url.path in ("/api/events", "/favicon.ico"):
+        # Skip SSE, static, and OPTIONS preflight (OPTIONS must bypass BaseHTTPMiddleware
+        # so CORSMiddleware can handle it — BaseHTTPMiddleware.call_next() hangs on OPTIONS)
+        if request.method == "OPTIONS" or request.url.path in ("/api/events", "/favicon.ico"):
             return await call_next(request)
         start = time.time()
         debug_request(request.method, request.url.path)
