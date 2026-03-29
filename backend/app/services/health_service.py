@@ -51,14 +51,14 @@ async def compute_health_scores(farm_id: uuid.UUID) -> dict:
 
 
 def _get_anomaly_counts(supabase, farm_id: uuid.UUID, since: datetime) -> dict:
-    """Get active anomaly counts by severity."""
+    """Get active (unacknowledged, unresolved) anomaly counts by severity."""
     result = supabase.table("anomaly_events").select(
-        "severity, status"
+        "severity, acknowledged, resolved_at"
     ).eq("farm_id", str(farm_id)).gte("created_at", since.isoformat()).execute()
 
     counts = {"critical": 0, "high": 0, "medium": 0, "low": 0}
     for row in (result.data or []):
-        if row.get("status") != "resolved":
+        if not row.get("acknowledged") and not row.get("resolved_at"):
             sev = row.get("severity", "low")
             if sev in counts:
                 counts[sev] += 1
