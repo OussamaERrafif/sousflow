@@ -113,8 +113,8 @@ async def get_baseline(
     else:
         query = query.is_("branch_id", "null")
 
-    result = query.maybe_single().execute()
-    return result.data
+    result = query.limit(1).execute()
+    return result.data[0] if result.data else None
 
 
 async def get_baselines_for_farm(farm_id: uuid.UUID) -> list[dict]:

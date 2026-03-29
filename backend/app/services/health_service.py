@@ -131,5 +131,5 @@ def _compute_data_quality_score(supabase, farm_id: uuid.UUID, since: datetime) -
 async def get_latest_health(farm_id: uuid.UUID) -> Optional[dict]:
     """Get the most recent health snapshot for a farm."""
     supabase = get_supabase_admin()
-    result = supabase.table("farm_health_snapshots").select("*").eq("farm_id", str(farm_id)).order("snapshot_at", desc=True).limit(1).maybe_single().execute()
-    return result.data
+    result = supabase.table("farm_health_snapshots").select("*").eq("farm_id", str(farm_id)).order("snapshot_at", desc=True).limit(1).execute()
+    return result.data[0] if result.data else None
