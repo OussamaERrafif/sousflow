@@ -4,7 +4,8 @@ import { useState, useEffect, useMemo } from "react";
 import { useTranslations } from "next-intl";
 import { MapContainer, TileLayer, Polygon, Polyline, CircleMarker, Popup, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
-import { Leaf, Droplets, Waves, Network, Plus, Pencil, Trash2, ChevronDown, ChevronRight, Eye, EyeOff } from "lucide-react";
+import { Leaf, Droplets, Waves, Network, Plus, Pencil, Trash2, ChevronDown, ChevronRight, Eye, EyeOff, Map, Grid3X3 } from "lucide-react";
+import FarmMapSVG from "./FarmMapSVG";
 import {
     useGetMapDataApiInfrastructureMapGetQuery,
     useCreateZoneApiInfrastructureZonesPostMutation,
@@ -26,6 +27,7 @@ function MapBoundsSetter({ bounds }: { bounds: number[][] }) {
 export default function MapPage() {
     const t = useTranslations("MapPage");
     const { activeFarmId } = useAppSelector((state) => state.auth);
+    const [mapView, setMapView] = useState<"geographic" | "schematic">("geographic");
     const [showAddZone, setShowAddZone] = useState(false);
     const [showAddReservoir, setShowAddReservoir] = useState(false);
     const [showAddPipe, setShowAddPipe] = useState(false);
@@ -198,6 +200,30 @@ export default function MapPage() {
                 <div>
                     <h1 className="text-3xl font-black text-foreground tracking-tight">{t("title")}</h1>
                     <p className="text-muted-foreground font-bold mt-1">{t("subtitle")}</p>
+                    <div className="flex items-center gap-1 mt-3 bg-muted rounded-lg p-1">
+                        <button
+                            onClick={() => setMapView("geographic")}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                                mapView === "geographic"
+                                    ? "bg-card text-foreground shadow-sm"
+                                    : "text-muted-foreground hover:text-foreground"
+                            }`}
+                        >
+                            <Map className="w-4 h-4" />
+                            {t("geographic_view") ?? "Géographique"}
+                        </button>
+                        <button
+                            onClick={() => setMapView("schematic")}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                                mapView === "schematic"
+                                    ? "bg-card text-foreground shadow-sm"
+                                    : "text-muted-foreground hover:text-foreground"
+                            }`}
+                        >
+                            <Grid3X3 className="w-4 h-4" />
+                            {t("schematic_view") ?? "Schématique"}
+                        </button>
+                    </div>
                 </div>
                 <div className="flex gap-2">
                     <button
@@ -329,6 +355,11 @@ export default function MapPage() {
                 </div>
             </div>
 
+            {mapView === "schematic" ? (
+                <div style={{ height: "550px" }}>
+                    <FarmMapSVG />
+                </div>
+            ) : (
             <div className="flex gap-4" style={{ height: "550px" }}>
                 {/* Layer Selection Panel */}
                 <div className="w-72 shrink-0 bg-card rounded-2xl border border-border overflow-y-auto">
@@ -664,6 +695,7 @@ export default function MapPage() {
                     </MapContainer>
                 </div>
             </div>
+            )}
 
             {zones.length === 0 && reservoirs.length === 0 && pipes.length === 0 && (
                 <div className="mt-6 p-8 bg-muted/30 rounded-xl border border-dashed border-border text-center">

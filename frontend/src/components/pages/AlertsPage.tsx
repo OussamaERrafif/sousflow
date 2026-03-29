@@ -9,8 +9,9 @@ import {
     useDeleteAlertRuleApiIotAlertsRulesRuleIdDeleteMutation,
 } from "@/lib/store/generated/api";
 import { useAppSelector } from "@/lib/store/hooks";
-import { Bell, Plus, Trash2, AlertTriangle, CheckCircle2, Edit, X, AlertOctagon, Info, Wifi, Shield, Eye } from "lucide-react";
+import { Bell, Plus, Trash2, AlertTriangle, CheckCircle2, Edit, X, AlertOctagon, Info, Wifi, Shield, Eye, ThumbsDown } from "lucide-react";
 import { useDebugLog } from "@/lib/debug";
+import { AnomalyTimeline } from "@/components/AnomalyTimeline";
 
 type TabType = "alerts" | "anomalies";
 
@@ -55,6 +56,7 @@ export default function AlertsPage() {
     const [anomalyDashboard, setAnomalyDashboard] = useState<AnomalyDashboardData | null>(null);
     const [anomalyLoading, setAnomalyLoading] = useState(false);
     const [ackLoading, setAckLoading] = useState(false);
+    const [ackNotes, setAckNotes] = useState("");
 
     const fetchAnomalyDashboard = async () => {
         setAnomalyLoading(true);
@@ -75,7 +77,7 @@ export default function AlertsPage() {
         }
     };
 
-    const handleAcknowledge = async (ids: string[]) => {
+    const handleAcknowledge = async (ids: string[], resolutionNotes?: string) => {
         setAckLoading(true);
         try {
             const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
@@ -86,13 +88,31 @@ export default function AlertsPage() {
             await fetch(`${getApiBaseUrl()}/api/anomalies/acknowledge`, {
                 method: "POST",
                 headers,
-                body: JSON.stringify({ anomaly_ids: ids }),
+                body: JSON.stringify({ anomaly_ids: ids, resolution_notes: resolutionNotes }),
             });
             fetchAnomalyDashboard();
         } catch (e) {
             console.error("Acknowledge error:", e);
         } finally {
             setAckLoading(false);
+        }
+    };
+
+    const handleFalsePositive = async (id: string) => {
+        try {
+            const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+            const farmId = typeof window !== "undefined" ? localStorage.getItem("activeFarmId") : null;
+            const headers: Record<string, string> = { "Content-Type": "application/json" };
+            if (token) headers["Authorization"] = `Bearer ${token}`;
+            if (farmId) headers["X-Farm-ID"] = farmId;
+            await fetch(`${getApiBaseUrl()}/api/anomalies/false-positive`, {
+                method: "POST",
+                headers,
+                body: JSON.stringify({ anomaly_id: id }),
+            });
+            fetchAnomalyDashboard();
+        } catch (e) {
+            console.error("False positive error:", e);
         }
     };
 
@@ -293,18 +313,32 @@ export default function AlertsPage() {
                                 ))}
                             </div>
 
+                            {/* Timeline Chart */}
+                            <div className="mb-6">
+                                <AnomalyTimeline days={7} />
+                            </div>
+
                             {/* Actions */}
                             {anomalyDashboard.recent.length > 0 && (
-                                <div className="flex justify-between items-center mb-4">
-                                    <p className="text-sm text-muted-foreground">{anomalyDashboard.recent.length} {ta("unacknowledged")}</p>
-                                    <button
-                                        onClick={() => handleAcknowledge(anomalyDashboard.recent.map(a => a.id))}
-                                        disabled={ackLoading}
-                                        className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-bold hover:bg-primary/90 disabled:opacity-50"
-                                    >
-                                        <Eye className="w-4 h-4" />
-                                        {ta("acknowledge_all")}
-                                    </button>
+                                <div className="space-y-3 mb-4">
+                                    <textarea
+                                        value={ackNotes}
+                                        onChange={(e) => setAckNotes(e.target.value)}
+                                        placeholder={ta("resolution_notes_placeholder")}
+                                        rows={2}
+                                        className="w-full text-sm px-3 py-2 rounded-lg border border-border bg-background resize-none focus:outline-none focus:ring-2 focus:ring-primary/30"
+                                    />
+                                    <div className="flex justify-between items-center">
+                                        <p className="text-sm text-muted-foreground">{anomalyDashboard.recent.length} {ta("unacknowledged")}</p>
+                                        <button
+                                            onClick={() => { handleAcknowledge(anomalyDashboard.recent.map(a => a.id), ackNotes || undefined); setAckNotes(""); }}
+                                            disabled={ackLoading}
+                                            className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-bold hover:bg-primary/90 disabled:opacity-50"
+                                        >
+                                            <Eye className="w-4 h-4" />
+                                            {ta("acknowledge_all")}
+                                        </button>
+                                    </div>
                                 </div>
                             )}
 
@@ -344,6 +378,13 @@ export default function AlertsPage() {
                                                                 className="text-xs font-bold text-primary hover:underline"
                                                             >
                                                                 {ta("acknowledge")}
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleFalsePositive(anomaly.id)}
+                                                                title={ta("false_positive")}
+                                                                className="text-muted-foreground hover:text-amber-500 transition-colors"
+                                                            >
+                                                                <ThumbsDown className="w-3.5 h-3.5" />
                                                             </button>
                                                         </div>
                                                     </div>

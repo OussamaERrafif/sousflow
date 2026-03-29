@@ -135,6 +135,16 @@ const injectedRtkApi = api.injectEndpoints({
     >({
       query: () => ({ url: `/api/whatsapp/webhook`, method: "POST" }),
     }),
+    simulateIncomingMessageApiWhatsappTestSimulatePost: build.mutation<
+      SimulateIncomingMessageApiWhatsappTestSimulatePostApiResponse,
+      SimulateIncomingMessageApiWhatsappTestSimulatePostApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/whatsapp/test/simulate`,
+        method: "POST",
+        body: queryArg.simulateMessageRequest,
+      }),
+    }),
     createReadingApiIotReadingsPost: build.mutation<
       CreateReadingApiIotReadingsPostApiResponse,
       CreateReadingApiIotReadingsPostApiArg
@@ -969,6 +979,12 @@ const injectedRtkApi = api.injectEndpoints({
         },
       }),
     }),
+    listAnomalyTypesApiAnomaliesTypesGet: build.query<
+      ListAnomalyTypesApiAnomaliesTypesGetApiResponse,
+      ListAnomalyTypesApiAnomaliesTypesGetApiArg
+    >({
+      query: () => ({ url: `/api/anomalies/types` }),
+    }),
     anomalyDashboardApiAnomaliesDashboardGet: build.query<
       AnomalyDashboardApiAnomaliesDashboardGetApiResponse,
       AnomalyDashboardApiAnomaliesDashboardGetApiArg
@@ -986,6 +1002,7 @@ const injectedRtkApi = api.injectEndpoints({
           severity: queryArg.severity,
           zone_id: queryArg.zoneId,
           acknowledged: queryArg.acknowledged,
+          false_positive: queryArg.falsePositive,
           limit: queryArg.limit,
           offset: queryArg.offset,
         },
@@ -999,6 +1016,26 @@ const injectedRtkApi = api.injectEndpoints({
         url: `/api/anomalies/acknowledge`,
         method: "POST",
         body: queryArg.anomalyAcknowledge,
+      }),
+    }),
+    reportFalsePositiveApiAnomaliesFalsePositivePost: build.mutation<
+      ReportFalsePositiveApiAnomaliesFalsePositivePostApiResponse,
+      ReportFalsePositiveApiAnomaliesFalsePositivePostApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/anomalies/false-positive`,
+        method: "POST",
+        body: queryArg.falsePositiveRequest,
+      }),
+    }),
+    injectAnomalyApiAnomaliesInjectPost: build.mutation<
+      InjectAnomalyApiAnomaliesInjectPostApiResponse,
+      InjectAnomalyApiAnomaliesInjectPostApiArg
+    >({
+      query: (queryArg) => ({
+        url: `/api/anomalies/inject`,
+        method: "POST",
+        body: queryArg.anomalyInjectRequest,
       }),
     }),
     rootGet: build.query<RootGetApiResponse, RootGetApiArg>({
@@ -1162,6 +1199,11 @@ export type SendAlertApiWhatsappAlertPostApiArg = {
 export type WhatsappWebhookApiWhatsappWebhookPostApiResponse =
   /** status 200 Successful Response */ any;
 export type WhatsappWebhookApiWhatsappWebhookPostApiArg = void;
+export type SimulateIncomingMessageApiWhatsappTestSimulatePostApiResponse =
+  /** status 200 Successful Response */ any;
+export type SimulateIncomingMessageApiWhatsappTestSimulatePostApiArg = {
+  simulateMessageRequest: SimulateMessageRequest;
+};
 export type CreateReadingApiIotReadingsPostApiResponse =
   /** status 200 Successful Response */ {
     [key: string]: any;
@@ -1658,6 +1700,9 @@ export type GetHistoryApiControlHistoryGetApiArg = {
   limit?: number;
   offset?: number;
 };
+export type ListAnomalyTypesApiAnomaliesTypesGetApiResponse =
+  /** status 200 Successful Response */ any;
+export type ListAnomalyTypesApiAnomaliesTypesGetApiArg = void;
 export type AnomalyDashboardApiAnomaliesDashboardGetApiResponse =
   /** status 200 Successful Response */ any;
 export type AnomalyDashboardApiAnomaliesDashboardGetApiArg = void;
@@ -1668,6 +1713,7 @@ export type ListAnomaliesApiAnomaliesGetApiArg = {
   severity?: string | null;
   zoneId?: string | null;
   acknowledged?: boolean | null;
+  falsePositive?: boolean | null;
   limit?: number;
   offset?: number;
 };
@@ -1675,6 +1721,16 @@ export type AcknowledgeApiAnomaliesAcknowledgePostApiResponse =
   /** status 200 Successful Response */ any;
 export type AcknowledgeApiAnomaliesAcknowledgePostApiArg = {
   anomalyAcknowledge: AnomalyAcknowledge;
+};
+export type ReportFalsePositiveApiAnomaliesFalsePositivePostApiResponse =
+  /** status 200 Successful Response */ any;
+export type ReportFalsePositiveApiAnomaliesFalsePositivePostApiArg = {
+  falsePositiveRequest: FalsePositiveRequest;
+};
+export type InjectAnomalyApiAnomaliesInjectPostApiResponse =
+  /** status 200 Successful Response */ any;
+export type InjectAnomalyApiAnomaliesInjectPostApiArg = {
+  anomalyInjectRequest: AnomalyInjectRequest;
 };
 export type RootGetApiResponse = /** status 200 Successful Response */ any;
 export type RootGetApiArg = void;
@@ -1719,8 +1775,6 @@ export type ValidationError = {
   loc: (string | number)[];
   msg: string;
   type: string;
-  input?: any;
-  ctx?: object;
 };
 export type HttpValidationError = {
   detail?: ValidationError[];
@@ -1809,6 +1863,10 @@ export type WhatsAppAlert = {
   value?: number | null;
   threshold?: number | null;
   message?: string | null;
+};
+export type SimulateMessageRequest = {
+  phone: string;
+  message: string;
 };
 export type IoTReadingCreate = {
   timestamp: string;
@@ -2298,6 +2356,16 @@ export type CommandHistoryResponse = {
 };
 export type AnomalyAcknowledge = {
   anomaly_ids: string[];
+  resolution_notes?: string | null;
+};
+export type FalsePositiveRequest = {
+  anomaly_id: string;
+};
+export type AnomalyInjectRequest = {
+  farm_id: string;
+  anomaly_type: string;
+  severity?: string;
+  zone_id?: string | null;
 };
 export const {
   useDebugUserApiAuthDebugUserUsernameGetQuery,
@@ -2316,6 +2384,7 @@ export const {
   useGetDeviceStatusApiWhatsappStatusGetQuery,
   useSendAlertApiWhatsappAlertPostMutation,
   useWhatsappWebhookApiWhatsappWebhookPostMutation,
+  useSimulateIncomingMessageApiWhatsappTestSimulatePostMutation,
   useCreateReadingApiIotReadingsPostMutation,
   useGetReadingsApiIotReadingsGetQuery,
   useCreateBatchApiIotReadingsBatchPostMutation,
@@ -2402,9 +2471,12 @@ export const {
   useSetOverrideApiControlZoneZoneIdOverridePostMutation,
   useGetStatesApiControlStatesGetQuery,
   useGetHistoryApiControlHistoryGetQuery,
+  useListAnomalyTypesApiAnomaliesTypesGetQuery,
   useAnomalyDashboardApiAnomaliesDashboardGetQuery,
   useListAnomaliesApiAnomaliesGetQuery,
   useAcknowledgeApiAnomaliesAcknowledgePostMutation,
+  useReportFalsePositiveApiAnomaliesFalsePositivePostMutation,
+  useInjectAnomalyApiAnomaliesInjectPostMutation,
   useRootGetQuery,
   useHealthCheckHealthGetQuery,
   useDashboardLoginDashboardLoginGetQuery,

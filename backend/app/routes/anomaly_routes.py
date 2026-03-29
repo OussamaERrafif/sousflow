@@ -1,10 +1,11 @@
 """Anomaly Detection Routes — dashboard, listing, acknowledgement, and manual injection."""
+import uuid
 from fastapi import APIRouter, Depends, HTTPException
 from typing import Optional
 from pydantic import BaseModel
 from app.auth import get_current_user, _extract_farm_id
 from app.schemas.anomaly import AnomalyAcknowledge
-from app.services import anomaly_service
+from app.services import anomaly_service, baseline_service, health_service
 from app.supabase_client import get_supabase_admin
 
 router = APIRouter(prefix="/api/anomalies", tags=["Anomaly Detection"])
@@ -15,6 +16,46 @@ class AnomalyInjectRequest(BaseModel):
     anomaly_type: str  # low_soil_moisture | irrigation_failure | sensor_error
     severity: str = "medium"  # low | medium | critical
     zone_id: Optional[str] = None
+
+
+class FalsePositiveRequest(BaseModel):
+    anomaly_id: str
+
+
+@router.get("/types")
+async def list_anomaly_types():
+    """Return the full anomaly_types catalog (32 standardized types across 4 domains)."""
+    return await anomaly_service.get_anomaly_types()
+
+
+@router.get("/baselines")
+async def get_baselines(user=Depends(get_current_user)):
+    """Get statistical baselines for the active farm."""
+    farm_id = _extract_farm_id(user)
+    if not farm_id:
+        raise HTTPException(400, "No active farm")
+    return await baseline_service.get_baselines_for_farm(uuid.UUID(farm_id))
+
+
+@router.get("/health")
+async def get_health(user=Depends(get_current_user)):
+    """Get farm health scores (overall + domain scores)."""
+    farm_id = _extract_farm_id(user)
+    if not farm_id:
+        raise HTTPException(400, "No active farm")
+    return await health_service.get_latest_health(uuid.UUID(farm_id))
+
+
+@router.get("/timeline")
+async def get_anomaly_timeline(
+    days: int = 7,
+    user=Depends(get_current_user),
+):
+    """Get anomaly counts over time for charting (default 7 days)."""
+    farm_id = _extract_farm_id(user)
+    if not farm_id:
+        raise HTTPException(400, "No active farm")
+    return await anomaly_service.get_anomaly_timeline(farm_id, days)
 
 
 @router.get("/dashboard")
@@ -32,6 +73,7 @@ async def list_anomalies(
     severity: Optional[str] = None,
     zone_id: Optional[str] = None,
     acknowledged: Optional[bool] = None,
+    false_positive: Optional[bool] = None,
     limit: int = 50,
     offset: int = 0,
     user=Depends(get_current_user),
@@ -41,18 +83,32 @@ async def list_anomalies(
     if not farm_id:
         raise HTTPException(400, "No active farm")
     return await anomaly_service.list_anomalies(
-        farm_id, anomaly_type, severity, zone_id, acknowledged, limit, offset
+        farm_id, anomaly_type, severity, zone_id, acknowledged, false_positive, limit, offset
     )
 
 
 @router.post("/acknowledge")
 async def acknowledge(request: AnomalyAcknowledge, user=Depends(get_current_user)):
-    """Mark anomalies as acknowledged."""
+    """Mark anomalies as acknowledged, optionally with resolution notes."""
     farm_id = _extract_farm_id(user)
     if not farm_id:
         raise HTTPException(400, "No active farm")
-    await anomaly_service.acknowledge_anomalies(farm_id, request.anomaly_ids, user["id"])
+    await anomaly_service.acknowledge_anomalies(
+        farm_id, request.anomaly_ids, user["id"], request.resolution_notes
+    )
     return {"acknowledged": len(request.anomaly_ids)}
+
+
+@router.post("/false-positive")
+async def report_false_positive(request: FalsePositiveRequest, user=Depends(get_current_user)):
+    """Flag an anomaly event as a false positive."""
+    farm_id = _extract_farm_id(user)
+    if not farm_id:
+        raise HTTPException(400, "No active farm")
+    success = await anomaly_service.mark_false_positive(farm_id, request.anomaly_id)
+    if not success:
+        raise HTTPException(404, "Anomaly not found")
+    return {"flagged": True, "anomaly_id": request.anomaly_id}
 
 
 @router.post("/inject")

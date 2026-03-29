@@ -1,6 +1,6 @@
 "use client";
 
-import { Home, Leaf, Bell, Settings, Activity, FileText, Globe, LogIn, LogOut, User, Sparkles, Map, Cpu } from "lucide-react";
+import { Home, Leaf, Bell, Settings, Activity, FileText, Globe, LogIn, LogOut, User, Sparkles, Map, Cpu, Heart } from "lucide-react";
 import { useTranslations, useLocale } from "next-intl";
 import { usePathname, useRouter } from "@/i18n/routing";
 import { useAppSelector, useAppDispatch } from "@/lib/store/hooks";
@@ -126,6 +126,7 @@ export default function Sidebar({ activePage, setActivePage }: { activePage: str
                     {renderSectionHeader("المراقبة")}
                     {renderMenuButton("alerts", Bell, t("nav_alerts"), 2)}
                     {renderMenuButton("reports", FileText, t("nav_reports"))}
+                    {renderMenuButton("system_health", Heart, t("nav_system_health"))}
 
                     {renderSectionHeader("النظام")}
                     {renderMenuButton("ai_assistant", Sparkles, t("nav_ai_assistant"))}

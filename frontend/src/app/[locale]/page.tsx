@@ -15,6 +15,7 @@ import AlertsPage from "@/components/pages/AlertsPage";
 import ReportsPage from "@/components/pages/ReportsPage";
 import SettingsPage from "@/components/pages/SettingsPage";
 import AIAssistancePage from "@/components/pages/AIAssistancePage";
+import SystemHealthPage from "@/components/pages/SystemHealthPage";
 const MapPage = dynamic(() => import("@/components/pages/MapPage"), { ssr: false });
 const IoTDevicesPage = dynamic(() => import("@/components/pages/IoTDevicesPage"), { ssr: false });
 import DebugPanel from "@/components/DebugPanel";
@@ -115,6 +116,8 @@ export default function Dashboard() {
         return <ReportsPage />;
       case "ai_assistant":
         return <AIAssistancePage />;
+      case "system_health":
+        return <SystemHealthPage />;
       case "settings":
         return <SettingsPage />;
       default:

@@ -1,9 +1,10 @@
 """
-Anomaly Detection Service — 5 detection algorithms run on each data ingestion cycle.
+Anomaly Detection Service — 8 detection algorithms run on each data ingestion cycle.
+5 statistical algorithms + 3 new rule-based detectors (hydraulic, equipment, agronomic).
 Uses in-memory buffers (per farm) for sliding window calculations.
 """
 from collections import defaultdict, deque
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 from app.supabase_client import get_supabase_admin
 from app.logging_config import logger
@@ -80,40 +81,121 @@ DETECTOR_CONFIG = {
 # Structure: _buffers[farm_id][column_key] = deque of (timestamp, value)
 _buffers: dict[str, dict[str, deque]] = defaultdict(lambda: defaultdict(lambda: deque(maxlen=200)))
 
+# ── In-memory infra reading window (per farm) for equipment/hydraulic detectors
+# Structure: _infra_window[farm_id] = deque of infra reading dicts
+_infra_window: dict[str, deque] = defaultdict(lambda: deque(maxlen=50))
+
 
 # ── Main entry point ──────────────────────────────────────────
 
-async def analyze_reading_batch(farm_id: str, readings: list[dict]) -> list[dict]:
+async def analyze_reading_batch(
+    farm_id: str,
+    readings: list[dict],
+    branch_readings: list[dict] | None = None,
+    zone_readings: list[dict] | None = None,
+    infra_reading: dict | None = None,
+    control_states: dict | None = None,
+) -> list[dict]:
     """
-    Run all 5 detectors on a batch of readings (one per zone).
+    Run all 8 detectors on a batch of readings.
     Called from iot_service.ingest_batch() after successful insertion.
+
+    Args:
+        readings:        flat zone readings (legacy — statistical detectors)
+        branch_readings: branch_flow_readings for hydraulic detector
+        zone_readings:   zone_health_readings for valve/agronomic detection
+        infra_reading:   latest infrastructure_reading for pressure/pump detection
+        control_states:  {zone_id: {valve_open: bool}} — from simulator/device_control
     Returns list of created anomaly_events.
     """
     all_anomalies = []
 
-    for reading in readings:
-        zone_id = reading.get("zone_id")  # integer zone number
+    baselines: dict[str, dict] = {}
+    try:
+        from app.services.baseline_service import get_baselines_for_farm
+        import uuid
+        baselines_raw = await get_baselines_for_farm(uuid.UUID(farm_id))
+        for b in baselines_raw:
+            key = f"z{b.get('zone_id')}_{b.get('column_name')}" if b.get("zone_id") else b.get("column_name")
+            if key not in baselines:
+                baselines[key] = {}
+            baselines[key][b.get("column_name")] = b
+    except Exception:
+        pass
 
-        # Update sliding window buffers
+    # ── Statistical detectors (existing 5) ─────────────────────
+    for reading in readings:
+        zone_id = reading.get("zone_id")
+
         _update_buffers(farm_id, zone_id, reading)
 
-        # Run each detector
+        reading_baseline = {}
+        if zone_id:
+            for col in ["soil_moisture_pct", "air_temperature_c", "air_humidity_pct", "zone_flow_lpm", "reservoir_level_pct"]:
+                key = f"z{zone_id}_{col}"
+                if key in baselines:
+                    reading_baseline[col] = baselines[key][col]
+
         anomalies = []
-        anomalies.extend(_detect_z_score(farm_id, zone_id, reading))
-        anomalies.extend(_detect_sudden_change(farm_id, zone_id, reading))
+        anomalies.extend(_detect_z_score(farm_id, zone_id, reading, reading_baseline if reading_baseline else None))
+        anomalies.extend(_detect_sudden_change(farm_id, zone_id, reading, reading_baseline if reading_baseline else None))
         anomalies.extend(_detect_stuck_sensor(farm_id, zone_id, reading))
         anomalies.extend(_detect_drift(farm_id, zone_id, reading))
-
         all_anomalies.extend(anomalies)
 
-    # Run correlation detector across all zones (cross-sensor)
     all_anomalies.extend(_detect_correlations(farm_id, all_anomalies))
 
-    # Persist anomalies to database
+    # ── Hydraulic detector (NEW) ────────────────────────────────
+    if branch_readings or zone_readings or infra_reading:
+        try:
+            from app.services.hydraulic_detector import run_hydraulic_detectors
+
+            # Maintain infra window
+            if infra_reading:
+                _infra_window[farm_id].append(infra_reading)
+
+            hydraulic_anomalies = await run_hydraulic_detectors(
+                farm_id=farm_id,
+                branch_readings=branch_readings or [],
+                zone_readings=zone_readings or [],
+                infra_readings=list(_infra_window[farm_id]),
+                control_states=control_states or {},
+            )
+            all_anomalies.extend(hydraulic_anomalies)
+        except Exception as e:
+            logger.warning(f"[AnomalyService] Hydraulic detector failed: {e}")
+
+    # ── Equipment detector (NEW) ────────────────────────────────
+    if infra_reading or _infra_window.get(farm_id):
+        try:
+            from app.services.equipment_detector import run_equipment_detectors
+
+            active_zones = 0
+            if zone_readings:
+                active_zones = sum(1 for z in zone_readings if (z.get("total_inlet_flow_lpm") or 0) > 0.5)
+
+            equipment_anomalies = await run_equipment_detectors(
+                farm_id=farm_id,
+                infra_readings=list(_infra_window.get(farm_id, [])),
+                active_zones_count=active_zones,
+            )
+            all_anomalies.extend(equipment_anomalies)
+        except Exception as e:
+            logger.warning(f"[AnomalyService] Equipment detector failed: {e}")
+
+    # ── ML Isolation Forest detector (Phase 4) ─────────────────
+    if readings:
+        try:
+            from app.services.ml_anomaly_service import detect_ml_anomalies
+
+            ml_anomalies = await detect_ml_anomalies(farm_id, readings)
+            all_anomalies.extend(ml_anomalies)
+        except Exception as e:
+            logger.warning(f"[AnomalyService] ML detector failed: {e}")
+
+    # ── Persist and alert ───────────────────────────────────────
     if all_anomalies:
         await _persist_anomalies(farm_id, all_anomalies)
-
-        # Auto-alert for high/critical
         await _auto_alert(farm_id, [a for a in all_anomalies if a["severity"] in ("high", "critical")])
 
     return all_anomalies
@@ -133,8 +215,11 @@ def _update_buffers(farm_id: str, zone_id, reading: dict):
 
 # ── Detector 1: Z-Score ───────────────────────────────────────
 
-def _detect_z_score(farm_id: str, zone_id, reading: dict) -> list[dict]:
-    """Flag readings where the current value has a z-score above threshold."""
+def _detect_z_score(farm_id: str, zone_id, reading: dict, baseline: Optional[dict] = None) -> list[dict]:
+    """Flag readings where the current value has a z-score above threshold.
+    
+    If baseline is provided (from sensor_baselines table), use it instead of in-memory window.
+    """
     config = DETECTOR_CONFIG["z_score"]
     anomalies = []
 
@@ -143,15 +228,21 @@ def _detect_z_score(farm_id: str, zone_id, reading: dict) -> list[dict]:
         if val is None:
             continue
 
-        key = f"z{zone_id}_{col}" if zone_id else col
-        buf = _buffers[farm_id].get(key)
-        if not buf or len(buf) < 10:
-            continue
+        if baseline and col in baseline:
+            mean = baseline[col].get("mean")
+            std = baseline[col].get("std_dev")
+            source = "baseline"
+        else:
+            key = f"z{zone_id}_{col}" if zone_id else col
+            buf = _buffers[farm_id].get(key)
+            if not buf or len(buf) < 10:
+                continue
+            values = [v for _, v in buf]
+            mean = sum(values) / len(values)
+            std = _std(values)
+            source = "window"
 
-        values = [v for _, v in buf]
-        mean = sum(values) / len(values)
-        std = _std(values)
-        if std < 1e-6:
+        if std is None or std < 1e-6 or mean is None:
             continue
 
         z = abs(val - mean) / std
@@ -167,7 +258,10 @@ def _detect_z_score(farm_id: str, zone_id, reading: dict) -> list[dict]:
                     "mean": round(mean, 2),
                     "std": round(std, 2),
                     "threshold": threshold,
+                    "source": source,
                 },
+                "baseline_value": mean,
+                "actual_value": val,
             })
 
     return anomalies
@@ -175,8 +269,11 @@ def _detect_z_score(farm_id: str, zone_id, reading: dict) -> list[dict]:
 
 # ── Detector 2: Sudden Change ─────────────────────────────────
 
-def _detect_sudden_change(farm_id: str, zone_id, reading: dict) -> list[dict]:
-    """Flag readings where the change from previous is abnormally large."""
+def _detect_sudden_change(farm_id: str, zone_id, reading: dict, baseline: Optional[dict] = None) -> list[dict]:
+    """Flag readings where the change from previous is abnormally large.
+    
+    If baseline is provided, uses p95/p5 from baseline for threshold instead of historical window.
+    """
     config = DETECTOR_CONFIG["sudden_change"]
     anomalies = []
 
@@ -185,27 +282,39 @@ def _detect_sudden_change(farm_id: str, zone_id, reading: dict) -> list[dict]:
         if val is None:
             continue
 
-        key = f"z{zone_id}_{col}" if zone_id else col
-        buf = _buffers[farm_id].get(key)
-        if not buf or len(buf) < 3:
-            continue
+        if baseline and col in baseline:
+            b = baseline[col]
+            p95 = b.get("p95")
+            p5 = b.get("p5")
+            if p95 is not None and p5 is not None and (p95 - p5) > 0:
+                delta_threshold = (p95 - p5) * 0.5
+            else:
+                delta_threshold = col_config["min_delta"]
+            source = "baseline"
+            prev_val = None
+        else:
+            key = f"z{zone_id}_{col}" if zone_id else col
+            buf = _buffers[farm_id].get(key)
+            if not buf or len(buf) < 3:
+                continue
+            values = [v for _, v in buf]
+            prev_val = values[-2] if len(values) >= 2 else None
+            delta = abs(val - prev_val) if prev_val is not None else 0
+            
+            deltas = [abs(values[i] - values[i - 1]) for i in range(1, len(values) - 1)]
+            if not deltas:
+                continue
+            delta_std = _std(deltas) if len(deltas) > 1 else delta
+            delta_mean = sum(deltas) / len(deltas)
+            delta_threshold = delta_mean + col_config["multiplier"] * delta_std
+            source = "window"
 
-        values = [v for _, v in buf]
-        # Current delta from previous
-        delta = abs(values[-1] - values[-2]) if len(values) >= 2 else 0
+        delta = abs(val - prev_val) if prev_val is not None else 0
 
         if delta < col_config["min_delta"]:
             continue
 
-        # Historical deltas
-        deltas = [abs(values[i] - values[i - 1]) for i in range(1, len(values) - 1)]
-        if not deltas:
-            continue
-
-        delta_std = _std(deltas) if len(deltas) > 1 else delta
-        delta_mean = sum(deltas) / len(deltas)
-
-        if delta_std > 0 and delta > delta_mean + col_config["multiplier"] * delta_std:
+        if delta > delta_threshold:
             anomalies.append({
                 "zone_id": zone_id,
                 "anomaly_type": "sudden_change",
@@ -213,10 +322,12 @@ def _detect_sudden_change(farm_id: str, zone_id, reading: dict) -> list[dict]:
                 "target_columns": [col],
                 "details": {
                     "delta": round(delta, 2),
-                    "delta_mean": round(delta_mean, 2),
-                    "delta_std": round(delta_std, 2),
+                    "threshold": round(delta_threshold, 2),
                     "current_value": round(val, 2),
+                    "source": source,
                 },
+                "baseline_value": baseline.get(col, {}).get("mean") if baseline else None,
+                "actual_value": val,
             })
 
     return anomalies
@@ -352,14 +463,25 @@ async def _persist_anomalies(farm_id: str, anomalies: list[dict]):
     rows = []
     for a in anomalies:
         zone_uuid = zone_map.get(a.get("zone_id")) if a.get("zone_id") else None
-        rows.append({
+        row: dict = {
             "farm_id": farm_id,
             "zone_id": zone_uuid,
+            "branch_id": a.get("branch_id"),
             "anomaly_type": a["anomaly_type"],
             "severity": a["severity"],
-            "target_columns": a["target_columns"],
-            "details": a["details"],
-        })
+            "target_columns": a.get("target_columns", []),
+            "details": a.get("details", {}),
+        }
+        # New v4 columns (nullable — won't break if absent)
+        if a.get("confidence_score") is not None:
+            row["confidence_score"] = a["confidence_score"]
+        if a.get("detection_method"):
+            row["detection_method"] = a["detection_method"]
+        if a.get("baseline_value") is not None:
+            row["baseline_value"] = a["baseline_value"]
+        if a.get("actual_value") is not None:
+            row["actual_value"] = a["actual_value"]
+        rows.append(row)
 
     if rows:
         try:
@@ -419,12 +541,40 @@ async def _auto_alert(farm_id: str, critical_anomalies: list[dict]):
 
     _SEVERITY_EMOJI_MAP = {"low": "⚠️", "medium": "🟠", "high": "🔴", "critical": "🚨"}
     _TYPE_AR_MAP = {
+        # Statistical
         "z_score": "قراءة شاذة",
         "sudden_change": "تغيير مفاجئ",
         "stuck_sensor": "مستشعر متعطل",
         "drift": "انجراف تدريجي",
         "correlation": "ارتباط مشبوه",
         "injected": "تنبيه يدوي",
+        # Hydraulic
+        "LEAK_BRANCH": "تسرب في الفرع",
+        "LEAK_ZONE": "تسرب في المنطقة",
+        "PIPE_BURST": "انكسار الأنبوب",
+        "DRIPPER_CLOG_PARTIAL": "انسداد جزئي للقطارات",
+        "DRIPPER_CLOG_SEVERE": "انسداد حاد للقطارات",
+        "FILTER_CLOG_EARLY": "انسداد مبكر للمرشح",
+        "FILTER_CLOG_CRITICAL": "انسداد حرج للمرشح",
+        "VALVE_STUCK_OPEN": "الصمام عالق مفتوحاً",
+        "VALVE_STUCK_CLOSED": "الصمام عالق مغلقاً",
+        "PRESSURE_ANOMALY_LOW": "ضغط منخفض في الشبكة",
+        "PRESSURE_ANOMALY_HIGH": "ضغط مرتفع في الشبكة",
+        # Equipment
+        "PUMP_DEGRADATION": "تدهور أداء المضخة",
+        "PUMP_FAILURE_IMMINENT": "خطر عطل وشيك للمضخة",
+        "PUMP_CAVITATION": "تكهف في المضخة",
+        "RESERVOIR_CRITICAL": "مستوى الخزان حرج",
+        "RESERVOIR_LEAK": "تسرب في الخزان",
+        "SENSOR_COMMUNICATION_LOSS": "انقطاع اتصال المستشعر",
+        # Agronomic
+        "OVER_IRRIGATION": "ري مفرط",
+        "UNDER_IRRIGATION": "ري غير كافٍ",
+        "UNEVEN_ZONE": "توزيع غير متساوٍ للمياه",
+        "WATERLOGGING_RISK": "خطر تشبع التربة بالماء",
+        "ROOT_ZONE_DRY": "جفاف منطقة الجذور",
+        "STRESS_SPIKE": "ارتفاع مفاجئ في الإجهاد",
+        "YIELD_RISK_HEAT": "خطر انخفاض الإنتاج بسبب الحرارة",
     }
 
     for a in critical_anomalies[:3]:  # max 3 alerts per cycle
@@ -582,6 +732,32 @@ async def inject_anomaly_manual(
 
 # ── Query Functions ───────────────────────────────────────────
 
+async def get_anomaly_timeline(farm_id: str, days: int = 7) -> list[dict]:
+    """Get anomaly counts grouped by day for charting."""
+    supabase = get_supabase_admin()
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+
+    result = supabase.table("anomaly_events").select(
+        "created_at, severity"
+    ).eq("farm_id", farm_id).gte("created_at", cutoff.isoformat()).execute()
+
+    daily_counts: dict[str, dict] = defaultdict(lambda: {"total": 0, "high": 0, "medium": 0, "low": 0, "critical": 0})
+
+    for row in result.data or []:
+        created_at = row.get("created_at")
+        if created_at:
+            date_key = created_at[:10]
+            daily_counts[date_key]["total"] += 1
+            severity = row.get("severity", "medium")
+            daily_counts[date_key][severity] += 1
+
+    timeline = [
+        {"date": date, "total": counts["total"], "high": counts["high"], "medium": counts["medium"], "low": counts["low"], "critical": counts["critical"]}
+        for date, counts in sorted(daily_counts.items())
+    ]
+    return timeline
+
+
 async def get_anomaly_dashboard(farm_id: str) -> dict:
     """Get summary dashboard for anomalies."""
     supabase = get_supabase_admin()
@@ -612,19 +788,45 @@ async def get_anomaly_dashboard(farm_id: str) -> dict:
     }
 
 
-async def acknowledge_anomalies(farm_id: str, anomaly_ids: list[str], user_id: str):
-    """Mark anomalies as acknowledged."""
+async def acknowledge_anomalies(
+    farm_id: str,
+    anomaly_ids: list[str],
+    user_id: str,
+    resolution_notes: str | None = None,
+):
+    """Mark anomalies as acknowledged, optionally with resolution notes."""
     supabase = get_supabase_admin()
+    update_payload: dict = {
+        "acknowledged": True,
+        "acknowledged_by": user_id,
+        "resolved_at": datetime.now(timezone.utc).isoformat(),
+    }
+    if resolution_notes:
+        update_payload["resolution_notes"] = resolution_notes
     for aid in anomaly_ids:
-        supabase.table("anomaly_events").update({
-            "acknowledged": True,
-            "acknowledged_by": user_id,
-            "resolved_at": datetime.now(timezone.utc).isoformat(),
-        }).eq("id", aid).eq("farm_id", farm_id).execute()
+        supabase.table("anomaly_events").update(update_payload).eq("id", aid).eq("farm_id", farm_id).execute()
 
 
-async def list_anomalies(farm_id: str, anomaly_type=None, severity=None,
-                         zone_id=None, acknowledged=None, limit=50, offset=0) -> list[dict]:
+async def mark_false_positive(farm_id: str, anomaly_id: str) -> bool:
+    """Flag an anomaly event as a false positive."""
+    supabase = get_supabase_admin()
+    result = supabase.table("anomaly_events").update({
+        "false_positive": True,
+        "acknowledged": True,
+    }).eq("id", anomaly_id).eq("farm_id", farm_id).execute()
+    return bool(result.data)
+
+
+async def list_anomalies(
+    farm_id: str,
+    anomaly_type=None,
+    severity=None,
+    zone_id=None,
+    acknowledged=None,
+    false_positive=None,
+    limit=50,
+    offset=0,
+) -> list[dict]:
     """Query anomaly events with filters."""
     supabase = get_supabase_admin()
     q = supabase.table("anomaly_events").select("*").eq("farm_id", farm_id)
@@ -636,7 +838,16 @@ async def list_anomalies(farm_id: str, anomaly_type=None, severity=None,
         q = q.eq("zone_id", zone_id)
     if acknowledged is not None:
         q = q.eq("acknowledged", acknowledged)
+    if false_positive is not None:
+        q = q.eq("false_positive", false_positive)
     result = q.order("created_at", desc=True).range(offset, offset + limit - 1).execute()
+    return result.data or []
+
+
+async def get_anomaly_types() -> list[dict]:
+    """Return the full anomaly_types catalog."""
+    supabase = get_supabase_admin()
+    result = supabase.table("anomaly_types").select("*").order("domain").order("code").execute()
     return result.data or []
 
 

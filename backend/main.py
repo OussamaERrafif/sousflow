@@ -222,7 +222,26 @@ async def lifespan(app: FastAPI):
     else:
         logger.info("IoT Simulator disabled (set IOT_SIMULATOR_ENABLED=true to enable)")
 
+    from app.workers.baseline_worker import run_baseline_worker
+    baseline_task = asyncio.create_task(run_baseline_worker(interval_hours=1, enabled=True))
+    logger.info("Started baseline worker")
+
+    from app.workers.health_snapshot_worker import run_health_worker
+    health_task = asyncio.create_task(run_health_worker(interval_hours=1, enabled=True))
+    logger.info("Started health snapshot worker")
+
     yield
+
+    baseline_task.cancel()
+    health_task.cancel()
+    try:
+        await baseline_task
+    except asyncio.CancelledError:
+        pass
+    try:
+        await health_task
+    except asyncio.CancelledError:
+        pass
 
     from app.services.iot_simulator import stop_iot_simulator, is_simulator_running
     if is_simulator_running():
@@ -494,13 +513,28 @@ async def sse_events():
 
                         # Get unacknowledged anomaly count (non-blocking)
                         anomaly_count = 0
+                        critical_count = 0
+                        system_health_score = None
                         try:
                             from app.supabase_client import get_supabase_admin as _get_sb
+                            from datetime import datetime, timezone, timedelta
                             _sb = _get_sb()
                             _anomaly_result = _sb.table("anomaly_events").select("id", count="exact").eq(
                                 "farm_id", simulator.farm_id
                             ).eq("acknowledged", False).execute()
                             anomaly_count = _anomaly_result.count or 0
+                            
+                            _critical = _sb.table("anomaly_events").select("id", count="exact").eq(
+                                "farm_id", simulator.farm_id
+                            ).eq("acknowledged", False).eq("severity", "critical").execute()
+                            critical_count = _critical.count or 0
+
+                            _health = _sb.table("farm_health_snapshots").select("overall_score").eq(
+                                "farm_id", simulator.farm_id
+                            ).gte("snapshot_at", (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat())
+                            _health_result = _health.order("snapshot_at", desc=True).limit(1).maybe_single().execute()
+                            if _health_result.data:
+                                system_health_score = _health_result.data.get("overall_score")
                         except Exception:
                             pass
 
@@ -510,6 +544,8 @@ async def sse_events():
                             "zones": merged_zones,
                             "control_states": control_states,
                             "anomaly_count": anomaly_count,
+                            "active_critical_anomalies": critical_count,
+                            "system_health_score": system_health_score,
                             "simulator_running": running,
                             "timestamp": datetime.now().isoformat(),
                         })
