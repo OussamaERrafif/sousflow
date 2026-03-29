@@ -12,10 +12,6 @@ export default function Pricing() {
         {
             name: t('t1Name'),
             desc: t('t1Desc'),
-            price: "290",
-            currency: t('currency'),
-            period: t('period'),
-            roi: t('t1Roi'),
             features: [
                 t('t1f1'),
                 t('t1f2'),
@@ -29,10 +25,6 @@ export default function Pricing() {
         {
             name: t('t2Name'),
             desc: t('t2Desc'),
-            price: "850",
-            currency: t('currency'),
-            period: t('period'),
-            roi: t('t2Roi'),
             features: [
                 t('t2f1'),
                 t('t2f2'),
@@ -46,10 +38,6 @@ export default function Pricing() {
         {
             name: t('t3Name'),
             desc: t('t3Desc'),
-            price: t('t3Price'),
-            currency: "",
-            period: "",
-            roi: t('t3Roi'),
             features: [
                 t('t3f1'),
                 t('t3f2'),
@@ -107,12 +95,7 @@ export default function Pricing() {
 
                             <div className="mb-6 pb-6 border-b border-gray-200/20">
                                 <div className="flex items-baseline gap-1 mb-2">
-                                    <span className="text-5xl font-bold tracking-tight">{tier.price}</span>
-                                    <span className={cn("text-lg font-medium", tier.featured ? "text-blue-200" : "text-gray-500")}>{tier.currency}</span>
-                                    <span className={cn("text-sm", tier.featured ? "text-blue-200/70" : "text-gray-400")}>{tier.period}</span>
-                                </div>
-                                <div className={cn("text-xs font-medium px-3 py-2 rounded-lg", tier.featured ? "bg-white/10 text-blue-100" : "bg-gray-100 text-gray-600")}>
-                                    {tier.roi}
+                                    <span className="text-4xl font-bold tracking-tight">{t('contactUs')}</span>
                                 </div>
                             </div>
 
@@ -125,14 +108,14 @@ export default function Pricing() {
                                 ))}
                             </ul>
 
-                            <button className={cn(
-                                "w-full py-4 rounded-xl font-bold transition-all",
+                            <a href="https://sousflowfrontend.vercel.app/ar" className={cn(
+                                "w-full py-4 rounded-xl font-bold transition-all text-center block",
                                 tier.featured
                                     ? "bg-copper-500 hover:bg-copper-400 text-white shadow-lg shadow-copper-500/30"
                                     : "bg-morocco-blue-900 hover:bg-morocco-blue-950 text-white"
                             )}>
                                 {tier.cta}
-                            </button>
+                            </a>
                         </motion.div>
                     ))}
                 </div>

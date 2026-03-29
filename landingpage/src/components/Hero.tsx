@@ -46,9 +46,9 @@ export default function Hero() {
                     </p>
 
                     <div className="flex flex-col sm:flex-row gap-4 pt-4">
-                        <button className="bg-copper-600 hover:bg-copper-700 text-white px-8 py-4 rounded-full font-bold transition-all shadow-xl shadow-copper-500/25 flex items-center justify-center gap-2 hover:-translate-y-0.5">
+                        <a href="https://sousflowfrontend.vercel.app/ar" className="bg-copper-600 hover:bg-copper-700 text-white px-8 py-4 rounded-full font-bold transition-all shadow-xl shadow-copper-500/25 flex items-center justify-center gap-2 hover:-translate-y-0.5">
                             {t('getInsights')} <ChevronRight size={18} strokeWidth={3} />
-                        </button>
+                        </a>
                         <button className="bg-white hover:bg-gray-50 text-morocco-blue-950 border-2 border-gray-200 px-8 py-4 rounded-full font-bold transition-all flex items-center justify-center gap-2 hover:-translate-y-0.5">
                             <Play size={18} className="fill-current" /> {t('watchDemo')}
                         </button>

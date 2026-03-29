@@ -141,7 +141,7 @@ export default function Dashboard() {
           {renderPage()}
         </div>
       </main>
-      <DebugPanel />
+      {/* <DebugPanel /> */}
     </div>
   );
 }

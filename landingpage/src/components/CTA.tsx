@@ -30,9 +30,9 @@ export default function CTA() {
                     </p>
 
                     <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-                        <button className="w-full sm:w-auto bg-copper-500 hover:bg-copper-600 text-white px-10 py-5 rounded-full font-bold text-lg transition-all shadow-xl shadow-copper-500/25 flex items-center justify-center gap-2 hover:-translate-y-0.5">
+                        <a href="https://sousflowfrontend.vercel.app/ar" className="w-full sm:w-auto bg-copper-500 hover:bg-copper-600 text-white px-10 py-5 rounded-full font-bold text-lg transition-all shadow-xl shadow-copper-500/25 flex items-center justify-center gap-2 hover:-translate-y-0.5">
                             {t('startTrial')} <ArrowRight size={20} strokeWidth={3} />
-                        </button>
+                        </a>
                         <button className="w-full sm:w-auto bg-white/5 hover:bg-white/10 border-2 border-white/20 text-white px-10 py-5 rounded-full font-bold text-lg transition-all backdrop-blur-sm flex items-center justify-center gap-2 hover:-translate-y-0.5">
                             <Play size={18} className="fill-current" /> {t('seeDemo')}
                         </button>

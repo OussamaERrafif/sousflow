@@ -44,9 +44,9 @@ export default function Navbar() {
                 </div>
 
                 <div className="hidden md:flex items-center">
-                    <button className="bg-copper-600 hover:bg-copper-700 text-white px-6 py-2.5 rounded-full font-medium transition-all shadow-lg shadow-copper-500/25 hover:shadow-copper-500/40 hover:-translate-y-0.5">
+                    <a href="https://sousflowfrontend.vercel.app/ar" className="bg-copper-600 hover:bg-copper-700 text-white px-6 py-2.5 rounded-full font-medium transition-all shadow-lg shadow-copper-500/25 hover:shadow-copper-500/40 hover:-translate-y-0.5">
                         {t('getStarted')}
-                    </button>
+                    </a>
                 </div>
 
                 <button
@@ -66,9 +66,9 @@ export default function Navbar() {
                     <a href="#pricing" className="font-medium text-lg" onClick={() => setMobileMenuOpen(false)}>{t('pricing')}</a>
                     <a href="#case-studies" className="font-medium text-lg" onClick={() => setMobileMenuOpen(false)}>{t('caseStudies')}</a>
                     <a href="#about" className="font-medium text-lg" onClick={() => setMobileMenuOpen(false)}>{t('about')}</a>
-                    <button className="bg-copper-600 text-white px-5 py-3 rounded-full font-medium mt-2">
+                    <a href="https://sousflowfrontend.vercel.app/ar" className="bg-copper-600 text-white px-5 py-3 rounded-full font-medium mt-2 text-center">
                         {t('getStarted')}
-                    </button>
+                    </a>
                 </div>
             )}
         </nav>
