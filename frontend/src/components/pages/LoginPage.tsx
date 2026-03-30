@@ -1,11 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useSignInApiAuthSigninPostMutation } from "@/lib/store/generated/api";
 import { setCredentials } from "@/lib/store/slices/authSlice";
 import { useAppDispatch } from "@/lib/store/hooks";
-import { Leaf, User, Lock, Eye, EyeOff, AlertCircle } from "lucide-react";
+import { Leaf, User, Lock, Eye, EyeOff, AlertCircle, Zap } from "lucide-react";
+
+const FAST_LOGIN_USER = "admin";
+const FAST_LOGIN_PASS = "admin";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -14,6 +17,8 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [fastFlash, setFastFlash] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
 
   const [signIn, { isLoading }] = useSignInApiAuthSigninPostMutation();
 
@@ -31,8 +36,43 @@ export default function LoginPage() {
     }
   };
 
+  const handleFastLogin = () => {
+    setFastFlash(true);
+    setError("");
+    setUsername(FAST_LOGIN_USER);
+    setPassword(FAST_LOGIN_PASS);
+    setTimeout(() => {
+      setFastFlash(false);
+      formRef.current?.requestSubmit();
+    }, 700);
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#F5F0E8] p-4">
+      <style>{`
+        @keyframes fastLoginShimmer {
+          0%   { background-position: 0% 50%; }
+          50%  { background-position: 100% 50%; }
+          100% { background-position: 0% 50%; }
+        }
+        @keyframes fastLoginPulse {
+          0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(251,191,36,0.7); }
+          50%       { transform: scale(1.04); box-shadow: 0 0 0 12px rgba(251,191,36,0); }
+        }
+        .fast-login-btn {
+          background: linear-gradient(270deg, #f59e0b, #ef4444, #8b5cf6, #3b82f6, #10b981, #f59e0b);
+          background-size: 400% 400%;
+          animation: fastLoginShimmer 2s ease infinite;
+          transition: opacity 0.2s;
+        }
+        .fast-login-btn:active {
+          opacity: 0.85;
+        }
+        .fast-login-btn.flashing {
+          animation: fastLoginShimmer 0.3s ease infinite, fastLoginPulse 0.35s ease infinite;
+        }
+      `}</style>
+
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-[#3D1F0F] rounded-2xl mb-4">
@@ -43,7 +83,18 @@ export default function LoginPage() {
         </div>
 
         <div className="bg-white rounded-3xl shadow-xl p-8 border border-zinc-100">
-          <h2 className="text-xl font-black text-zinc-800 mb-6">Welcome Back</h2>
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-black text-zinc-800">Welcome Back</h2>
+            <button
+              type="button"
+              onClick={handleFastLogin}
+              disabled={isLoading}
+              className={`fast-login-btn${fastFlash ? " flashing" : ""} flex items-center gap-1.5 px-4 py-2 rounded-xl text-white text-sm font-black shadow-lg disabled:opacity-50 cursor-pointer`}
+            >
+              <Zap className="w-4 h-4 fill-white" />
+              Fast Login
+            </button>
+          </div>
 
           {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2 text-red-700 text-sm font-bold">
@@ -52,7 +103,7 @@ export default function LoginPage() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-bold text-zinc-600 mb-1.5">Username</label>
               <div className="relative">
