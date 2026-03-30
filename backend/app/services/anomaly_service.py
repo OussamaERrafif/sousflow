@@ -730,10 +730,10 @@ async def inject_anomaly_manual(
     row = {
         "farm_id": farm_id,
         "zone_id": zone_id,
-        "anomaly_type": "injected",
+        "anomaly_type": anomaly_type,
         "severity": severity,
         "target_columns": meta["columns"],
-        "details": {**meta["details"], "injected": True, "anomaly_label": anomaly_type},
+        "details": {**meta["details"], "injected": True},
     }
 
     result = supabase.table("anomaly_events").insert(row).execute()
@@ -837,6 +837,37 @@ async def inject_anomaly_manual(
         "drift":          "انجراف في المستشعر",
         "correlation":    "شذوذات متزامنة في عدة مستشعرات",
     }
+    # Specific per-anomaly description shown in the WhatsApp message body
+    _DESC_AR = {
+        # Agronomic
+        "low_soil_moisture":    "انخفضت رطوبة التربة دون الحد الحرج — النباتات في خطر الجفاف.",
+        "high_soil_moisture":   "رطوبة التربة تجاوزت المستوى الآمن — خطر اختناق الجذور والأمراض الفطرية.",
+        "irrigation_failure":   "لم يصل تدفق الماء المتوقع إلى المنطقة — احتمال عطل في المضخة أو الصمام.",
+        "soil_moisture_drift":  "تغير تدريجي وغير مبرر في قراءات رطوبة التربة — المستشعر بحاجة إلى معايرة.",
+        # Hydraulic
+        "LEAK_BRANCH":          "رُصد تدفق شاذ في فرع الري — احتمال تسرب في الأنبوب أو التوصيلات.",
+        "PIPE_BURST":           "انهيار مفاجئ في الضغط مع ارتفاع حاد في التدفق — احتمال كبير لانفجار أنبوب.",
+        "FILTER_CLOG_EARLY":    "بدأ الضغط يرتفع قبل الفلتر — بوادر انسداد تستوجب التنظيف قريباً.",
+        "FILTER_CLOG_SEVERE":   "انخفاض كبير في التدفق مع ارتفاع حاد في الضغط — الفلتر مسدود بشكل خطير.",
+        "VALVE_STUCK_OPEN":     "يتدفق الماء في المنطقة رغم إغلاق الصمام — الصمام عالق في وضع الفتح.",
+        "VALVE_STUCK_CLOSED":   "لا يصل ماء إلى المنطقة رغم فتح الصمام — الصمام عالق في وضع الإغلاق.",
+        "PRESSURE_ANOMALY_LOW": "ضغط النظام أقل من الحد الأدنى التشغيلي — قد تعاني بعض المناطق من نقص في الري.",
+        "PRESSURE_ANOMALY_HIGH":"ضغط النظام تجاوز الحد الأقصى الآمن — خطر تلف الأنابيب والتوصيلات.",
+        "DRIPPER_CLOG_PARTIAL": "تدفق منخفض في خطوط التنقيط — انسداد جزئي يقلل كمية الماء الواصلة للنباتات.",
+        "DRIPPER_CLOG_SEVERE":  "توقف شبه تام لتدفق القطارات — الانسداد الشديد يهدد النباتات بالجفاف.",
+        # Equipment
+        "PUMP_DEGRADATION":      "تراجع ملحوظ في أداء المضخة على مدى الوقت — التدفق والضغط في انخفاض مستمر.",
+        "PUMP_FAILURE_IMMINENT": "المضخة تعطي مخرجات حرجة جداً — وشيك حدوث عطل كامل إن لم يتم التدخل.",
+        "RESERVOIR_CRITICAL":    "مستوى المياه في الخزان وصل إلى درجة حرجة — استمرار الري مهدد.",
+        "RESERVOIR_LEAK":        "انخفاض غير مبرر في منسوب الخزان دون استخدام نشط للري — احتمال تسرب.",
+        # Data / Statistical
+        "sensor_error":   "قراءات خارج النطاق المنطقي تماماً — المستشعر قد يكون معطوباً أو محتاجاً لمعايرة.",
+        "stuck_sensor":   "المستشعر يرسل نفس القيمة بشكل متكرر — احتمال عطل أو انقطاع في الاتصال.",
+        "z_score":        "قراءة تنحرف انحرافاً كبيراً عن القيم التاريخية المعتادة للمزرعة.",
+        "sudden_change":  "تغيير مفاجئ وغير مبرر في قراءة المستشعر — تحقق من الظروف الميدانية.",
+        "drift":          "انجراف تدريجي في قراءات المستشعر بمرور الوقت — بحاجة إلى معايرة.",
+        "correlation":    "شذوذات متزامنة رُصدت في عدة مستشعرات — مشكلة مركبة محتملة في النظام.",
+    }
     _ACTION_AR = {
         # Agronomic
         "low_soil_moisture":    "راجع نظام الري وتأكد من ضخ الماء.",
@@ -870,28 +901,37 @@ async def inject_anomaly_manual(
 
     severity_ar = _SEVERITY_AR.get(severity, severity)
     label_ar = _TYPE_AR.get(anomaly_type, label)
+    desc_ar = _DESC_AR.get(anomaly_type, meta["details"].get("message", ""))
     action_ar = _ACTION_AR.get(anomaly_type, action)
 
     if severity == "critical":
         msg = (
             f"🚨 *تنبيه حرج — {label_ar}*\n\n"
-            f"⚠️ تم رصد مشكل حرج في مزرعتك يستوجب تدخلاً فورياً.\n"
-            f"*الإجراء المطلوب:* {action_ar}\n\n"
+            f"📋 {desc_ar}\n\n"
+            f"*الإجراء المطلوب فوراً:* {action_ar}\n\n"
             f"أرسل *\"شنو طرا؟\"* لمزيد من التفاصيل.\n"
             f"أرسل *\"help\"* لقائمة الأوامر."
         )
     elif severity == "high":
         msg = (
             f"🔶 *تنبيه عالي — {label_ar}*\n\n"
-            f"تم رصد مشكل يحتاج متابعة عاجلة في مزرعتك.\n"
+            f"📋 {desc_ar}\n\n"
             f"*الإجراء الموصى به:* {action_ar}\n\n"
+            f"أرسل *\"شنو طرا؟\"* لمزيد من التفاصيل.\n"
+            f"أرسل *\"help\"* لقائمة الأوامر."
+        )
+    elif severity == "medium":
+        msg = (
+            f"⚠️ *تنبيه — {label_ar}*\n\n"
+            f"📋 {desc_ar}\n\n"
+            f"*التوصية:* {action_ar}\n\n"
             f"أرسل *\"شنو طرا؟\"* لمزيد من التفاصيل.\n"
             f"أرسل *\"help\"* لقائمة الأوامر."
         )
     else:
         msg = (
-            f"{emoji} *تنبيه ({severity_ar}) — {label_ar}*\n\n"
-            f"تم رصد مشكل في مزرعتك.\n"
+            f"ℹ️ *ملاحظة — {label_ar}*\n\n"
+            f"📋 {desc_ar}\n\n"
             f"*التوصية:* {action_ar}\n\n"
             f"أرسل *\"شنو طرا؟\"* لمزيد من التفاصيل.\n"
             f"أرسل *\"help\"* لقائمة الأوامر."
@@ -1011,6 +1051,13 @@ async def mark_false_positive(farm_id: str, anomaly_id: str) -> bool:
         "acknowledged": True,
     }).eq("id", anomaly_id).eq("farm_id", farm_id).execute()
     return bool(result.data)
+
+
+async def clear_all_anomalies(farm_id: str) -> int:
+    """Permanently delete all anomaly events for a farm. Returns the count deleted."""
+    supabase = get_supabase_admin()
+    result = supabase.table("anomaly_events").delete().eq("farm_id", farm_id).execute()
+    return len(result.data) if result.data else 0
 
 
 async def list_anomalies(
