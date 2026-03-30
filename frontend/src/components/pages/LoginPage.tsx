@@ -5,7 +5,10 @@ import { useRouter } from "next/navigation";
 import { useSignInApiAuthSigninPostMutation } from "@/lib/store/generated/api";
 import { setCredentials } from "@/lib/store/slices/authSlice";
 import { useAppDispatch } from "@/lib/store/hooks";
-import { Leaf, User, Lock, Eye, EyeOff, AlertCircle } from "lucide-react";
+import { Leaf, User, Lock, Eye, EyeOff, AlertCircle, Zap } from "lucide-react";
+
+const FAST_LOGIN_USER = "oussama";
+const FAST_LOGIN_PASS = "Errafif@2002";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -14,7 +17,6 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
-
   const [signIn, { isLoading }] = useSignInApiAuthSigninPostMutation();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -31,8 +33,23 @@ export default function LoginPage() {
     }
   };
 
+  const handleFastLogin = async () => {
+    setError("");
+    setUsername(FAST_LOGIN_USER);
+    setPassword(FAST_LOGIN_PASS);
+    try {
+      const data = await signIn({ signInRequest: { username: FAST_LOGIN_USER, password: FAST_LOGIN_PASS } }).unwrap();
+      try { localStorage.setItem("token", data.access_token); } catch {}
+      dispatch(setCredentials({ user: data.user as { id: string; username: string }, token: data.access_token }));
+      router.push("/");
+    } catch (err: any) {
+      setError(err?.data?.detail || "Invalid username or password");
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#F5F0E8] p-4">
+
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-[#3D1F0F] rounded-2xl mb-4">
@@ -43,7 +60,18 @@ export default function LoginPage() {
         </div>
 
         <div className="bg-white rounded-3xl shadow-xl p-8 border border-zinc-100">
-          <h2 className="text-xl font-black text-zinc-800 mb-6">Welcome Back</h2>
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-black text-zinc-800">Welcome Back</h2>
+            <button
+              type="button"
+              onClick={handleFastLogin}
+              disabled={isLoading}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-white text-sm font-black shadow-lg bg-amber-500 hover:bg-amber-400 active:scale-95 transition-all disabled:opacity-50 cursor-pointer"
+            >
+              <Zap className="w-4 h-4 fill-white" />
+              Fast Login
+            </button>
+          </div>
 
           {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2 text-red-700 text-sm font-bold">
