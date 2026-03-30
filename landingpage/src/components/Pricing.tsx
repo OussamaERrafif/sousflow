@@ -12,6 +12,7 @@ export default function Pricing() {
         {
             name: t('t1Name'),
             desc: t('t1Desc'),
+            price: "399",
             features: [
                 t('t1f1'),
                 t('t1f2'),
@@ -25,6 +26,7 @@ export default function Pricing() {
         {
             name: t('t2Name'),
             desc: t('t2Desc'),
+            price: "699",
             features: [
                 t('t2f1'),
                 t('t2f2'),
@@ -38,6 +40,7 @@ export default function Pricing() {
         {
             name: t('t3Name'),
             desc: t('t3Desc'),
+            price: null,
             features: [
                 t('t3f1'),
                 t('t3f2'),
@@ -94,9 +97,16 @@ export default function Pricing() {
                             </div>
 
                             <div className="mb-6 pb-6 border-b border-gray-200/20">
-                                <div className="flex items-baseline gap-1 mb-2">
-                                    <span className="text-4xl font-bold tracking-tight">{t('contactUs')}</span>
-                                </div>
+                                {tier.price ? (
+                                    <div className="flex items-baseline gap-1 mb-2">
+                                        <span className="text-4xl font-bold tracking-tight">{tier.price}</span>
+                                        <span className={cn("text-sm font-semibold", tier.featured ? "text-white/60" : "text-gray-400")}>DH/{t('month')}</span>
+                                    </div>
+                                ) : (
+                                    <div className="flex items-baseline gap-1 mb-2">
+                                        <span className="text-2xl font-bold tracking-tight">{t('contactUs')}</span>
+                                    </div>
+                                )}
                             </div>
 
                             <ul className="flex-1 space-y-4 mb-8">
