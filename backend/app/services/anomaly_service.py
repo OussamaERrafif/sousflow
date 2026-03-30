@@ -619,17 +619,105 @@ async def inject_anomaly_manual(
     severity: low | medium | critical
     """
     _TYPE_META = {
+        # ── Agronomic ──────────────────────────────────────────────────────────────────
         "low_soil_moisture": {
             "columns": ["avg_soil_moisture_pct"],
             "details": {"message": "Soil moisture dropped below critical threshold. Check irrigation system."},
+        },
+        "high_soil_moisture": {
+            "columns": ["avg_soil_moisture_pct"],
+            "details": {"message": "Soil moisture above safe level — risk of root asphyxiation and disease. Reduce irrigation."},
         },
         "irrigation_failure": {
             "columns": ["main_pump_flow_lpm", "zone_flow_lpm"],
             "details": {"message": "Irrigation system not delivering expected flow. Check pump and valves."},
         },
+        "soil_moisture_drift": {
+            "columns": ["avg_soil_moisture_pct"],
+            "details": {"message": "Gradual soil moisture drift detected. Sensor may need recalibration or repositioning."},
+        },
+        # ── Hydraulic ──────────────────────────────────────────────────────────────────
+        "LEAK_BRANCH": {
+            "columns": ["zone_flow_lpm", "zone_pressure_mpa"],
+            "details": {"message": "Abnormal flow detected in irrigation branch. Possible pipe or fitting leak."},
+        },
+        "PIPE_BURST": {
+            "columns": ["zone_flow_lpm", "zone_pressure_mpa", "main_pressure_mpa"],
+            "details": {"message": "Sudden pressure drop with abnormally high flow — possible pipe burst. Shut off water immediately."},
+        },
+        "FILTER_CLOG_EARLY": {
+            "columns": ["main_pressure_mpa"],
+            "details": {"message": "Filter showing early signs of clogging. Schedule a backwash or manual cleaning."},
+        },
+        "FILTER_CLOG_SEVERE": {
+            "columns": ["main_pressure_mpa", "main_pump_flow_lpm"],
+            "details": {"message": "Filter severely clogged — significantly reduced flow. Immediate cleaning required."},
+        },
+        "VALVE_STUCK_OPEN": {
+            "columns": ["valve_open", "zone_flow_lpm"],
+            "details": {"message": "Valve appears stuck open while it should be closed — water is flowing uncontrolled."},
+        },
+        "VALVE_STUCK_CLOSED": {
+            "columns": ["valve_open", "zone_flow_lpm"],
+            "details": {"message": "Valve appears stuck closed — no water reaching the irrigation zone."},
+        },
+        "PRESSURE_ANOMALY_LOW": {
+            "columns": ["main_pressure_mpa", "zone_pressure_mpa"],
+            "details": {"message": "System pressure below operating range. Check pump status, open valves, and main supply."},
+        },
+        "PRESSURE_ANOMALY_HIGH": {
+            "columns": ["main_pressure_mpa", "zone_pressure_mpa"],
+            "details": {"message": "System pressure above safe operating range. Risk of pipe or fitting damage."},
+        },
+        "DRIPPER_CLOG_PARTIAL": {
+            "columns": ["zone_flow_lpm"],
+            "details": {"message": "Partial dripper clogging detected — reduced water delivery to plants. Flush drip lines."},
+        },
+        "DRIPPER_CLOG_SEVERE": {
+            "columns": ["zone_flow_lpm"],
+            "details": {"message": "Severe dripper clogging — minimal water delivery. Immediate flushing or replacement required."},
+        },
+        # ── Equipment ──────────────────────────────────────────────────────────────────
+        "PUMP_DEGRADATION": {
+            "columns": ["main_pump_flow_lpm", "main_pressure_mpa"],
+            "details": {"message": "Pump performance degrading — reduced flow and pressure over time. Schedule maintenance."},
+        },
+        "PUMP_FAILURE_IMMINENT": {
+            "columns": ["main_pump_flow_lpm", "main_pressure_mpa"],
+            "details": {"message": "Pump failure imminent — critically low output. Immediate inspection required."},
+        },
+        "RESERVOIR_CRITICAL": {
+            "columns": ["reservoir_level_pct"],
+            "details": {"message": "Reservoir at critically low level. Refill immediately to avoid irrigation interruption."},
+        },
+        "RESERVOIR_LEAK": {
+            "columns": ["reservoir_level_pct"],
+            "details": {"message": "Abnormal reservoir level drop detected. Possible leak in tank or feed lines."},
+        },
+        # ── Data / Statistical ─────────────────────────────────────────────────────────
         "sensor_error": {
             "columns": ["avg_soil_moisture_pct", "air_temperature_c"],
             "details": {"message": "Sensor readings out of expected range. May require calibration or replacement."},
+        },
+        "stuck_sensor": {
+            "columns": ["avg_soil_moisture_pct"],
+            "details": {"message": "Sensor reporting identical values repeatedly. Possible sensor fault or communication issue."},
+        },
+        "z_score": {
+            "columns": ["avg_soil_moisture_pct"],
+            "details": {"message": "Statistical anomaly detected — reading deviates significantly from historical baseline."},
+        },
+        "sudden_change": {
+            "columns": ["avg_soil_moisture_pct"],
+            "details": {"message": "Sudden unexpected change in sensor reading detected. Verify physical conditions."},
+        },
+        "drift": {
+            "columns": ["avg_soil_moisture_pct", "air_temperature_c"],
+            "details": {"message": "Gradual sensor drift detected over time. Calibration or replacement may be needed."},
+        },
+        "correlation": {
+            "columns": ["zone_flow_lpm", "avg_soil_moisture_pct"],
+            "details": {"message": "Correlated anomalies detected across multiple sensors — possible compound system issue."},
         },
     }
 
@@ -652,32 +740,132 @@ async def inject_anomaly_manual(
     event_id = result.data[0]["id"] if result.data else None
 
     # Build alert message
-    _SEVERITY_EMOJI = {"low": "⚠️", "medium": "⚠️", "critical": "🚨"}
+    _SEVERITY_EMOJI = {"low": "ℹ️", "medium": "⚠️", "high": "🔶", "critical": "🚨"}
     _TYPE_LABEL = {
-        "low_soil_moisture": "Low Soil Moisture",
-        "irrigation_failure": "Irrigation Failure",
-        "sensor_error": "Sensor Error",
+        # Agronomic
+        "low_soil_moisture":    "Low Soil Moisture",
+        "high_soil_moisture":   "High Soil Moisture",
+        "irrigation_failure":   "Irrigation Failure",
+        "soil_moisture_drift":  "Soil Moisture Drift",
+        # Hydraulic
+        "LEAK_BRANCH":          "Branch Leak Detected",
+        "PIPE_BURST":           "Pipe Burst",
+        "FILTER_CLOG_EARLY":    "Filter Clogging (Early)",
+        "FILTER_CLOG_SEVERE":   "Filter Severely Clogged",
+        "VALVE_STUCK_OPEN":     "Valve Stuck Open",
+        "VALVE_STUCK_CLOSED":   "Valve Stuck Closed",
+        "PRESSURE_ANOMALY_LOW": "Low Pressure Anomaly",
+        "PRESSURE_ANOMALY_HIGH":"High Pressure Anomaly",
+        "DRIPPER_CLOG_PARTIAL": "Partial Dripper Clog",
+        "DRIPPER_CLOG_SEVERE":  "Severe Dripper Clog",
+        # Equipment
+        "PUMP_DEGRADATION":       "Pump Degradation",
+        "PUMP_FAILURE_IMMINENT":  "Pump Failure Imminent",
+        "RESERVOIR_CRITICAL":     "Reservoir Critical Level",
+        "RESERVOIR_LEAK":         "Reservoir Leak",
+        # Data / Statistical
+        "sensor_error":   "Sensor Error",
+        "stuck_sensor":   "Stuck Sensor",
+        "z_score":        "Statistical Anomaly",
+        "sudden_change":  "Sudden Value Change",
+        "drift":          "Sensor Drift",
+        "correlation":    "Correlated Anomalies",
     }
     _ACTION_HINTS = {
-        "low_soil_moisture": "Check irrigation system.",
-        "irrigation_failure": "Inspect pump and valves.",
-        "sensor_error": "Check sensor connections.",
+        # Agronomic
+        "low_soil_moisture":    "Check irrigation system and open valves.",
+        "high_soil_moisture":   "Reduce irrigation frequency or duration.",
+        "irrigation_failure":   "Inspect pump and valves immediately.",
+        "soil_moisture_drift":  "Recalibrate or reposition soil sensor.",
+        # Hydraulic
+        "LEAK_BRANCH":          "Inspect irrigation branch for cracks or loose fittings.",
+        "PIPE_BURST":           "Shut off main valve and inspect pipes immediately.",
+        "FILTER_CLOG_EARLY":    "Schedule filter backwash or manual cleaning.",
+        "FILTER_CLOG_SEVERE":   "Clean or replace filter immediately.",
+        "VALVE_STUCK_OPEN":     "Manually close valve and inspect solenoid.",
+        "VALVE_STUCK_CLOSED":   "Manually open valve and inspect solenoid.",
+        "PRESSURE_ANOMALY_LOW": "Check pump status and all valve positions.",
+        "PRESSURE_ANOMALY_HIGH":"Check pressure regulator and main supply.",
+        "DRIPPER_CLOG_PARTIAL": "Flush drip lines and check emitters.",
+        "DRIPPER_CLOG_SEVERE":  "Flush or replace clogged drippers immediately.",
+        # Equipment
+        "PUMP_DEGRADATION":      "Schedule pump maintenance and inspection.",
+        "PUMP_FAILURE_IMMINENT": "Inspect pump immediately — consider replacement.",
+        "RESERVOIR_CRITICAL":    "Refill reservoir immediately.",
+        "RESERVOIR_LEAK":        "Inspect reservoir tank and supply lines for leaks.",
+        # Data / Statistical
+        "sensor_error":   "Check sensor connections, power, and calibration.",
+        "stuck_sensor":   "Inspect sensor for faults or communication issues.",
+        "z_score":        "Review recent readings and check physical conditions.",
+        "sudden_change":  "Verify sensor and check for sudden environmental changes.",
+        "drift":          "Recalibrate sensor or schedule replacement.",
+        "correlation":    "Investigate linked sensors and system components together.",
     }
 
     emoji = _SEVERITY_EMOJI.get(severity, "⚠️")
     label = _TYPE_LABEL.get(anomaly_type, anomaly_type.replace("_", " ").title())
     action = _ACTION_HINTS.get(anomaly_type, "Check your farm system.")
 
-    _SEVERITY_AR = {"low": "منخفضة", "medium": "متوسطة", "critical": "حرجة"}
+    _SEVERITY_AR = {"low": "منخفضة", "medium": "متوسطة", "high": "عالية", "critical": "حرجة"}
     _TYPE_AR = {
-        "low_soil_moisture": "رطوبة التربة منخفضة",
-        "irrigation_failure": "عطل في نظام الري",
-        "sensor_error": "خطأ في المستشعر",
+        # Agronomic
+        "low_soil_moisture":    "رطوبة التربة منخفضة",
+        "high_soil_moisture":   "رطوبة التربة مرتفعة",
+        "irrigation_failure":   "عطل في نظام الري",
+        "soil_moisture_drift":  "انجراف في مستشعر الرطوبة",
+        # Hydraulic
+        "LEAK_BRANCH":          "تسرب في فرع الري",
+        "PIPE_BURST":           "انفجار أنبوب",
+        "FILTER_CLOG_EARLY":    "انسداد مبكر في الفلتر",
+        "FILTER_CLOG_SEVERE":   "انسداد شديد في الفلتر",
+        "VALVE_STUCK_OPEN":     "صمام عالق مفتوحاً",
+        "VALVE_STUCK_CLOSED":   "صمام عالق مغلقاً",
+        "PRESSURE_ANOMALY_LOW": "ضغط منخفض بشكل غير طبيعي",
+        "PRESSURE_ANOMALY_HIGH":"ضغط مرتفع بشكل غير طبيعي",
+        "DRIPPER_CLOG_PARTIAL": "انسداد جزئي في القطارات",
+        "DRIPPER_CLOG_SEVERE":  "انسداد شديد في القطارات",
+        # Equipment
+        "PUMP_DEGRADATION":      "تدهور أداء المضخة",
+        "PUMP_FAILURE_IMMINENT": "المضخة على وشك العطل",
+        "RESERVOIR_CRITICAL":    "مستوى الخزان حرج",
+        "RESERVOIR_LEAK":        "تسرب في الخزان",
+        # Data / Statistical
+        "sensor_error":   "خطأ في المستشعر",
+        "stuck_sensor":   "مستشعر متوقف",
+        "z_score":        "شذوذ إحصائي",
+        "sudden_change":  "تغيير مفاجئ في القراءة",
+        "drift":          "انجراف في المستشعر",
+        "correlation":    "شذوذات متزامنة في عدة مستشعرات",
     }
     _ACTION_AR = {
-        "low_soil_moisture": "راجع نظام الري وتأكد من ضخ الماء.",
-        "irrigation_failure": "افحص المضخة والصمامات.",
-        "sensor_error": "تحقق من توصيلات المستشعرات.",
+        # Agronomic
+        "low_soil_moisture":    "راجع نظام الري وتأكد من ضخ الماء.",
+        "high_soil_moisture":   "قلل من تكرار أو مدة الري.",
+        "irrigation_failure":   "افحص المضخة والصمامات فوراً.",
+        "soil_moisture_drift":  "أعد معايرة مستشعر الرطوبة أو أعد وضعه.",
+        # Hydraulic
+        "LEAK_BRANCH":          "افحص فرع الري بحثاً عن شقوق أو توصيلات مفكوكة.",
+        "PIPE_BURST":           "أغلق الصمام الرئيسي وافحص الأنابيب فوراً.",
+        "FILTER_CLOG_EARLY":    "جدول تنظيف الفلتر أو غسيله العكسي.",
+        "FILTER_CLOG_SEVERE":   "نظف الفلتر أو استبدله فوراً.",
+        "VALVE_STUCK_OPEN":     "أغلق الصمام يدوياً وافحص الملف الكهربائي.",
+        "VALVE_STUCK_CLOSED":   "افتح الصمام يدوياً وافحص الملف الكهربائي.",
+        "PRESSURE_ANOMALY_LOW": "تحقق من حالة المضخة ووضعية جميع الصمامات.",
+        "PRESSURE_ANOMALY_HIGH":"تحقق من منظم الضغط والتغذية الرئيسية.",
+        "DRIPPER_CLOG_PARTIAL": "انفخ خطوط التنقيط وتحقق من القطارات.",
+        "DRIPPER_CLOG_SEVERE":  "انفخ القطارات المسدودة أو استبدلها فوراً.",
+        # Equipment
+        "PUMP_DEGRADATION":      "جدول صيانة وفحص المضخة.",
+        "PUMP_FAILURE_IMMINENT": "افحص المضخة فوراً — فكر في الاستبدال.",
+        "RESERVOIR_CRITICAL":    "أعد ملء الخزان فوراً.",
+        "RESERVOIR_LEAK":        "افحص خزان المياه وخطوط التغذية بحثاً عن تسرب.",
+        # Data / Statistical
+        "sensor_error":   "تحقق من توصيلات المستشعر وإعداداته.",
+        "stuck_sensor":   "افحص المستشعر بحثاً عن عطل أو مشكلة في الاتصال.",
+        "z_score":        "راجع القراءات الأخيرة وتحقق من الظروف الميدانية.",
+        "sudden_change":  "تحقق من المستشعر وابحث عن تغييرات بيئية مفاجئة.",
+        "drift":          "أعد معايرة المستشعر أو جدول استبداله.",
+        "correlation":    "افحص المستشعرات المرتبطة ومكونات النظام معاً.",
     }
 
     severity_ar = _SEVERITY_AR.get(severity, severity)
@@ -687,8 +875,16 @@ async def inject_anomaly_manual(
     if severity == "critical":
         msg = (
             f"🚨 *تنبيه حرج — {label_ar}*\n\n"
-            f"تم رصد مشكل حرج في مزرعتك.\n"
+            f"⚠️ تم رصد مشكل حرج في مزرعتك يستوجب تدخلاً فورياً.\n"
             f"*الإجراء المطلوب:* {action_ar}\n\n"
+            f"أرسل *\"شنو طرا؟\"* لمزيد من التفاصيل.\n"
+            f"أرسل *\"help\"* لقائمة الأوامر."
+        )
+    elif severity == "high":
+        msg = (
+            f"🔶 *تنبيه عالي — {label_ar}*\n\n"
+            f"تم رصد مشكل يحتاج متابعة عاجلة في مزرعتك.\n"
+            f"*الإجراء الموصى به:* {action_ar}\n\n"
             f"أرسل *\"شنو طرا؟\"* لمزيد من التفاصيل.\n"
             f"أرسل *\"help\"* لقائمة الأوامر."
         )

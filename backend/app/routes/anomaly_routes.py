@@ -13,8 +13,8 @@ router = APIRouter(prefix="/api/anomalies", tags=["Anomaly Detection"])
 
 class AnomalyInjectRequest(BaseModel):
     farm_id: str
-    anomaly_type: str  # low_soil_moisture | irrigation_failure | sensor_error
-    severity: str = "medium"  # low | medium | critical
+    anomaly_type: str  # See /api/anomalies/inject for full list of valid types
+    severity: str = "medium"  # low | medium | high | critical
     zone_id: Optional[str] = None
 
 
@@ -121,13 +121,49 @@ async def inject_anomaly(
 ):
     """
     Manually inject an anomaly for a farm (superadmin or farm owner).
-    Sends WhatsApp alert to all users linked to the farm.
+    Sends WhatsApp alert to all farm users.
 
-    anomaly_type: low_soil_moisture | irrigation_failure | sensor_error
-    severity: low | medium | critical
+    **anomaly_type** — one of:
+    - Agronomic: `low_soil_moisture`, `high_soil_moisture`, `irrigation_failure`, `soil_moisture_drift`
+    - Hydraulic: `LEAK_BRANCH`, `PIPE_BURST`, `FILTER_CLOG_EARLY`, `FILTER_CLOG_SEVERE`,
+      `VALVE_STUCK_OPEN`, `VALVE_STUCK_CLOSED`, `PRESSURE_ANOMALY_LOW`, `PRESSURE_ANOMALY_HIGH`,
+      `DRIPPER_CLOG_PARTIAL`, `DRIPPER_CLOG_SEVERE`
+    - Equipment: `PUMP_DEGRADATION`, `PUMP_FAILURE_IMMINENT`, `RESERVOIR_CRITICAL`, `RESERVOIR_LEAK`
+    - Statistical: `sensor_error`, `stuck_sensor`, `z_score`, `sudden_change`, `drift`, `correlation`
+
+    **severity**: `low` | `medium` | `high` | `critical`
     """
-    VALID_TYPES = {"low_soil_moisture", "irrigation_failure", "sensor_error"}
-    VALID_SEVERITIES = {"low", "medium", "critical"}
+    VALID_TYPES = {
+        # ── Agronomic ──────────────────────────────────────────
+        "low_soil_moisture",
+        "high_soil_moisture",
+        "irrigation_failure",
+        "soil_moisture_drift",
+        # ── Hydraulic ──────────────────────────────────────────
+        "LEAK_BRANCH",
+        "PIPE_BURST",
+        "FILTER_CLOG_EARLY",
+        "FILTER_CLOG_SEVERE",
+        "VALVE_STUCK_OPEN",
+        "VALVE_STUCK_CLOSED",
+        "PRESSURE_ANOMALY_LOW",
+        "PRESSURE_ANOMALY_HIGH",
+        "DRIPPER_CLOG_PARTIAL",
+        "DRIPPER_CLOG_SEVERE",
+        # ── Equipment ──────────────────────────────────────────
+        "PUMP_DEGRADATION",
+        "PUMP_FAILURE_IMMINENT",
+        "RESERVOIR_CRITICAL",
+        "RESERVOIR_LEAK",
+        # ── Data / Statistical ─────────────────────────────────
+        "sensor_error",
+        "stuck_sensor",
+        "z_score",
+        "sudden_change",
+        "drift",
+        "correlation",
+    }
+    VALID_SEVERITIES = {"low", "medium", "high", "critical"}
 
     if request.anomaly_type not in VALID_TYPES:
         raise HTTPException(400, f"Invalid anomaly_type. Valid: {sorted(VALID_TYPES)}")
