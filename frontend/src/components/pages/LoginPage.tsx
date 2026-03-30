@@ -1,14 +1,14 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSignInApiAuthSigninPostMutation } from "@/lib/store/generated/api";
 import { setCredentials } from "@/lib/store/slices/authSlice";
 import { useAppDispatch } from "@/lib/store/hooks";
 import { Leaf, User, Lock, Eye, EyeOff, AlertCircle, Zap } from "lucide-react";
 
-const FAST_LOGIN_USER = "admin";
-const FAST_LOGIN_PASS = "admin";
+const FAST_LOGIN_USER = "oussama";
+const FAST_LOGIN_PASS = "Errafif@2002";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -17,9 +17,6 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
-  const [fastFlash, setFastFlash] = useState(false);
-  const formRef = useRef<HTMLFormElement>(null);
-
   const [signIn, { isLoading }] = useSignInApiAuthSigninPostMutation();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -36,42 +33,22 @@ export default function LoginPage() {
     }
   };
 
-  const handleFastLogin = () => {
-    setFastFlash(true);
+  const handleFastLogin = async () => {
     setError("");
     setUsername(FAST_LOGIN_USER);
     setPassword(FAST_LOGIN_PASS);
-    setTimeout(() => {
-      setFastFlash(false);
-      formRef.current?.requestSubmit();
-    }, 700);
+    try {
+      const data = await signIn({ signInRequest: { username: FAST_LOGIN_USER, password: FAST_LOGIN_PASS } }).unwrap();
+      try { localStorage.setItem("token", data.access_token); } catch {}
+      dispatch(setCredentials({ user: data.user as { id: string; username: string }, token: data.access_token }));
+      router.push("/");
+    } catch (err: any) {
+      setError(err?.data?.detail || "Invalid username or password");
+    }
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#F5F0E8] p-4">
-      <style>{`
-        @keyframes fastLoginShimmer {
-          0%   { background-position: 0% 50%; }
-          50%  { background-position: 100% 50%; }
-          100% { background-position: 0% 50%; }
-        }
-        @keyframes fastLoginPulse {
-          0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(251,191,36,0.7); }
-          50%       { transform: scale(1.04); box-shadow: 0 0 0 12px rgba(251,191,36,0); }
-        }
-        .fast-login-btn {
-          background: linear-gradient(270deg, #f59e0b, #ef4444, #8b5cf6, #3b82f6, #10b981, #f59e0b);
-          background-size: 400% 400%;
-          animation: fastLoginShimmer 2s ease infinite;
-          transition: opacity 0.2s;
-        }
-        .fast-login-btn:active {
-          opacity: 0.85;
-        }
-        .fast-login-btn.flashing {
-          animation: fastLoginShimmer 0.3s ease infinite, fastLoginPulse 0.35s ease infinite;
-        }
-      `}</style>
 
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
@@ -89,7 +66,7 @@ export default function LoginPage() {
               type="button"
               onClick={handleFastLogin}
               disabled={isLoading}
-              className={`fast-login-btn${fastFlash ? " flashing" : ""} flex items-center gap-1.5 px-4 py-2 rounded-xl text-white text-sm font-black shadow-lg disabled:opacity-50 cursor-pointer`}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-white text-sm font-black shadow-lg bg-amber-500 hover:bg-amber-400 active:scale-95 transition-all disabled:opacity-50 cursor-pointer"
             >
               <Zap className="w-4 h-4 fill-white" />
               Fast Login
@@ -103,7 +80,7 @@ export default function LoginPage() {
             </div>
           )}
 
-          <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-bold text-zinc-600 mb-1.5">Username</label>
               <div className="relative">
