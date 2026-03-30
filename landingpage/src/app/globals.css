@@ -3,7 +3,6 @@
 :root {
   --background: #fdfbf7;
   --foreground: #020617;
-  /* Adjust foreground to be dark since we changed morocco-blue */
 
   /* Orange CTA -> Main Green (#6e9a32) */
   --copper-50: #f1f6ec;
@@ -45,6 +44,12 @@
   --color-agri-green-500: var(--agri-green-500);
   --color-agri-green-600: var(--agri-green-600);
 
+  /* Font families registered as Tailwind utilities */
+  --font-tajawal: var(--font-tajawal), "Tajawal", sans-serif;
+  --font-inter: var(--font-inter), "Inter", sans-serif;
+  /* Default font-sans maps to Inter for LTR */
+  --font-sans: var(--font-inter), sans-serif;
+
   /* Animations */
   --animate-marquee: marquee 30s linear infinite;
   --animate-blob: blob 7s infinite;
@@ -85,7 +90,7 @@ html {
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-sans), sans-serif;
+  font-family: var(--font-inter), sans-serif;
   overflow-x: hidden;
 }
 
@@ -103,3 +108,36 @@ body {
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid rgba(255, 255, 255, 0.05);
 }
+
+/* ── RTL (Arabic) Support ─────────────────────────────────────── */
+/* Arabic locale — apply Tajawal and RTL-optimized typography */
+[dir="rtl"] body {
+  font-family: var(--font-tajawal), "Tajawal", sans-serif;
+  line-height: 1.9;
+  letter-spacing: 0;
+  word-spacing: 0.04em;
+}
+
+[dir="rtl"] {
+  text-align: right;
+}
+
+/* Reset tracking on headings — letter-spacing breaks Arabic letterform joining */
+[dir="rtl"] h1,
+[dir="rtl"] h2,
+[dir="rtl"] h3,
+[dir="rtl"] h4 {
+  letter-spacing: 0;
+  font-weight: 700;
+}
+
+/* Flip the marquee ticker direction for RTL */
+[dir="rtl"] .animate-marquee {
+  animation-direction: reverse;
+}
+
+/* Mobile menu in RTL: align to right */
+[dir="rtl"] nav .absolute {
+  left: auto;
+  right: 0;
+}

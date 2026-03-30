@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { CheckCircle2, AlertTriangle, AlertOctagon, PauseCircle, Settings2, WifiOff, Droplets, Gauge, Activity } from "lucide-react";
+import { Droplets, AlertTriangle, Flame, Minus, WifiOff, Gauge, Activity } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useAppSelector } from "@/lib/store/hooks";
 import type { BranchReading, ZoneReading } from "@/lib/store/slices/iotSlice";
@@ -33,23 +33,23 @@ function MoistureBar({ level, status }: { level: number; status: string }) {
 
     return (
         <div className="w-full">
-            <div className="flex justify-between items-center mb-2">
-                <span className="text-xs font-medium text-muted-foreground">{t("moisture")}</span>
-                <div className="flex items-center gap-1.5">
-                    <div className={`w-2 h-2 rounded-full ${colors.dot}`}></div>
-                    <span className={`text-xs font-bold ${label.text}`}>{label.label}</span>
+            <div className="flex justify-between items-center mb-2.5">
+                <span className="text-sm font-bold text-muted-foreground uppercase tracking-widest">{t("moisture")}</span>
+                <div className="flex items-center gap-2">
+                    <div className={`w-3 h-3 rounded-full ${colors.dot}`}></div>
+                    <span className={`text-sm md:text-base font-black ${label.text}`}>{label.label}</span>
                 </div>
             </div>
-            <div className={`h-3 w-full ${colors.bg} rounded-full overflow-hidden relative`}>
+            <div className={`h-4 md:h-5 w-full ${colors.bg} rounded-full overflow-hidden relative`}>
                 <div 
                     className={`h-full ${colors.fill} transition-all duration-1000 ease-out rounded-full`} 
                     style={{ width: `${Math.min(level, 100)}%` }}
                 ></div>
-                <div className="absolute top-0 bottom-0 left-[55%] right-[25%] border-x-2 border-white/30"></div>
+                <div className="absolute top-0 bottom-0 ltr:left-[55%] ltr:right-[25%] rtl:right-[55%] rtl:left-[25%] border-x-2 border-white/30"></div>
             </div>
-            <div className="flex justify-between mt-1.5 text-[10px] text-muted-foreground/60 font-medium px-0.5">
+            <div className="flex justify-between mt-2 text-xs md:text-sm text-muted-foreground/80 font-bold px-1">
                 <span>0%</span>
-                <span className="text-[9px]">{t("optimal")}: 55-75%</span>
+                <span className="text-[11px] md:text-xs">{t("optimal")}: 55-75%</span>
                 <span>100%</span>
             </div>
         </div>
@@ -91,8 +91,8 @@ export default function ZoneGrid() {
     if (!hasLiveData) {
         return (
             <div className="mb-10">
-                <div className="flex items-center justify-between mb-6">
-                    <h2 className="text-2xl font-bold text-foreground tracking-tight">{t("title")}</h2>
+                <div className="flex items-center justify-between mb-8">
+                    <h2 className="text-2xl md:text-3xl font-black text-foreground tracking-tight">{t("title")}</h2>
                 </div>
                 <div className="p-8 text-center bg-card rounded-2xl border border-dashed border-border">
                     <div className="w-16 h-16 bg-muted rounded-2xl flex items-center justify-center mx-auto mb-4">
@@ -106,50 +106,50 @@ export default function ZoneGrid() {
 
     const getStatusConfig = (status: string) => {
         return {
-            good: { 
-                dot: "bg-emerald-500", 
-                border: "border-emerald-500/20", 
-                bg: "bg-card", 
-                icon: CheckCircle2, 
-                text: "text-emerald-500",
+            good: {
+                dot:    "bg-emerald-500",
+                border: "border-emerald-500/20",
+                bg:     "bg-card",
+                icon:   Droplets,
+                text:   "text-emerald-500",
                 bgSoft: "bg-emerald-500/10",
-                label: t("status_good")
+                label:  t("status_good")
             },
-            warning: { 
-                dot: "bg-amber-500 animate-pulse", 
-                border: "border-amber-500/30", 
-                bg: "bg-card", 
-                icon: AlertTriangle, 
-                text: "text-amber-500", 
+            warning: {
+                dot:    "bg-amber-500 animate-pulse",
+                border: "border-amber-500/30",
+                bg:     "bg-card",
+                icon:   Droplets,
+                text:   "text-amber-500",
                 bgSoft: "bg-amber-500/10",
-                label: t("status_warning")
+                label:  t("status_warning")
             },
-            critical: { 
-                dot: "bg-red-500 animate-pulse", 
-                border: "border-red-500/30", 
-                bg: "bg-card", 
-                icon: AlertOctagon, 
-                text: "text-red-500", 
+            critical: {
+                dot:    "bg-red-500 animate-pulse",
+                border: "border-red-500/30",
+                bg:     "bg-card",
+                icon:   Flame,
+                text:   "text-red-500",
                 bgSoft: "bg-red-500/10",
-                label: t("status_critical")
+                label:  t("status_critical")
             },
-            off: { 
-                dot: "bg-muted-foreground/40", 
-                border: "border-border", 
-                bg: "bg-card opacity-60", 
-                icon: PauseCircle, 
-                text: "text-muted-foreground", 
+            off: {
+                dot:    "bg-muted-foreground/40",
+                border: "border-border",
+                bg:     "bg-card opacity-60",
+                icon:   Minus,
+                text:   "text-muted-foreground",
                 bgSoft: "bg-muted/50",
-                label: t("status_off")
+                label:  t("status_off")
             },
-        }[status] || { 
-            dot: "bg-muted-foreground", 
-            border: "border-border", 
-            bg: "bg-card", 
-            icon: CheckCircle2, 
-            text: "text-muted-foreground", 
+        }[status] || {
+            dot:    "bg-muted-foreground",
+            border: "border-border",
+            bg:     "bg-card",
+            icon:   Droplets,
+            text:   "text-muted-foreground",
             bgSoft: "bg-muted",
-            label: "Unknown"
+            label:  "-"
         };
     };
 
@@ -157,8 +157,8 @@ export default function ZoneGrid() {
 
     return (
         <div className="mb-10">
-            <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold text-foreground tracking-tight">{t("title")}</h2>
+            <div className="flex items-center justify-between mb-8">
+                <h2 className="text-2xl md:text-3xl font-black text-foreground tracking-tight">{t("title")}</h2>
                 <div className="flex items-center gap-2">
                     {connected ? (
                         <span className="flex items-center gap-2 text-xs font-medium text-emerald-500 bg-emerald-500/10 px-3 py-1.5 rounded-full border border-emerald-500/20">
@@ -175,7 +175,7 @@ export default function ZoneGrid() {
                 </div>
             </div>
 
-            <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {sseZones.map((zone: ZoneReading) => {
                     const isExpanded = selected === zone.zone_id;
                     const config = getStatusConfig(getZoneStatus(zone));
@@ -190,20 +190,20 @@ export default function ZoneGrid() {
                             }`}
                         >
                             <div className="p-5">
-                                <div className="flex justify-between items-start mb-4">
-                                    <div className="flex gap-3 items-center">
-                                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center border ${config.bgSoft} ${config.border}`}>
-                                            <Icon className={`w-6 h-6 ${config.text}`} />
+                                <div className="flex justify-between items-start mb-6 w-full">
+                                    <div className="flex gap-4 items-center">
+                                        <div className={`w-14 h-14 md:w-16 md:h-16 shrink-0 rounded-2xl flex items-center justify-center border-2 shadow-inner ${config.bgSoft} ${config.border}`}>
+                                            <Icon className={`w-7 h-7 md:w-8 md:h-8 ${config.text}`} strokeWidth={2.5} />
                                         </div>
                                         <div>
-                                            <h3 className="text-xl font-bold text-foreground leading-none mb-1">
+                                            <h3 className="text-2xl md:text-3xl font-black text-foreground leading-tight mb-1">
                                                 {zone.zone_name || `Zone ${zone.zone_number}`}
                                             </h3>
                                             <div className="flex items-center gap-2">
-                                                <div className={`w-2 h-2 rounded-full ${config.dot}`}></div>
-                                                <span className={`text-xs font-medium ${config.text}`}>{config.label}</span>
+                                                <div className={`w-2.5 h-2.5 rounded-full ${config.dot}`}></div>
+                                                <span className={`text-sm md:text-base font-bold ${config.text}`}>{config.label}</span>
                                                 {hasLeaks && (
-                                                    <span className="text-xs font-medium text-red-500 bg-red-500/10 px-2 py-0.5 rounded-full">
+                                                    <span className="text-xs md:text-sm font-bold text-red-500 bg-red-500/10 px-3 py-1 rounded-full border border-red-500/20">
                                                         {zone.leak_count} {t("leak_detected")}
                                                     </span>
                                                 )}
@@ -217,42 +217,42 @@ export default function ZoneGrid() {
                                     <MoistureBar level={zone.avg_moisture_pct ?? 0} status={getZoneStatus(zone)} />
                                 </div>
 
-                                <div className="grid grid-cols-3 gap-3 mb-4">
-                                    <div className="bg-muted/30 rounded-lg p-3 text-center">
-                                        <div className="flex items-center justify-center gap-1 mb-1">
-                                            <Droplets className="w-3.5 h-3.5 text-blue-500" />
-                                            <span className="text-[10px] font-medium text-muted-foreground uppercase">{t("flow")}</span>
+                                <div className="grid grid-cols-3 gap-3 md:gap-4 mb-6">
+                                    <div className="bg-muted/40 rounded-2xl p-4 text-center border border-muted-foreground/10">
+                                        <div className="flex items-center justify-center gap-1.5 mb-2">
+                                            <Droplets className="w-5 h-5 text-blue-500" strokeWidth={2.5} />
+                                            <span className="text-[11px] md:text-xs font-bold text-muted-foreground uppercase tracking-widest">{t("flow")}</span>
                                         </div>
-                                        <p className="text-lg font-bold text-foreground" dir="ltr">
-                                            {(zone.total_inlet_flow_lpm ?? 0).toFixed(1)} <span className="text-[10px] text-muted-foreground">L/min</span>
+                                        <p className="text-xl md:text-2xl font-black text-foreground" dir="ltr">
+                                            {(zone.total_inlet_flow_lpm ?? 0).toFixed(1)} <span className="text-xs font-bold text-muted-foreground">L/m</span>
                                         </p>
                                     </div>
-                                    <div className="bg-muted/30 rounded-lg p-3 text-center">
-                                        <div className="flex items-center justify-center gap-1 mb-1">
-                                            <Gauge className="w-3.5 h-3.5 text-green-500" />
-                                            <span className="text-[10px] font-medium text-muted-foreground uppercase">{t("efficiency")}</span>
+                                    <div className="bg-muted/40 rounded-2xl p-4 text-center border border-muted-foreground/10">
+                                        <div className="flex items-center justify-center gap-1.5 mb-2">
+                                            <Gauge className="w-5 h-5 text-green-500" strokeWidth={2.5} />
+                                            <span className="text-[11px] md:text-xs font-bold text-muted-foreground uppercase tracking-widest">{t("efficiency")}</span>
                                         </div>
-                                        <p className="text-lg font-bold text-foreground" dir="ltr">
-                                            {(zone.water_efficiency_pct ?? 0).toFixed(0)} <span className="text-[10px] text-muted-foreground">%</span>
+                                        <p className="text-xl md:text-2xl font-black text-foreground" dir="ltr">
+                                            {(zone.water_efficiency_pct ?? 0).toFixed(0)} <span className="text-xs font-bold text-muted-foreground">%</span>
                                         </p>
                                     </div>
-                                    <div className="bg-muted/30 rounded-lg p-3 text-center">
-                                        <div className="flex items-center justify-center gap-1 mb-1">
-                                            <Activity className="w-3.5 h-3.5 text-purple-500" />
-                                            <span className="text-[10px] font-medium text-muted-foreground uppercase">{t("health_score")}</span>
+                                    <div className="bg-muted/40 rounded-2xl p-4 text-center border border-muted-foreground/10">
+                                        <div className="flex items-center justify-center gap-1.5 mb-2">
+                                            <Activity className="w-5 h-5 text-purple-500" strokeWidth={2.5} />
+                                            <span className="text-[11px] md:text-xs font-bold text-muted-foreground uppercase tracking-widest">{t("health_score")}</span>
                                         </div>
-                                        <p className="text-lg font-bold text-foreground" dir="ltr">
-                                            {(zone.health_score ?? 0).toFixed(1)} <span className="text-[10px] text-muted-foreground">/10</span>
+                                        <p className="text-xl md:text-2xl font-black text-foreground" dir="ltr">
+                                            {(zone.health_score ?? 0).toFixed(1)} <span className="text-xs font-bold text-muted-foreground">/10</span>
                                         </p>
                                     </div>
                                 </div>
 
                                 <button
-                                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-muted/50 hover:bg-muted border border-border transition-colors text-muted-foreground font-medium text-sm"
+                                    className="w-full flex items-center justify-center gap-3 py-4 rounded-2xl bg-primary text-white hover:bg-primary/90 shadow-sm active:scale-95 transition-all font-bold text-base mt-2"
                                     onClick={() => setSelected(isExpanded ? null : zone.zone_id)}
                                 >
-                                    <Settings2 className="w-4 h-4" />
-                                    <span>{isExpanded ? t("hide_details") : t("details")} ({zone.branches?.length ?? 0} branches)</span>
+                                    <Activity className="w-5 h-5" />
+                                    <span>{isExpanded ? t("hide_details") : t("details")}</span>
                                 </button>
                             </div>
 
