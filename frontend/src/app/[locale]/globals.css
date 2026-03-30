@@ -176,69 +176,82 @@
   html {
     @apply font-sans;
   }
-  
-  /* Typography Scale - SaaS style */
+
+  /* Typography Scale */
   h1 {
-    @apply text-[28px] font-semibold tracking-tight;
+    @apply text-2xl font-semibold tracking-tight;
   }
   h2 {
-    @apply text-[20px] font-medium tracking-tight;
+    @apply text-xl font-semibold tracking-tight;
   }
   h3 {
-    @apply text-[16px] font-medium;
+    @apply text-sm font-semibold;
   }
-  
-  /* Card elevation */
+
+  /* Page section header */
+  .page-section-title {
+    @apply text-xl font-semibold text-foreground tracking-tight;
+  }
+
+  /* Card styles */
   .card-elevated {
-    @apply bg-card border border-border shadow-lg shadow-black/5;
+    @apply bg-card border border-border rounded-2xl shadow-sm;
   }
   .card-flat {
-    @apply bg-card border border-border;
+    @apply bg-card border border-border rounded-xl;
   }
-  
+
+  /* Stat card — compact metric tiles */
+  .stat-card {
+    @apply bg-card border border-border rounded-2xl p-5 transition-all duration-200 hover:shadow-md hover:shadow-black/5 hover:-translate-y-0.5;
+  }
+
   /* Smooth transitions */
   .transition-smooth {
     @apply transition-all duration-200 ease-out;
   }
-  
+
   /* Interactive states */
   .interactive {
-    @apply hover:bg-accent hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 ease-out cursor-pointer;
+    @apply hover:bg-accent active:scale-[0.98] transition-all duration-150 ease-out cursor-pointer;
   }
-  
-  /* Status colors */
-  .status-success {
-    @apply text-emerald-500;
+
+  /* Status pill badges */
+  .badge-success {
+    @apply bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-xs font-medium px-2.5 py-1 rounded-full;
   }
-  .status-warning {
-    @apply text-amber-500;
+  .badge-warning {
+    @apply bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 text-xs font-medium px-2.5 py-1 rounded-full;
   }
-  .status-danger {
-    @apply text-red-500;
+  .badge-danger {
+    @apply bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20 text-xs font-medium px-2.5 py-1 rounded-full;
   }
-  .status-info {
-    @apply text-blue-500;
+  .badge-info {
+    @apply bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 text-xs font-medium px-2.5 py-1 rounded-full;
   }
-  
+
+  /* Status dot colors */
+  .status-success { @apply text-emerald-500; }
+  .status-warning  { @apply text-amber-500; }
+  .status-danger   { @apply text-red-500; }
+  .status-info     { @apply text-blue-500; }
+
   /* Moisture level colors */
-  .moisture-critical {
-    @apply text-red-500 bg-red-500;
+  .moisture-critical { @apply text-red-500 bg-red-500; }
+  .moisture-low      { @apply text-amber-500 bg-amber-500; }
+  .moisture-optimal  { @apply text-emerald-500 bg-emerald-500; }
+  .moisture-high     { @apply text-blue-500 bg-blue-500; }
+
+  /* Icon wrapper */
+  .icon-wrap {
+    @apply flex items-center justify-center rounded-xl border;
   }
-  .moisture-low {
-    @apply text-amber-500 bg-amber-500;
-  }
-  .moisture-optimal {
-    @apply text-emerald-500 bg-emerald-500;
-  }
-  .moisture-high {
-    @apply text-blue-500 bg-blue-500;
-  }
-  
+
   /* Focus states for accessibility */
   .focus-ring {
     @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background;
   }
-  
+
   /* Skeleton loader */
   .skeleton {
     @apply animate-pulse bg-muted rounded-md;
@@ -249,16 +262,28 @@
     @apply text-blue-500 underline hover:text-blue-600;
   }
   .markdown-content strong {
-    @apply font-bold;
+    @apply font-semibold;
   }
   .markdown-content em {
     @apply italic;
   }
   .markdown-content blockquote {
-    @apply border-l-4 border-zinc-300 dark:border-zinc-600 pl-3 my-2 text-zinc-600 dark:text-zinc-400 italic;
+    @apply border-l-4 border-border pl-3 my-2 text-muted-foreground italic;
   }
   .markdown-content hr {
-    @apply my-3 border-zinc-200 dark:border-zinc-600;
+    @apply my-3 border-border;
+  }
+
+  /* Leaflet override - match app theme */
+  .leaflet-popup-content-wrapper {
+    @apply bg-card text-foreground border border-border shadow-lg rounded-xl;
+    background: var(--card) !important;
+    color: var(--card-foreground) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 0.75rem !important;
+  }
+  .leaflet-popup-tip {
+    background: var(--card) !important;
   }
 }
 

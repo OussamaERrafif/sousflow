@@ -5,936 +5,1992 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SoussFlow — Project Report</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=DM+Serif+Display:ital@0;1&display=swap');
 
+    /* ─── TOKENS ─────────────────────────────────────── */
     :root {
-      --blue-50: #eff6ff;
-      --blue-100: #dbeafe;
-      --blue-200: #bfdbfe;
-      --blue-400: #60a5fa;
-      --blue-500: #3b82f6;
-      --blue-600: #2563eb;
-      --blue-700: #1d4ed8;
-      --blue-800: #1e3a5f;
-      --blue-900: #0f172a;
-      --green-50: #f0fdf4;
-      --green-100: #dcfce7;
-      --green-200: #bbf7d0;
-      --green-400: #4ade80;
-      --green-500: #22c55e;
-      --green-600: #16a34a;
-      --green-700: #15803d;
-      --green-800: #166534;
-      --green-900: #14532d;
-      --gray-50: #f8fafc;
-      --gray-100: #f1f5f9;
-      --gray-200: #e2e8f0;
-      --gray-300: #cbd5e1;
-      --gray-400: #94a3b8;
-      --gray-500: #64748b;
-      --gray-600: #475569;
-      --gray-700: #334155;
-      --gray-800: #1e293b;
+      --navy:   #0b1f3a;
+      --navy2:  #0f2d52;
+      --blue:   #1a56db;
+      --blue2:  #1e40af;
+      --blue-l: #dbeafe;
+      --blue-xl:#eff6ff;
+
+      --green:  #15803d;
+      --green2: #16a34a;
+      --green-l:#dcfce7;
+      --green-xl:#f0fdf4;
+
+      --ink:    #111827;
+      --ink2:   #1f2937;
+      --muted:  #6b7280;
+      --faint:  #9ca3af;
+      --rule:   #e5e7eb;
+      --bg:     #f9fafb;
+      --white:  #ffffff;
+
+      --r-sm:   6px;
+      --r-md:   10px;
+      --r-lg:   14px;
+      --r-xl:   20px;
+
+      --shadow-sm: 0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.04);
+      --shadow-md: 0 4px 12px rgba(0,0,0,.08), 0 1px 4px rgba(0,0,0,.04);
+      --shadow-lg: 0 12px 32px rgba(0,0,0,.10), 0 2px 8px rgba(0,0,0,.04);
     }
 
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+    /* ─── RESET ──────────────────────────────────────── */
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
 
     body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-      color: var(--gray-800);
-      line-height: 1.7;
+      font-family: 'DM Sans', system-ui, sans-serif;
+      color: var(--ink2);
       background: #fff;
-      font-size: 11pt;
+      font-size: 10.5pt;
+      line-height: 1.7;
+      -webkit-font-smoothing: antialiased;
     }
 
     @media print {
-      body { font-size: 10.5pt; }
-      .page { page-break-after: always; box-shadow: none !important; margin: 0 !important; border-radius: 0 !important; }
+      @page {
+        size: A4;
+        margin: 0;
+      }
+      
+      html, body {
+        width: 210mm;
+        height: 297mm;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #fff !important;
+        font-size: 10pt;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+      
+      /* Force all colors to print */
+      * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+        color-adjust: exact !important;
+      }
+      
+      .page {
+        width: 210mm !important;
+        height: 297mm !important;
+        margin: 0 !important;
+        padding: 45px 50px !important;
+        page-break-after: always;
+        page-break-inside: avoid;
+        box-shadow: none !important;
+        border-radius: 0 !important;
+        overflow: visible !important;
+        background: #fff !important;
+        position: relative;
+        top: 0;
+        left: 0;
+      }
+      
+      .page:last-child {
+        page-break-after: auto;
+      }
+      
+      /* Cover page - force ALL colors explicitly */
+      .pagecover {
+        background: #0b1f3a !important;
+        page-break-after: always;
+      }
+      .pagecover .cover-hero {
+        background: #0b1f3a !important;
+      }
+      .pagecover h1 {
+        color: #ffffff !important;
+      }
+      .pagecover h1 em {
+        color: #16a34a !important;
+      }
+      .pagecover .cover-subtitle {
+        color: rgba(255,255,255,0.45) !important;
+      }
+      .pagecover .cover-desc {
+        color: rgba(255,255,255,0.7) !important;
+      }
+      .pagecover .cover-desc strong {
+        color: #ffffff !important;
+      }
+      .pagecover .cover-eyebrow {
+        color: #16a34a !important;
+      }
+      .pagecover .cover-eyebrow-line {
+        background: #16a34a !important;
+      }
+      .pagecover .cover-rule {
+        background: #16a34a !important;
+      }
+      .pagecover .cmi-label {
+        color: rgba(255,255,255,0.3) !important;
+      }
+      .pagecover .cmi-value {
+        color: rgba(255,255,255,0.75) !important;
+      }
+      .pagecover .cover-confidential {
+        color: rgba(255,255,255,0.2) !important;
+        border-color: rgba(255,255,255,0.1) !important;
+        background: transparent !important;
+      }
+      .pagecover .cover-foot {
+        border-top-color: rgba(255,255,255,0.08) !important;
+        background: #0b1f3a !important;
+      }
+      .pagecover .cover-logo-box {
+        background: rgba(255,255,255,0.06) !important;
+        border-color: rgba(255,255,255,0.1) !important;
+      }
+      .pagecover .cover-logo-box img {
+        filter: brightness(0) invert(1) !important;
+      }
+      
+      /* Interior pages */
+      .page-problem,
+      .page-research,
+      .page-scpc,
+      .page-value,
+      .page-business,
+      .page-roadmap {
+        background: #ffffff !important;
+      }
+      
+      /* Each page section */
+      .page-problem { page-break-before: always; }
+      .page-research { page-break-before: always; }
+      .page-scpc { page-break-before: always; }
+      .page-value { page-break-before: always; }
+      .page-business { page-break-before: always; }
+      .page-roadmap { page-break-before: always; }
+      
+      /* Section headers */
+      .sh h2 { color: #0b1f3a !important; }
+      .sh-eyebrow { color: #15803d !important; }
+      .sh-eyebrow::before { background: #15803d !important; }
+      
+      /* Lead text */
+      .lead { color: #1f2937 !important; }
+      .lead strong { color: #111827 !important; }
+      
+      /* Body text */
+      p { color: #6b7280 !important; }
+      
+      /* Stat cards */
+      .sc-red .stat-num { color: #dc2626 !important; }
+      .sc-blue .stat-num { color: #1e40af !important; }
+      .sc-green .stat-num { color: #15803d !important; }
+      .stat-lbl { color: #9ca3af !important; }
+      .stat-card { background: #ffffff !important; }
+      .sc-red::after { background: #ef4444 !important; }
+      .sc-blue::after { background: #1a56db !important; }
+      .sc-green::after { background: #15803d !important; }
+      
+      /* Cards */
+      .card {
+        background: #ffffff !important;
+        border-color: #e5e7eb !important;
+      }
+      .card h4 { color: #111827 !important; }
+      .card p { color: #6b7280 !important; }
+      .ci-green { background: #f0fdf4 !important; }
+      .ci-blue { background: #eff6ff !important; }
+      .ci-navy { background: #e8edf8 !important; }
+      
+      /* Research cards */
+      .rc-green { background: #15803d !important; }
+      .rc-blue { background: #0f2d52 !important; }
+      .rc-orange { background: #b45309 !important; }
+      .research-card { background: #ffffff !important; }
+      .rc-body li { color: #6b7280 !important; }
+      
+      /* Tags */
+      .tag-g { background: #f0fdf4 !important; color: #15803d !important; border-color: #dcfce7 !important; }
+      .tag-b { background: #eff6ff !important; color: #1e40af !important; border-color: #dbeafe !important; }
+      .tag-o { background: #fff7ed !important; color: #b45309 !important; border-color: #fed7aa !important; }
+      .tag-n { background: #f1f5f9 !important; color: #475569 !important; border-color: #e2e8f0 !important; }
+      
+      /* Callout */
+      .callout { background: #f9fafb !important; border-color: #e5e7eb !important; }
+      .callout p { color: #1f2937 !important; }
+      .callout-blue { border-left-color: #1a56db !important; }
+      
+      /* Company header */
+      .company-header { background: #0b1f3a !important; }
+      .company-name { color: #ffffff !important; }
+      .company-sub { color: rgba(255,255,255,0.4) !important; }
+      .company-icon { background: rgba(21,128,61,0.2) !important; border-color: rgba(21,128,61,0.3) !important; }
+      
+      /* Detail cards */
+      .dc-head { background: #f9fafb !important; color: #6b7280 !important; border-color: #e5e7eb !important; }
+      .dc-item { color: #6b7280 !important; border-color: #e5e7eb !important; }
+      .dc-arrow { border-color: #15803d !important; }
+      .detail-card { background: #ffffff !important; border-color: #e5e7eb !important; }
+      
+      /* Photo frame */
+      .photo-frame { background: #0b1f3a !important; border-color: #e5e7eb !important; }
+      .photo-badge { background: rgba(11,31,58,0.85) !important; border-color: rgba(255,255,255,0.12) !important; color: #ffffff !important; }
+      .photo-badge-dot { background: #16a34a !important; }
+      .photo-caption { color: rgba(255,255,255,0.8) !important; }
+      
+      /* Tech layer pills */
+      .tl-iot { background: #15803d !important; }
+      .tl-backend { background: #0f2d52 !important; }
+      .tl-front { background: #4f46e5 !important; }
+      .tl-infra { background: #374151 !important; }
+      .pill { background: #f9fafb !important; border-color: #e5e7eb !important; color: #1f2937 !important; }
+      
+      /* Timeline */
+      .tl-dot { background: #15803d !important; }
+      .tld-blue { background: #1e40af !important; }
+      .tld-navy { background: #0b1f3a !important; }
+      .tph-green { color: #15803d !important; }
+      .tph-blue { color: #1e40af !important; }
+      .tph-navy { color: #0b1f3a !important; }
+      .tl-content { background: #ffffff !important; border-color: #e5e7eb !important; }
+      .tl-content h4 { color: #111827 !important; }
+      .tl-content p { color: #6b7280 !important; }
+      .td-green { background: #f0fdf4 !important; color: #15803d !important; border-color: #dcfce7 !important; }
+      .td-blue { background: #eff6ff !important; color: #1e40af !important; border-color: #dbeafe !important; }
+      .td-navy { background: #f1f5f9 !important; color: #334155 !important; border-color: #e2e8f0 !important; }
+      
+      /* Value grid */
+      .vg-card { background: #ffffff !important; border-color: #e5e7eb !important; }
+      .vg-card h4 { color: #111827 !important; }
+      .vg-card p { color: #6b7280 !important; }
+      .vg-n1 { color: #15803d !important; }
+      .vg-n2 { color: #1e40af !important; }
+      .vg-n3 { color: #b45309 !important; }
+      .vg-n4 { color: #4f46e5 !important; }
+      
+      /* Closing block */
+      .closing-block { background: #0b1f3a !important; }
+      .closing-block-title { color: #ffffff !important; }
+      .closing-block-title em { color: #16a34a !important; }
+      .closing-block p { color: rgba(255,255,255,0.45) !important; }
+      
+      /* Table */
+      .bm-table { background: #ffffff !important; border-color: #e5e7eb !important; }
+      .bm-table thead th { background: #0b1f3a !important; color: rgba(255,255,255,0.65) !important; }
+      .bm-table td { color: #6b7280 !important; border-color: #e5e7eb !important; }
+      .bm-table tr:nth-child(even) td { background: #f9fafb !important; }
+      .bm-table td strong { color: #111827 !important; }
+      .price-chip { background: #f0fdf4 !important; color: #15803d !important; border-color: #dcfce7 !important; }
+      
+      /* Sub heading */
+      .sub-heading { color: #111827 !important; }
+      .sub-heading::before { background: #15803d !important; }
+      
+      /* Flow diagram */
+      .flow-node { background: #ffffff !important; border-color: #e5e7eb !important; }
+      .flow-node-lbl { color: #111827 !important; }
+      .flow-node-sub { color: #9ca3af !important; }
+      .fn-green { background: #f0fdf4 !important; }
+      .fn-blue { background: #eff6ff !important; }
+      .fc-line { background: #15803d !important; }
+      .fc-head { border-left-color: #15803d !important; }
+      
+      /* Pull quote */
+      .pull-quote p { color: #1f2937 !important; }
+      .pq-attr { color: #6b7280 !important; }
+      
+      /* Footer */
+      .pfoot { border-color: #e5e7eb !important; color: #9ca3af !important; }
+      .pfoot-brand { color: #6b7280 !important; }
+      .pfoot-rule { background: #e5e7eb !important; }
+      
+      /* Prevent orphans within elements */
+      .sh { page-break-after: avoid; }
+      .stat-row, .stat-card { page-break-inside: avoid; }
+      .grid-2, .grid-3 { page-break-inside: avoid; }
+      .card { page-break-inside: avoid; page-break-after: avoid; }
+      .research-card { page-break-inside: avoid; }
+      .detail-grid, .detail-card { page-break-inside: avoid; }
+      .tech-layer { page-break-inside: avoid; }
+      .timeline { page-break-inside: avoid; }
+      .tl-item { page-break-inside: avoid; page-break-after: avoid; }
+      .callout { page-break-inside: avoid; }
+      .pull-quote { page-break-inside: avoid; }
+      .bm-table { page-break-inside: avoid; }
+      .flow { page-break-inside: avoid; }
+      .company-header { page-break-inside: avoid; }
+      .photo-frame { page-break-inside: avoid; }
+      .value-grid { page-break-inside: avoid; }
+      .vg-card { page-break-inside: avoid; }
+      .stat-card { page-break-inside: avoid; }
+      .sub-heading { page-break-after: avoid; }
+      .closing-block { page-break-inside: avoid; }
+      
+      /* Hide decorative elements in print */
+      .page-bar,
+      .page-bg-num { display: none !important; }
+      .cover-arc,
+      .cover-arc2,
+      .cover-dot-grid { display: none !important; }
+      
+      /* Footer positioning */
+      .pfoot {
+        position: absolute;
+        bottom: 30px;
+        left: 50px;
+        right: 50px;
+        border-top: 1px solid #e5e7eb;
+        padding-top: 10px;
+        margin-top: 20px;
+      }
+      
+      /* Better text flow */
+      p, li { orphans: 3; widows: 3; }
+      h2, h4 { orphans: 3; widows: 3; page-break-after: avoid; }
+    }
       .page:last-child { page-break-after: avoid; }
-      .no-print { display: none !important; }
+      
+      /* Ensure each major section starts on a new page */
+      .page-cover { page-break-after: always; }
+      .page-problem { page-break-before: always; page-break-after: always; }
+      .page-research { page-break-before: always; page-break-after: always; }
+      .page-scpc { page-break-before: always; page-break-after: always; }
+      .page-value { page-break-before: always; page-break-after: always; }
+      .page-business { page-break-before: always; page-break-after: always; }
+      .page-roadmap { page-break-before: always; }
+      
+      /* Prevent orphaned sections */
+      .sh { page-break-before: avoid; }
+      .stat-row { page-break-inside: avoid; }
+      .grid-2 { page-break-inside: avoid; }
+      .grid-3 { page-break-inside: avoid; }
+      .value-grid { page-break-inside: avoid; }
+      .card { page-break-inside: avoid; }
+      .research-card { page-break-inside: avoid; }
+      .detail-grid { page-break-inside: avoid; }
+      .detail-card { page-break-inside: avoid; }
+      .tech-layer { page-break-inside: avoid; }
+      .timeline { page-break-inside: avoid; }
+      .tl-item { page-break-inside: avoid; }
+      .callout { page-break-inside: avoid; }
+      .pull-quote { page-break-inside: avoid; }
+      .bm-table { page-break-inside: avoid; }
+      .flow { page-break-inside: avoid; }
+      .company-header { page-break-inside: avoid; }
+      .photo-frame { page-break-inside: avoid; }
+      
+      /* Hide decorative elements in print */
+      .page-bar,
+      .page-bg-num { display: none; }
+      .cover-arc,
+      .cover-arc2,
+      .cover-dot-grid { display: none; }
+      
+      /* Better typography for print */
+      p { orphans: 3; widows: 3; }
+      h2, h4 { orphans: 3; widows: 3; }
     }
 
     @media screen {
-      body { background: #e2e8f0; padding: 40px 0; }
+      body { background: #c9d3de; padding: 40px 0; }
       .page {
         max-width: 210mm;
         min-height: 297mm;
-        margin: 0 auto 40px;
+        margin: 0 auto 48px;
         background: #fff;
-        box-shadow: 0 25px 50px -12px rgba(0,0,0,0.15);
+        box-shadow: var(--shadow-lg), 0 0 0 1px rgba(0,0,0,.05);
         border-radius: 4px;
       }
     }
 
-    .page {
-      padding: 50px 55px;
-      position: relative;
-      overflow: hidden;
+    .page { padding: 56px 60px; position: relative; overflow: hidden; }
+
+    /* ─── COVER ──────────────────────────────────────── */
+    .cover {
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      min-height: 297mm;
+      height: 297mm;
+      background: var(--navy);
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
     }
 
-    /* ── COVER PAGE ── */
-    .cover {
+    .cover-hero {
+      flex: 1;
       display: flex;
       flex-direction: column;
       justify-content: center;
-      align-items: center;
-      text-align: center;
-      min-height: 297mm;
-      padding: 60px 55px;
+      align-items: flex-start;
+      padding: 72px 64px 56px;
       position: relative;
-      background: linear-gradient(160deg, var(--blue-50) 0%, #fff 40%, var(--green-50) 100%);
+      overflow: hidden;
+      height: 100%;
     }
 
-    .cover-bg-pattern {
+    /* Large geometric arc behind content */
+    .cover-arc {
       position: absolute;
-      top: 0; left: 0; right: 0; bottom: 0;
-      opacity: 0.04;
+      right: -120px;
+      top: -80px;
+      width: 560px;
+      height: 560px;
+      border-radius: 50%;
+      border: 120px solid rgba(21,128,61,0.12);
       pointer-events: none;
     }
 
-    .cover-top-bar {
+    .cover-arc2 {
       position: absolute;
-      top: 0; left: 0; right: 0;
-      height: 6px;
-      background: linear-gradient(90deg, var(--green-600), var(--blue-500), var(--green-500));
+      right: 40px;
+      bottom: -200px;
+      width: 380px;
+      height: 380px;
+      border-radius: 50%;
+      border: 80px solid rgba(26,86,219,0.1);
+      pointer-events: none;
     }
 
-    .cover-logo {
-      width: 110px;
-      height: 110px;
-      margin-bottom: 20px;
-      filter: drop-shadow(0 4px 12px rgba(0,0,0,0.08));
+    .cover-dot-grid {
+      position: absolute;
+      inset: 0;
+      background-image: radial-gradient(rgba(255,255,255,0.06) 1px, transparent 1px);
+      background-size: 28px 28px;
+      pointer-events: none;
     }
 
-    .cover h1 {
-      font-size: 42pt;
-      font-weight: 800;
-      letter-spacing: -1.5px;
-      background: linear-gradient(135deg, var(--green-700), var(--blue-600));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-      margin-bottom: 8px;
-    }
-
-    .cover-tagline {
-      font-size: 13pt;
-      color: var(--gray-500);
-      font-weight: 400;
+    .cover-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 7.5pt;
+      font-weight: 600;
       letter-spacing: 3px;
       text-transform: uppercase;
-      margin-bottom: 50px;
+      color: var(--green2);
+      margin-bottom: 28px;
     }
 
-    .cover-title-block {
-      border-top: 2px solid var(--green-200);
-      border-bottom: 2px solid var(--blue-200);
-      padding: 30px 0;
-      margin-bottom: 50px;
+    .cover-eyebrow-line {
+      width: 32px;
+      height: 1px;
+      background: var(--green2);
     }
 
-    .cover-title-block h2 {
-      font-size: 18pt;
-      font-weight: 600;
-      color: var(--blue-800);
-      margin-bottom: 6px;
-    }
-
-    .cover-title-block p {
-      font-size: 11pt;
-      color: var(--gray-500);
-    }
-
-    .cover-meta {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 30px;
-      text-align: center;
-      width: 100%;
-      max-width: 500px;
-    }
-
-    .cover-meta-item {
-      font-size: 9pt;
-      color: var(--gray-400);
-      text-transform: uppercase;
-      letter-spacing: 1px;
-    }
-
-    .cover-meta-item strong {
-      display: block;
-      font-size: 10.5pt;
-      color: var(--gray-700);
-      margin-top: 4px;
-      text-transform: none;
-      letter-spacing: 0;
-    }
-
-    .cover-bottom-wave {
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      right: 0;
-    }
-
-    /* ── SECTION HEADERS ── */
-    .section-header {
+    .cover-logo-row {
       display: flex;
       align-items: center;
-      gap: 14px;
-      margin-bottom: 22px;
-      padding-bottom: 12px;
-      border-bottom: 2px solid var(--green-100);
+      gap: 16px;
+      margin-bottom: 20px;
     }
 
-    .section-icon {
-      width: 40px;
-      height: 40px;
-      border-radius: 10px;
+    .cover-logo-box {
+      width: 64px;
+      height: 64px;
+      border-radius: 16px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
       display: flex;
       align-items: center;
       justify-content: center;
-      flex-shrink: 0;
     }
 
-    .section-icon.blue { background: linear-gradient(135deg, var(--blue-500), var(--blue-600)); }
-    .section-icon.green { background: linear-gradient(135deg, var(--green-500), var(--green-600)); }
-    .section-icon.teal { background: linear-gradient(135deg, #0d9488, #0f766e); }
-    .section-icon.indigo { background: linear-gradient(135deg, #6366f1, #4f46e5); }
+    .cover-logo-box img { width: 44px; height: 44px; }
 
-    .section-header h2 {
-      font-size: 16pt;
-      font-weight: 700;
-      color: var(--blue-900);
+    .cover h1 {
+      font-family: 'DM Serif Display', Georgia, serif;
+      font-size: 52pt;
+      font-weight: 400;
+      color: #fff;
+      letter-spacing: -1.5px;
+      line-height: 1;
+      margin-bottom: 0;
     }
 
-    .section-number {
-      font-size: 9pt;
-      color: var(--gray-400);
-      text-transform: uppercase;
-      letter-spacing: 2px;
-      display: block;
-      margin-bottom: 2px;
+    .cover h1 em {
+      font-style: italic;
+      color: var(--green2);
     }
 
-    /* ── CONTENT ── */
-    p { margin-bottom: 12px; color: var(--gray-700); }
-
-    .highlight-box {
-      background: linear-gradient(135deg, var(--blue-50), var(--green-50));
-      border-left: 4px solid var(--green-500);
-      padding: 18px 22px;
-      border-radius: 0 10px 10px 0;
-      margin: 18px 0;
+    .cover-subtitle {
+      font-size: 11pt;
+      color: rgba(255,255,255,0.45);
+      font-weight: 400;
+      letter-spacing: 1px;
+      margin-top: 10px;
+      margin-bottom: 52px;
     }
 
-    .highlight-box p { margin-bottom: 0; }
-
-    .stat-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 16px;
-      margin: 22px 0;
+    .cover-rule {
+      width: 64px;
+      height: 3px;
+      background: var(--green2);
+      border-radius: 2px;
+      margin-bottom: 32px;
     }
 
-    .stat-card {
-      text-align: center;
-      padding: 20px 14px;
-      border-radius: 12px;
-      background: var(--gray-50);
-      border: 1px solid var(--gray-200);
+    .cover-desc {
+      font-size: 12pt;
+      color: rgba(255,255,255,0.7);
+      line-height: 1.65;
+      max-width: 440px;
+      margin-bottom: 56px;
+      font-weight: 300;
     }
 
-    .stat-card .stat-value {
-      font-size: 22pt;
-      font-weight: 800;
-      display: block;
-      margin-bottom: 4px;
+    .cover-desc strong { color: #fff; font-weight: 600; }
+
+    /* Cover footer bar */
+    .cover-foot {
+      border-top: 1px solid rgba(255,255,255,0.08);
+      padding: 28px 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 40px;
     }
 
-    .stat-card .stat-value.blue { color: var(--blue-600); }
-    .stat-card .stat-value.green { color: var(--green-600); }
-    .stat-card .stat-value.red { color: #dc2626; }
+    .cover-meta-block { display: flex; gap: 48px; }
 
-    .stat-card .stat-label {
-      font-size: 8.5pt;
-      color: var(--gray-500);
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
+    .cmi {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
     }
 
-    .two-col {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 20px;
-      margin: 20px 0;
-    }
-
-    .feature-card {
-      padding: 20px;
-      border-radius: 12px;
-      border: 1px solid var(--gray-200);
-      background: #fff;
-    }
-
-    .feature-card h4 {
-      font-size: 10.5pt;
+    .cmi-label {
+      font-size: 7pt;
       font-weight: 600;
-      color: var(--blue-800);
-      margin-bottom: 8px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.3);
+    }
+
+    .cmi-value {
+      font-size: 9.5pt;
+      font-weight: 500;
+      color: rgba(255,255,255,0.75);
+    }
+
+    .cover-confidential {
+      font-size: 7.5pt;
+      color: rgba(255,255,255,0.2);
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      border: 1px solid rgba(255,255,255,0.1);
+      padding: 5px 12px;
+      border-radius: 4px;
+    }
+
+    /* ─── INTERIOR PAGE CHROME ───────────────────────── */
+    .page-bar {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--green) 0%, var(--blue) 100%);
+    }
+
+    .page-bg-num {
+      position: absolute;
+      right: 44px;
+      top: 36px;
+      font-family: 'DM Serif Display', Georgia, serif;
+      font-size: 120pt;
+      font-weight: 400;
+      color: rgba(0,0,0,0.025);
+      line-height: 1;
+      letter-spacing: -4px;
+      pointer-events: none;
+      user-select: none;
+    }
+
+    /* ─── SECTION HEADER ─────────────────────────────── */
+    .sh {
+      margin-bottom: 28px;
+      padding-bottom: 18px;
+      border-bottom: 1px solid var(--rule);
+    }
+
+    .sh-eyebrow {
+      font-size: 7.5pt;
+      font-weight: 700;
+      letter-spacing: 2.5px;
+      text-transform: uppercase;
+      color: var(--green);
+      margin-bottom: 6px;
       display: flex;
       align-items: center;
       gap: 8px;
     }
 
-    .feature-card p {
-      font-size: 9.5pt;
-      margin-bottom: 0;
-      color: var(--gray-600);
-    }
-
-    .icon-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      display: inline-block;
+    .sh-eyebrow::before {
+      content: '';
+      width: 20px;
+      height: 2px;
+      background: var(--green);
+      border-radius: 1px;
       flex-shrink: 0;
     }
-    .icon-dot.green { background: var(--green-500); }
-    .icon-dot.blue { background: var(--blue-500); }
 
-    /* ── FIELD RESEARCH ── */
-    .field-card {
-      border: 1px solid var(--gray-200);
-      border-radius: 12px;
-      overflow: hidden;
-      margin-bottom: 18px;
+    .sh h2 {
+      font-family: 'DM Serif Display', Georgia, serif;
+      font-size: 20pt;
+      font-weight: 400;
+      color: var(--navy);
+      letter-spacing: -0.5px;
+      line-height: 1.15;
     }
 
-    .field-card-header {
-      padding: 14px 20px;
-      font-weight: 600;
-      font-size: 10.5pt;
+    /* ─── BODY TEXT ──────────────────────────────────── */
+    p { margin-bottom: 14px; color: var(--muted); font-size: 10pt; line-height: 1.8; }
+
+    .lead {
+      font-size: 11pt;
+      color: var(--ink2);
+      font-weight: 400;
+      line-height: 1.75;
+    }
+
+    .sub-heading {
+      font-size: 10pt;
+      font-weight: 700;
+      color: var(--ink);
+      margin: 26px 0 12px;
       display: flex;
       align-items: center;
       gap: 10px;
     }
 
-    .field-card-header.green-bg {
-      background: linear-gradient(135deg, var(--green-50), var(--green-100));
-      color: var(--green-800);
-      border-bottom: 1px solid var(--green-200);
-    }
-
-    .field-card-header.blue-bg {
-      background: linear-gradient(135deg, var(--blue-50), var(--blue-100));
-      color: var(--blue-800);
-      border-bottom: 1px solid var(--blue-200);
-    }
-
-    .field-card-body {
-      padding: 16px 20px;
-    }
-
-    .field-card-body ul {
-      list-style: none;
-      padding: 0;
-    }
-
-    .field-card-body li {
-      padding: 6px 0;
-      font-size: 10pt;
-      color: var(--gray-600);
-      display: flex;
-      align-items: flex-start;
-      gap: 8px;
-    }
-
-    .field-card-body li::before {
+    .sub-heading::before {
       content: '';
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: var(--green-400);
+      width: 3px;
+      height: 14px;
+      background: var(--green);
+      border-radius: 2px;
       flex-shrink: 0;
-      margin-top: 7px;
     }
 
-    .insight-tag {
-      display: inline-block;
-      background: var(--blue-100);
-      color: var(--blue-700);
+    /* ─── STAT CARDS ─────────────────────────────────── */
+    .stat-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 14px;
+      margin: 24px 0;
+    }
+
+    .stat-card {
+      padding: 24px 18px 20px;
+      border-radius: var(--r-lg);
+      border: 1px solid var(--rule);
+      background: #fff;
+      box-shadow: var(--shadow-sm);
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .stat-card::after {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 3px;
+    }
+
+    .sc-red::after   { background: #ef4444; }
+    .sc-blue::after  { background: var(--blue); }
+    .sc-green::after { background: var(--green); }
+
+    .stat-num {
+      font-family: 'DM Serif Display', Georgia, serif;
+      font-size: 34pt;
+      font-weight: 400;
+      line-height: 1;
+      margin-bottom: 6px;
+      display: block;
+    }
+
+    .sc-red .stat-num   { color: #dc2626; }
+    .sc-blue .stat-num  { color: var(--blue2); }
+    .sc-green .stat-num { color: var(--green); }
+
+    .stat-lbl {
+      font-size: 8pt;
+      font-weight: 500;
+      color: var(--faint);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      line-height: 1.4;
+    }
+
+    /* ─── CALLOUT / HIGHLIGHT ────────────────────────── */
+    .callout {
+      background: var(--bg);
+      border: 1px solid var(--rule);
+      border-left: 3px solid var(--green);
+      border-radius: 0 var(--r-md) var(--r-md) 0;
+      padding: 18px 22px;
+      margin: 20px 0;
+    }
+
+    .callout p { margin-bottom: 0; color: var(--ink2); font-size: 10pt; }
+
+    .callout-blue {
+      border-left-color: var(--blue);
+    }
+
+    /* ─── FEATURE CARDS ──────────────────────────────── */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin: 16px 0;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 12px;
+      margin: 16px 0;
+    }
+
+    .card {
+      background: #fff;
+      border: 1px solid var(--rule);
+      border-radius: var(--r-lg);
+      padding: 20px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .card-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: var(--r-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 12px;
+    }
+
+    .ci-green  { background: var(--green-xl); }
+    .ci-blue   { background: var(--blue-xl); }
+    .ci-navy   { background: #e8edf8; }
+
+    .card h4 {
+      font-size: 10pt;
+      font-weight: 700;
+      color: var(--ink);
+      margin-bottom: 6px;
+    }
+
+    .card p {
+      font-size: 9.5pt;
+      margin-bottom: 0;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    /* ─── FIELD RESEARCH CARDS ───────────────────────── */
+    .research-card {
+      border: 1px solid var(--rule);
+      border-radius: var(--r-lg);
+      overflow: hidden;
+      margin-bottom: 16px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .rc-head {
+      padding: 14px 22px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 700;
+      font-size: 10pt;
+    }
+
+    .rc-green { background: var(--green); color: #fff; }
+    .rc-blue  { background: var(--navy2); color: #fff; }
+    .rc-orange{ background: #b45309; color: #fff; }
+
+    .rc-body { padding: 18px 22px; }
+
+    .rc-body ul { list-style: none; padding: 0; }
+
+    .rc-body li {
+      padding: 7px 0;
+      font-size: 9.5pt;
+      color: var(--muted);
+      display: flex;
+      gap: 12px;
+      border-bottom: 1px solid var(--rule);
+      line-height: 1.5;
+    }
+
+    .rc-body li:last-child { border-bottom: none; }
+
+    .rc-check {
+      flex-shrink: 0;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--green-xl);
+      border: 1px solid var(--green-l);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 1px;
+    }
+
+    .rc-check svg { width: 9px; height: 9px; }
+
+    /* ─── TAGS ───────────────────────────────────────── */
+    .tag-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+
+    .tag {
+      font-size: 7.5pt;
+      font-weight: 600;
+      padding: 4px 11px;
+      border-radius: 100px;
+      border: 1px solid;
+    }
+
+    .tag-g { background: var(--green-xl); color: var(--green); border-color: var(--green-l); }
+    .tag-b { background: var(--blue-xl);  color: var(--blue2); border-color: var(--blue-l); }
+    .tag-o { background: #fff7ed; color: #b45309; border-color: #fed7aa; }
+    .tag-n { background: #f1f5f9; color: #475569; border-color: #e2e8f0; }
+
+    /* ─── PULL QUOTE ─────────────────────────────────── */
+    .pull-quote {
+      padding: 20px 24px;
+      margin: 20px 0;
+      position: relative;
+    }
+
+    .pull-quote::before {
+      content: '\201C';
+      position: absolute;
+      top: 0; left: 16px;
+      font-family: 'DM Serif Display', Georgia, serif;
+      font-size: 60pt;
+      color: var(--green-l);
+      line-height: 1;
+    }
+
+    .pull-quote p {
+      font-family: 'DM Serif Display', Georgia, serif;
+      font-size: 11.5pt;
+      font-style: italic;
+      color: var(--ink2);
+      margin-bottom: 10px;
+      padding-left: 12px;
+      line-height: 1.6;
+      position: relative;
+    }
+
+    .pq-attr {
       font-size: 8.5pt;
       font-weight: 600;
-      padding: 3px 10px;
-      border-radius: 20px;
-      margin-right: 6px;
-      margin-bottom: 4px;
+      color: var(--muted);
+      padding-left: 12px;
     }
 
-    /* ── BUSINESS MODEL ── */
-    .pricing-table {
-      width: 100%;
-      border-collapse: separate;
-      border-spacing: 0;
-      border-radius: 12px;
+    /* ─── VISIT PHOTO ────────────────────────────────── */
+    .photo-frame {
+      border-radius: var(--r-xl);
       overflow: hidden;
-      border: 1px solid var(--gray-200);
-      margin: 18px 0;
+      border: 1px solid var(--rule);
+      box-shadow: var(--shadow-md);
+      margin: 22px 0;
+      position: relative;
+      background: var(--navy);
     }
 
-    .pricing-table th {
-      background: linear-gradient(135deg, var(--blue-700), var(--green-700));
+    .photo-frame img {
+      width: 100%;
+      max-height: 290px;
+      object-fit: cover;
+      display: block;
+      opacity: 0.95;
+    }
+
+    .photo-badge {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      background: rgba(11,31,58,0.85);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255,255,255,0.12);
       color: #fff;
-      font-size: 9.5pt;
+      font-size: 8pt;
       font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      padding: 14px 18px;
-      text-align: left;
+      padding: 6px 14px;
+      border-radius: 100px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
     }
 
-    .pricing-table td {
-      padding: 12px 18px;
-      font-size: 10pt;
-      border-bottom: 1px solid var(--gray-100);
-      color: var(--gray-700);
+    .photo-badge-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--green2);
     }
 
-    .pricing-table tr:last-child td { border-bottom: none; }
-
-    .pricing-table tr:nth-child(even) td { background: var(--gray-50); }
-
-    .price-tag {
-      font-weight: 700;
-      color: var(--blue-600);
+    .photo-caption {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      padding: 40px 22px 18px;
+      background: linear-gradient(0deg, rgba(11,31,58,0.8) 0%, transparent 100%);
+      color: rgba(255,255,255,0.8);
+      font-size: 8.5pt;
+      font-style: italic;
     }
 
-    /* ── VALUE PROP ── */
-    .value-grid {
+    /* ─── COMPANY HEADER ─────────────────────────────── */
+    .company-header {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      padding: 20px 24px;
+      background: var(--navy);
+      border-radius: var(--r-lg);
+      margin-bottom: 20px;
+      border: 1px solid rgba(255,255,255,0.04);
+    }
+
+    .company-icon {
+      width: 52px;
+      height: 52px;
+      border-radius: 12px;
+      background: rgba(21,128,61,0.2);
+      border: 1px solid rgba(21,128,61,0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .company-name {
+      font-family: 'DM Serif Display', Georgia, serif;
+      font-size: 18pt;
+      color: #fff;
+      letter-spacing: -0.5px;
+    }
+
+    .company-sub {
+      font-size: 9pt;
+      color: rgba(255,255,255,0.4);
+      margin-top: 2px;
+    }
+
+    /* ─── VISIT DETAIL GRID ──────────────────────────── */
+    .detail-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 14px;
       margin: 18px 0;
     }
 
-    .value-item {
-      padding: 18px;
-      border-radius: 12px;
-      background: linear-gradient(135deg, var(--blue-50), #fff);
-      border: 1px solid var(--blue-100);
-      position: relative;
+    .detail-card {
+      border: 1px solid var(--rule);
+      border-radius: var(--r-lg);
+      overflow: hidden;
+      background: #fff;
+      box-shadow: var(--shadow-sm);
     }
 
-    .value-item:nth-child(even) {
-      background: linear-gradient(135deg, var(--green-50), #fff);
-      border-color: var(--green-100);
-    }
-
-    .value-item h4 {
-      font-size: 10.5pt;
-      font-weight: 700;
-      color: var(--blue-800);
-      margin-bottom: 6px;
-    }
-
-    .value-item:nth-child(even) h4 { color: var(--green-800); }
-
-    .value-item p {
-      font-size: 9.5pt;
-      margin-bottom: 0;
-      color: var(--gray-600);
-    }
-
-    /* ── PAGE FOOTER ── */
-    .page-footer {
-      position: absolute;
-      bottom: 30px;
-      left: 55px;
-      right: 55px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+    .dc-head {
+      padding: 10px 18px;
+      background: var(--bg);
+      border-bottom: 1px solid var(--rule);
       font-size: 8pt;
-      color: var(--gray-400);
-      border-top: 1px solid var(--gray-100);
-      padding-top: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--muted);
     }
 
-    .page-footer .footer-brand {
+    .dc-body { padding: 4px 0; }
+
+    .dc-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 8px 18px;
+      font-size: 9.5pt;
+      color: var(--muted);
+      border-bottom: 1px solid var(--rule);
+      line-height: 1.45;
+    }
+
+    .dc-item:last-child { border-bottom: none; }
+
+    .dc-arrow {
+      flex-shrink: 0;
+      width: 5px;
+      height: 5px;
+      border-right: 2px solid var(--green);
+      border-bottom: 2px solid var(--green);
+      transform: rotate(-45deg);
+      margin-top: 5px;
+    }
+
+    /* ─── TECH LAYERS ────────────────────────────────── */
+    .tech-layer {
+      margin: 10px 0;
+      border-radius: var(--r-md);
+      overflow: hidden;
+      border: 1px solid var(--rule);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .tl-head {
+      padding: 11px 18px;
+      font-size: 8.5pt;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 10px;
+      color: #fff;
+    }
+
+    .tl-iot     { background: var(--green); }
+    .tl-backend { background: var(--navy2); }
+    .tl-front   { background: #4f46e5; }
+    .tl-infra   { background: #374151; }
+
+    .tl-body {
+      padding: 14px 18px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      background: #fff;
+    }
+
+    .pill {
+      padding: 4px 12px;
+      border-radius: var(--r-sm);
+      font-size: 8.5pt;
       font-weight: 500;
+      background: var(--bg);
+      border: 1px solid var(--rule);
+      color: var(--ink2);
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
     }
 
-    .page-footer img { width: 14px; height: 14px; }
-
-    /* ── DECORATIVE ── */
-    .corner-decor {
-      position: absolute;
-      top: 0; right: 0;
-      width: 120px;
-      height: 120px;
-      opacity: 0.06;
+    .pill-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
     }
 
-    .page-top-accent {
-      position: absolute;
-      top: 0; left: 0; right: 0;
-      height: 4px;
-      background: linear-gradient(90deg, var(--green-500), var(--blue-500));
-    }
-
-    /* Flow diagram */
-    .flow-diagram {
+    /* ─── FLOW DIAGRAM ───────────────────────────────── */
+    .flow {
       display: flex;
       align-items: center;
       justify-content: center;
       gap: 0;
       margin: 24px 0;
-      flex-wrap: nowrap;
     }
 
-    .flow-step {
+    .flow-node {
       text-align: center;
-      padding: 14px 10px;
-      border-radius: 10px;
-      background: var(--gray-50);
-      border: 1px solid var(--gray-200);
-      width: 120px;
+      padding: 16px 10px;
+      border-radius: var(--r-md);
+      background: #fff;
+      border: 1px solid var(--rule);
+      width: 104px;
       flex-shrink: 0;
+      box-shadow: var(--shadow-sm);
     }
 
-    .flow-step .flow-label {
+    .flow-node-icon {
+      width: 32px; height: 32px;
+      border-radius: var(--r-sm);
+      margin: 0 auto 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .fn-green { background: var(--green-xl); }
+    .fn-blue  { background: var(--blue-xl); }
+
+    .flow-node-lbl { font-size: 8.5pt; font-weight: 700; color: var(--ink); line-height: 1.3; }
+    .flow-node-sub { font-size: 7.5pt; color: var(--faint); margin-top: 2px; }
+
+    .flow-connector {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      flex-shrink: 0;
+      margin: 0 2px;
+    }
+
+    .fc-line { width: 20px; height: 1px; background: var(--green); }
+    .fc-head { width: 0; height: 0; border-top: 4px solid transparent; border-bottom: 4px solid transparent; border-left: 7px solid var(--green); }
+
+    /* ─── BUSINESS MODEL TABLE ───────────────────────── */
+    .bm-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      border: 1px solid var(--rule);
+      border-radius: var(--r-lg);
+      overflow: hidden;
+      margin: 16px 0;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .bm-table thead th {
+      padding: 13px 20px;
+      text-align: left;
+      font-size: 8pt;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      background: var(--navy);
+      color: rgba(255,255,255,0.65);
+    }
+
+    .bm-table td {
+      padding: 13px 20px;
+      font-size: 9.5pt;
+      border-bottom: 1px solid var(--rule);
+      color: var(--muted);
+      vertical-align: middle;
+    }
+
+    .bm-table tr:last-child td { border-bottom: none; }
+    .bm-table tr:nth-child(even) td { background: var(--bg); }
+
+    .bm-table td strong { color: var(--ink); font-weight: 600; }
+
+    .price-chip {
+      display: inline-block;
+      padding: 3px 10px;
+      background: var(--green-xl);
+      color: var(--green);
+      border: 1px solid var(--green-l);
+      border-radius: 6px;
       font-size: 8.5pt;
-      font-weight: 600;
-      color: var(--blue-700);
-      margin-top: 6px;
+      font-weight: 700;
+      white-space: nowrap;
     }
 
-    .flow-step .flow-desc {
+    /* ─── TIMELINE ───────────────────────────────────── */
+    .timeline { margin: 20px 0; position: relative; padding-left: 56px; }
+
+    .timeline::before {
+      content: '';
+      position: absolute;
+      left: 19px;
+      top: 20px;
+      bottom: 20px;
+      width: 1px;
+      background: var(--rule);
+    }
+
+    .tl-item { position: relative; margin-bottom: 18px; }
+    .tl-item:last-child { margin-bottom: 0; }
+
+    .tl-dot {
+      position: absolute;
+      left: -46px;
+      top: 8px;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 9pt;
+      font-weight: 700;
+      color: #fff;
+      z-index: 1;
+    }
+
+    .tld-green  { background: var(--green); }
+    .tld-blue   { background: var(--blue2); }
+    .tld-navy   { background: var(--navy); }
+
+    .tl-content {
+      border: 1px solid var(--rule);
+      border-radius: var(--r-lg);
+      padding: 18px 22px;
+      background: #fff;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .tl-phase {
       font-size: 7.5pt;
-      color: var(--gray-500);
-      margin-top: 2px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-bottom: 4px;
     }
 
-    .flow-arrow {
-      font-size: 16pt;
-      color: var(--green-400);
-      flex-shrink: 0;
-      margin: 0 4px;
+    .tph-green  { color: var(--green); }
+    .tph-blue   { color: var(--blue2); }
+    .tph-navy   { color: var(--navy); }
+
+    .tl-content h4 {
+      font-size: 11pt;
+      font-weight: 700;
+      color: var(--ink);
+      margin-bottom: 6px;
     }
 
-    .subsection-title {
-      font-size: 12pt;
+    .tl-content p { font-size: 9.5pt; color: var(--muted); margin-bottom: 8px; line-height: 1.6; }
+
+    .tl-date {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 8pt;
       font-weight: 600;
-      color: var(--blue-800);
-      margin: 22px 0 10px;
-      padding-left: 12px;
-      border-left: 3px solid var(--green-400);
+      padding: 3px 10px;
+      border-radius: 6px;
+      border: 1px solid;
     }
+
+    .td-green { background: var(--green-xl); color: var(--green); border-color: var(--green-l); }
+    .td-blue  { background: var(--blue-xl);  color: var(--blue2); border-color: var(--blue-l); }
+    .td-navy  { background: #f1f5f9; color: #334155; border-color: #e2e8f0; }
+
+    /* ─── VALUE GRID ─────────────────────────────────── */
+    .value-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin: 16px 0;
+    }
+
+    .vg-card {
+      padding: 20px;
+      border-radius: var(--r-lg);
+      border: 1px solid var(--rule);
+      background: #fff;
+      box-shadow: var(--shadow-sm);
+      display: flex;
+      gap: 14px;
+    }
+
+    .vg-num {
+      font-family: 'DM Serif Display', Georgia, serif;
+      font-size: 22pt;
+      font-weight: 400;
+      line-height: 1;
+      flex-shrink: 0;
+      width: 36px;
+    }
+
+    .vg-n1 { color: var(--green); }
+    .vg-n2 { color: var(--blue2); }
+    .vg-n3 { color: #b45309; }
+    .vg-n4 { color: #4f46e5; }
+
+    .vg-card h4 { font-size: 10pt; font-weight: 700; color: var(--ink); margin-bottom: 5px; }
+    .vg-card p  { font-size: 9pt; color: var(--muted); margin-bottom: 0; line-height: 1.55; }
+
+    /* ─── CLOSING BLOCK ──────────────────────────────── */
+    .closing-block {
+      margin-top: 36px;
+      padding: 32px 36px;
+      background: var(--navy);
+      border-radius: var(--r-xl);
+      text-align: center;
+    }
+
+    .closing-block p { color: rgba(255,255,255,0.45); font-size: 8.5pt; margin-bottom: 0; letter-spacing: 1px; }
+
+    .closing-block-title {
+      font-family: 'DM Serif Display', Georgia, serif;
+      font-size: 18pt;
+      color: #fff;
+      margin-bottom: 8px;
+      line-height: 1.3;
+    }
+
+    .closing-block-title em { color: var(--green2); font-style: italic; }
+
+    /* ─── PAGE FOOTER ────────────────────────────────── */
+    .pfoot {
+      position: absolute;
+      bottom: 28px;
+      left: 60px;
+      right: 60px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 7.5pt;
+      color: var(--faint);
+      border-top: 1px solid var(--rule);
+      padding-top: 10px;
+    }
+
+    .pfoot-brand {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-weight: 600;
+      color: var(--muted);
+    }
+
+    .pfoot-brand img { width: 13px; height: 13px; }
+
+    .pfoot-rule { width: 1px; height: 10px; background: var(--rule); }
+
   </style>
 </head>
 <body>
 
-<!-- ════════════════════════ PAGE 1: COVER ════════════════════════ -->
-<div class="page cover">
-  <div class="cover-top-bar"></div>
 
-  <!-- Background pattern -->
-  <svg class="cover-bg-pattern" width="100%" height="100%">
-    <defs>
-      <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-        <circle cx="20" cy="20" r="1" fill="#1d4ed8"/>
-      </pattern>
-    </defs>
-    <rect width="100%" height="100%" fill="url(#grid)"/>
-  </svg>
+<!-- ══════════════════════════════════════════════
+     PAGE 1 · COVER
+══════════════════════════════════════════════ -->
+<div class="page cover page-cover">
+  <div class="cover-hero">
+    <div class="cover-dot-grid"></div>
+    <div class="cover-arc"></div>
+    <div class="cover-arc2"></div>
 
-  <img src="../landingpage/public/logo.png" alt="SoussFlow Logo" class="cover-logo">
+    <div class="cover-eyebrow">
+      <span class="cover-eyebrow-line"></span>
+      AgriTech · Smart Irrigation · Morocco
+    </div>
 
-  <h1>SoussFlow</h1>
-  <div class="cover-tagline">Smart Irrigation Platform</div>
+    <div class="cover-logo-row">
+      <div class="cover-logo-box">
+        <img src="../landingpage/public/logo.png" alt="SoussFlow">
+      </div>
+    </div>
 
-  <div class="cover-title-block">
-    <h2>Anomaly Detection & Intelligent Irrigation</h2>
-    <p>for Olive Farms in the Souss-Massa Region, Morocco</p>
+    <h1>Souss<em>Flow</em></h1>
+    <div class="cover-subtitle">Smart Irrigation Platform</div>
+
+    <div class="cover-rule"></div>
+
+    <p class="cover-desc">
+      <strong>Anomaly detection &amp; intelligent irrigation</strong> for olive farms
+      in the Souss-Massa region — reducing water waste and protecting yields
+      through real-time IoT monitoring and AI-powered alerts.
+    </p>
   </div>
 
-  <div class="cover-meta">
-    <div class="cover-meta-item">
-      Sector
-      <strong>AgriTech / IoT</strong>
+  <div class="cover-foot">
+    <div class="cover-meta-block">
+      <div class="cmi">
+        <span class="cmi-label">Sector</span>
+        <span class="cmi-value">AgriTech / IoT</span>
+      </div>
+      <div class="cmi">
+        <span class="cmi-label">Region</span>
+        <span class="cmi-value">Agadir, Morocco</span>
+      </div>
+      <div class="cmi">
+        <span class="cmi-label">Date</span>
+        <span class="cmi-value">March 2026</span>
+      </div>
+      <div class="cmi">
+        <span class="cmi-label">Stage</span>
+        <span class="cmi-value">Pre-Pilot</span>
+      </div>
     </div>
-    <div class="cover-meta-item">
-      Region
-      <strong>Agadir, Morocco</strong>
-    </div>
-    <div class="cover-meta-item">
-      Date
-      <strong>March 2026</strong>
-    </div>
+    <div class="cover-confidential">Confidential</div>
   </div>
-
-  <svg class="cover-bottom-wave" viewBox="0 0 1440 120" preserveAspectRatio="none" height="100">
-    <path d="M0,80 C360,120 720,20 1080,70 C1260,95 1380,60 1440,80 L1440,120 L0,120 Z" fill="#dcfce7" opacity="0.5"/>
-    <path d="M0,95 C300,60 600,110 900,80 C1100,60 1300,100 1440,90 L1440,120 L0,120 Z" fill="#dbeafe" opacity="0.4"/>
-  </svg>
 </div>
 
-<!-- ════════════════════════ PAGE 2: PROBLEM + SOLUTION ════════════════════════ -->
-<div class="page" style="padding-bottom: 80px;">
-  <div class="page-top-accent"></div>
 
-  <svg class="corner-decor" viewBox="0 0 120 120">
-    <path d="M120,0 L120,120 C60,120 0,60 0,0 Z" fill="#16a34a"/>
-  </svg>
+<!-- ══════════════════════════════════════════════
+     PAGE 2 · PROBLEM + SOLUTION
+══════════════════════════════════════════════ -->
+<div class="page page-problem" style="padding-bottom: 80px;">
+  <div class="page-bar"></div>
+  <div class="page-bg-num">02</div>
 
-  <!-- Problem Section -->
-  <div class="section-header">
-    <div class="section-icon blue">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-      </svg>
-    </div>
-    <div>
-      <span class="section-number">Section 01</span>
-      <h2>The Problem</h2>
-    </div>
+  <!-- PROBLEM -->
+  <div class="sh">
+    <div class="sh-eyebrow">Section 01</div>
+    <h2>The Problem</h2>
   </div>
 
-  <p>
-    The Souss-Massa region is Morocco's agricultural heartland, producing over <strong>65% of the nation's citrus and olive exports</strong>. However, the region faces a critical water crisis. Groundwater levels have dropped dramatically over the past two decades, and traditional irrigation practices continue to waste significant volumes of water through over-irrigation, leaks, and lack of real-time monitoring.
+  <p class="lead">
+    The Souss-Massa region produces over <strong>65% of Morocco's citrus and olive exports</strong> — yet the sector is facing a quiet crisis. Groundwater reserves are depleting, and traditional irrigation practices continue to waste water through systemic inefficiency and the complete absence of digital monitoring.
   </p>
 
   <div class="stat-row">
-    <div class="stat-card">
-      <span class="stat-value red">40%</span>
-      <span class="stat-label">Water wasted in<br>traditional irrigation</span>
+    <div class="stat-card sc-red">
+      <span class="stat-num">40%</span>
+      <span class="stat-lbl">Water wasted in<br>traditional irrigation</span>
     </div>
-    <div class="stat-card">
-      <span class="stat-value blue">80%</span>
-      <span class="stat-label">Farms lack any<br>digital monitoring</span>
+    <div class="stat-card sc-blue">
+      <span class="stat-num">80%</span>
+      <span class="stat-lbl">Farms lack any<br>digital monitoring</span>
     </div>
-    <div class="stat-card">
-      <span class="stat-value green">0</span>
-      <span class="stat-label">Affordable anomaly<br>detection solutions</span>
+    <div class="stat-card sc-green">
+      <span class="stat-num">0</span>
+      <span class="stat-lbl">Affordable local anomaly<br>detection solutions</span>
     </div>
   </div>
 
-  <p>
-    Olive farmers in particular face a compounding challenge: irrigation system failures, such as pipe leaks, clogged drippers, or pump malfunctions, often go undetected for days. By the time the damage is visible on the trees, <strong>yield loss is already irreversible</strong>. There is currently no affordable, localized solution that combines real-time monitoring with intelligent anomaly detection tailored for the region's farms.
+  <p>Olive farmers face a compounding challenge: irrigation failures — pipe leaks, clogged drippers, pump malfunctions — go undetected for days. By the time damage is visible on the trees, <strong>yield loss is already irreversible</strong>.</p>
+
+  <div class="callout">
+    <p><strong>Core challenge:</strong> Farmers lack the tools to detect irrigation anomalies early, leading to water waste, crop stress, and financial losses that threaten the long-term sustainability of olive farming in the region.</p>
+  </div>
+
+  <!-- SOLUTION -->
+  <div class="sh" style="margin-top: 34px;">
+    <div class="sh-eyebrow">Section 02</div>
+    <h2>The Solution</h2>
+  </div>
+
+  <p class="lead">
+    <strong>SoussFlow</strong> is a smart irrigation platform combining IoT sensors and machine learning to detect anomalies in real time and deliver intelligent irrigation recommendations — built specifically for the Souss-Massa region.
   </p>
 
-  <div class="highlight-box">
-    <p><strong>Core challenge:</strong> Farmers lack the tools to detect irrigation anomalies early, leading to water waste, crop stress, and financial losses that threaten the sustainability of olive farming in the region.</p>
-  </div>
+  <div class="sub-heading">Anomaly Detection Capabilities</div>
 
-  <!-- Solution Section -->
-  <div class="section-header" style="margin-top: 32px;">
-    <div class="section-icon green">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
-      </svg>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-icon ci-blue">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1a56db" stroke-width="2" stroke-linecap="round"><path d="M6 3v7a6 6 0 0 0 6 6 6 6 0 0 0 6-6V3"/><line x1="4" y1="21" x2="20" y2="21"/></svg>
+      </div>
+      <h4>Leak Detection</h4>
+      <p>Identifies pressure drops and flow inconsistencies signalling pipe leaks or dripper failures across zones.</p>
     </div>
-    <div>
-      <span class="section-number">Section 02</span>
-      <h2>The Solution</h2>
+    <div class="card">
+      <div class="card-icon ci-green">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#15803d" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+      </div>
+      <h4>Pump Malfunction Alerts</h4>
+      <p>Monitors pump performance and detects degradation patterns before complete failure occurs.</p>
     </div>
-  </div>
-
-  <p>
-    <strong>SoussFlow</strong> is a smart irrigation platform that uses IoT sensors and machine learning to detect anomalies in real time and provide intelligent irrigation recommendations. The platform is designed specifically for olive farms in the Souss-Massa region.
-  </p>
-
-  <h3 class="subsection-title">Anomaly Detection Engine</h3>
-  <p>
-    At the core of SoussFlow lies a <strong>real-time anomaly detection system</strong> that continuously analyzes sensor data — soil moisture, flow rates, pressure levels, and environmental conditions. Using machine learning models trained on regional agricultural patterns, the system identifies deviations that indicate potential problems:
-  </p>
-
-  <div class="two-col">
-    <div class="feature-card">
-      <h4><span class="icon-dot blue"></span> Leak Detection</h4>
-      <p>Identifies abnormal pressure drops and flow rate inconsistencies that signal pipe leaks or dripper failures across irrigation zones.</p>
+    <div class="card">
+      <div class="card-icon ci-blue">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1a56db" stroke-width="2" stroke-linecap="round"><path d="M12 2a9.96 9.96 0 0 1 6.29 2.23"/><path d="M22 12a10 10 0 0 1-4.36 8.24"/><path d="M2 12a10 10 0 0 1 16-7.98"/><path d="M2 12a10 10 0 0 0 8 9.8"/></svg>
+      </div>
+      <h4>Clogging Prediction</h4>
+      <p>Analyses flow patterns to predict dripper clogging events before they cause visible crop stress.</p>
     </div>
-    <div class="feature-card">
-      <h4><span class="icon-dot green"></span> Pump Malfunction Alerts</h4>
-      <p>Monitors pump performance metrics and detects degradation patterns before complete failure occurs.</p>
-    </div>
-    <div class="feature-card">
-      <h4><span class="icon-dot blue"></span> Clogging Prediction</h4>
-      <p>Analyzes flow patterns to predict dripper clogging events, enabling preventive maintenance scheduling.</p>
-    </div>
-    <div class="feature-card">
-      <h4><span class="icon-dot green"></span> Soil Moisture Anomalies</h4>
-      <p>Detects unexpected soil moisture levels that may indicate broken lines, waterlogging, or sensor faults.</p>
+    <div class="card">
+      <div class="card-icon ci-green">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#15803d" stroke-width="2" stroke-linecap="round"><path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"/></svg>
+      </div>
+      <h4>Soil Moisture Anomalies</h4>
+      <p>Detects unexpected moisture levels indicating broken lines, waterlogging, or sensor faults.</p>
     </div>
   </div>
 
-  <h3 class="subsection-title">Smart Irrigation Scheduling</h3>
-  <p>
-    Beyond anomaly detection, SoussFlow provides zone-level irrigation recommendations based on real-time soil data, weather forecasts, and crop water requirements. This ensures each olive tree zone receives precisely the water it needs — nothing more, nothing less.
-  </p>
+  <div class="sub-heading">System Data Flow</div>
 
-  <!-- Flow diagram -->
-  <div class="flow-diagram">
-    <div class="flow-step">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round"><rect x="4" y="4" width="16" height="16" rx="2"/><circle cx="12" cy="12" r="3"/></svg>
-      <div class="flow-label">IoT Sensors</div>
-      <div class="flow-desc">Collect data</div>
+  <div class="flow">
+    <div class="flow-node">
+      <div class="flow-node-icon fn-green">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#15803d" stroke-width="2" stroke-linecap="round"><rect x="4" y="4" width="16" height="16" rx="2"/><circle cx="12" cy="12" r="3"/></svg>
+      </div>
+      <div class="flow-node-lbl">IoT Sensors</div>
+      <div class="flow-node-sub">Collect data</div>
     </div>
-    <div class="flow-arrow">&rarr;</div>
-    <div class="flow-step">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-      <div class="flow-label">ML Analysis</div>
-      <div class="flow-desc">Detect anomalies</div>
+    <div class="flow-connector"><div class="fc-line"></div><div class="fc-head"></div></div>
+    <div class="flow-node">
+      <div class="flow-node-icon fn-blue">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1a56db" stroke-width="2" stroke-linecap="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+      </div>
+      <div class="flow-node-lbl">ML Engine</div>
+      <div class="flow-node-sub">Detect anomalies</div>
     </div>
-    <div class="flow-arrow">&rarr;</div>
-    <div class="flow-step">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-      <div class="flow-label">Instant Alerts</div>
-      <div class="flow-desc">WhatsApp & app</div>
+    <div class="flow-connector"><div class="fc-line"></div><div class="fc-head"></div></div>
+    <div class="flow-node">
+      <div class="flow-node-icon fn-green">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#15803d" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      </div>
+      <div class="flow-node-lbl">WhatsApp Alert</div>
+      <div class="flow-node-sub">Instant notify</div>
     </div>
-    <div class="flow-arrow">&rarr;</div>
-    <div class="flow-step">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M9 12l2 2 4-4"/></svg>
-      <div class="flow-label">Action</div>
-      <div class="flow-desc">Fix & optimize</div>
+    <div class="flow-connector"><div class="fc-line"></div><div class="fc-head"></div></div>
+    <div class="flow-node">
+      <div class="flow-node-icon fn-blue">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1a56db" stroke-width="2" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      </div>
+      <div class="flow-node-lbl">Dashboard</div>
+      <div class="flow-node-sub">Visualise &amp; act</div>
     </div>
   </div>
 
-  <div class="page-footer">
-    <div class="footer-brand">
-      <img src="../landingpage/public/logo.png" alt="Logo"> SoussFlow
-    </div>
-    <div>Confidential — Page 2</div>
+  <div class="pfoot">
+    <div class="pfoot-brand"><img src="../landingpage/public/logo.png" alt="">SoussFlow</div>
+    <div class="pfoot-rule"></div>
+    <div>Confidential · Page 2 of 7</div>
   </div>
 </div>
 
-<!-- ════════════════════════ PAGE 3: FIELD RESEARCH + ADDED VALUE ════════════════════════ -->
-<div class="page" style="padding-bottom: 80px;">
-  <div class="page-top-accent"></div>
 
-  <svg class="corner-decor" viewBox="0 0 120 120">
-    <path d="M120,0 L120,120 C60,120 0,60 0,0 Z" fill="#2563eb"/>
-  </svg>
+<!-- ══════════════════════════════════════════════
+     PAGE 3 · FIELD RESEARCH
+══════════════════════════════════════════════ -->
+<div class="page page-research" style="padding-bottom: 80px;">
+  <div class="page-bar"></div>
+  <div class="page-bg-num">03</div>
 
-  <!-- Field Research -->
-  <div class="section-header">
-    <div class="section-icon teal">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
-      </svg>
-    </div>
-    <div>
-      <span class="section-number">Section 03</span>
-      <h2>Field Research & Validation</h2>
-    </div>
+  <div class="sh">
+    <div class="sh-eyebrow">Section 03</div>
+    <h2>Field Research &amp; Validation</h2>
   </div>
 
-  <p>
-    To ensure SoussFlow addresses real-world needs, we conducted on-the-ground research in the Souss-Massa region, visiting both supply-side stakeholders and end-user farmers.
+  <p class="lead">
+    To ensure SoussFlow addresses real needs, we conducted on-the-ground research in the Souss-Massa region — visiting both supply-side distributors and end-user farmers.
   </p>
 
-  <div class="field-card">
-    <div class="field-card-header green-bg">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#166534" stroke-width="2" stroke-linecap="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-      Visit to Irrigation Material Wholesaler
+  <!-- Wholesaler card -->
+  <div class="research-card">
+    <div class="rc-head rc-orange">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      Supply-Side Visit · SCPC Sapel — Irrigation Equipment Wholesaler, Agadir
     </div>
-    <div class="field-card-body">
-      <p style="font-size: 9.5pt; color: var(--gray-600); margin-bottom: 10px;">
-        We visited a major irrigation equipment wholesaler in the Agadir region to understand the current market landscape for drip irrigation systems, sensors, and automation components.
-      </p>
+    <div class="rc-body">
+      <p style="font-size: 9.5pt; color: var(--muted); margin-bottom: 12px;">We visited <strong style="color:var(--ink2)">SCPC Sapel</strong>, a leading irrigation equipment distributor in Agadir, to understand the hardware landscape and identify integration opportunities. Full visit documentation on the following page.</p>
       <ul>
-        <li>Confirmed that most farmers purchase basic drip systems without any monitoring or automation capabilities.</li>
-        <li>Identified compatible sensor hardware (soil moisture probes, flow meters, pressure sensors) that can integrate with our IoT architecture at accessible price points.</li>
-        <li>Learned that demand for "smart" add-ons is growing, but no local supplier currently offers a complete software platform to complement the hardware.</li>
-        <li>Established potential partnership opportunities for bundled hardware + software packages.</li>
+        <li><div class="rc-check"><svg viewBox="0 0 12 12" fill="none" stroke="#15803d" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 6 5 9 10 3"/></svg></div>Most farmers purchase basic drip systems with zero monitoring or automation capabilities.</li>
+        <li><div class="rc-check"><svg viewBox="0 0 12 12" fill="none" stroke="#15803d" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 6 5 9 10 3"/></svg></div>Compatible sensor hardware (soil probes, flow meters, pressure transducers) identified at accessible price points.</li>
+        <li><div class="rc-check"><svg viewBox="0 0 12 12" fill="none" stroke="#15803d" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 6 5 9 10 3"/></svg></div>Growing demand for "smart" add-ons, but no local supplier offers a complete software platform.</li>
+        <li><div class="rc-check"><svg viewBox="0 0 12 12" fill="none" stroke="#15803d" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 6 5 9 10 3"/></svg></div>Clear partnership potential for bundled hardware + SoussFlow software distribution.</li>
       </ul>
-      <div style="margin-top: 10px;">
-        <span class="insight-tag">Supply Gap</span>
-        <span class="insight-tag">Hardware Compatibility</span>
-        <span class="insight-tag">Partnership Potential</span>
+      <div class="tag-row">
+        <span class="tag tag-o">Supply Gap Confirmed</span>
+        <span class="tag tag-g">Hardware Compatible</span>
+        <span class="tag tag-b">Partnership Potential</span>
       </div>
     </div>
   </div>
 
-  <div class="field-card">
-    <div class="field-card-header blue-bg">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1e3a5f" stroke-width="2" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-      Farmer Interview — Irrigation Workflow
+  <!-- Farmer interview card -->
+  <div class="research-card">
+    <div class="rc-head rc-blue">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+      Demand-Side Interview · Olive Farmer — Taroudant Province
     </div>
-    <div class="field-card-body">
-      <p style="font-size: 9.5pt; color: var(--gray-600); margin-bottom: 10px;">
-        We spoke with an olive farmer who walked us through his complete irrigation workflow, from scheduling to maintenance routines.
-      </p>
+    <div class="rc-body">
+      <p style="font-size: 9.5pt; color: var(--muted); margin-bottom: 12px;">We spoke with an experienced olive farmer who walked us through his complete irrigation workflow, from daily scheduling to maintenance routines.</p>
       <ul>
-        <li>Irrigation scheduling is entirely manual, based on personal experience and visual inspection of the soil and trees — no data-driven decisions.</li>
-        <li>Leak detection happens only when water bills spike or visible damage appears on trees — often weeks after the issue begins.</li>
-        <li>The farmer expressed strong interest in receiving WhatsApp alerts for anomalies, as he is already comfortable using the app daily.</li>
-        <li>Maintenance is reactive rather than preventive: drippers are cleaned only after visible clogging causes uneven watering.</li>
+        <li><div class="rc-check"><svg viewBox="0 0 12 12" fill="none" stroke="#15803d" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 6 5 9 10 3"/></svg></div>Irrigation scheduling is entirely manual — based on experience and visual inspection, with no data-driven decisions.</li>
+        <li><div class="rc-check"><svg viewBox="0 0 12 12" fill="none" stroke="#15803d" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 6 5 9 10 3"/></svg></div>Leaks are discovered only when water bills spike or tree damage appears — weeks after the problem begins.</li>
+        <li><div class="rc-check"><svg viewBox="0 0 12 12" fill="none" stroke="#15803d" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 6 5 9 10 3"/></svg></div>Strong interest in WhatsApp alerts — the farmer already coordinates his entire farm team via WhatsApp daily.</li>
+        <li><div class="rc-check"><svg viewBox="0 0 12 12" fill="none" stroke="#15803d" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2 6 5 9 10 3"/></svg></div>Maintenance is reactive: drippers cleaned only after visible clogging causes uneven watering across zones.</li>
       </ul>
-      <div style="margin-top: 10px;">
-        <span class="insight-tag">Manual Processes</span>
-        <span class="insight-tag">Late Detection</span>
-        <span class="insight-tag">WhatsApp-Ready</span>
+      <div class="tag-row">
+        <span class="tag tag-n">Manual Processes</span>
+        <span class="tag tag-o">Late Detection</span>
+        <span class="tag tag-g">WhatsApp-Ready</span>
       </div>
     </div>
   </div>
 
-  <div class="highlight-box">
-    <p><strong>Key takeaway:</strong> Both supply-side and demand-side research confirmed a clear market gap. The technology and hardware exist, but there is no affordable, integrated platform that brings anomaly detection and smart irrigation together for the local market.</p>
+  <div class="pull-quote">
+    <p>"We know something is wrong only when the trees start looking dry — by then it is too late for the season."</p>
+    <div class="pq-attr">— Olive farmer, Taroudant province</div>
   </div>
 
-  <!-- Added Value -->
-  <div class="section-header" style="margin-top: 30px;">
-    <div class="section-icon indigo">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-      </svg>
+  <div class="callout">
+    <p><strong>Key takeaway:</strong> Both supply-side and demand-side research confirm a clear market gap. The hardware exists locally, but there is no affordable integrated platform that brings anomaly detection and smart irrigation together for this market.</p>
+  </div>
+
+  <div class="pfoot">
+    <div class="pfoot-brand"><img src="../landingpage/public/logo.png" alt="">SoussFlow</div>
+    <div class="pfoot-rule"></div>
+    <div>Confidential · Page 3 of 7</div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════
+     PAGE 4 · SCPC SAPEL VISIT
+══════════════════════════════════════════════ -->
+<div class="page page-scpc" style="padding-bottom: 80px;">
+  <div class="page-bar"></div>
+  <div class="page-bg-num">04</div>
+
+  <div class="sh">
+    <div class="sh-eyebrow">Section 04 · Supplier Visit</div>
+    <h2>SCPC Sapel</h2>
+  </div>
+
+  <div class="company-header">
+    <div class="company-icon">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="1.8" stroke-linecap="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
     </div>
     <div>
-      <span class="section-number">Section 04</span>
-      <h2>Our Added Value</h2>
+      <div class="company-name">SCPC Sapel</div>
+      <div class="company-sub">Irrigation Equipment Wholesaler &amp; Distributor · Agadir, Souss-Massa, Morocco</div>
     </div>
+  </div>
+
+  <!-- Photo -->
+  <div class="photo-frame">
+    <img src="visite.jpeg" alt="Visit to SCPC Sapel — Agadir">
+    <div class="photo-badge">
+      <div class="photo-badge-dot"></div>
+      Field visit · March 2026
+    </div>
+    <div class="photo-caption">On-site at SCPC Sapel's showroom and warehouse — Agadir, Morocco</div>
+  </div>
+
+  <p>SCPC Sapel is one of the leading irrigation equipment distributors in the Agadir region, supplying drip systems, pumps, fertigation units, and automation hardware to farms across the Souss-Massa valley. Our team met with their technical sales team to explore the current market landscape and potential collaboration opportunities.</p>
+
+  <div class="detail-grid">
+    <div class="detail-card">
+      <div class="dc-head">Products &amp; Hardware Observed</div>
+      <div class="dc-body">
+        <div class="dc-item"><div class="dc-arrow"></div>Drip tape and in-line drippers (various emitter ratings)</div>
+        <div class="dc-item"><div class="dc-arrow"></div>Pressure-compensating dripper heads</div>
+        <div class="dc-item"><div class="dc-arrow"></div>Soil moisture probes &amp; tensiometers</div>
+        <div class="dc-item"><div class="dc-arrow"></div>Inline flow meters &amp; pressure gauges</div>
+        <div class="dc-item"><div class="dc-arrow"></div>Submersible and surface pumps</div>
+        <div class="dc-item"><div class="dc-arrow"></div>Disc, sand, and screen filtration units</div>
+        <div class="dc-item"><div class="dc-arrow"></div>Fertigation injection systems</div>
+      </div>
+    </div>
+    <div class="detail-card">
+      <div class="dc-head">Key Discussion Points</div>
+      <div class="dc-body">
+        <div class="dc-item"><div class="dc-arrow"></div>Farmers buy hardware with no digital layer on top</div>
+        <div class="dc-item"><div class="dc-arrow"></div>No competitor offers a bundled smart monitoring solution</div>
+        <div class="dc-item"><div class="dc-arrow"></div>Interest in becoming a distribution channel for SoussFlow</div>
+        <div class="dc-item"><div class="dc-arrow"></div>Willingness to recommend compatible sensors to clients</div>
+        <div class="dc-item"><div class="dc-arrow"></div>Sensor pricing aligns with our target cost structure</div>
+        <div class="dc-item"><div class="dc-arrow"></div>Potential for joint installation offers for new farms</div>
+        <div class="dc-item"><div class="dc-arrow"></div>100s of existing farm relationships across the region</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout callout-blue">
+    <p><strong>Strategic insight:</strong> SCPC Sapel has direct relationships with hundreds of farms across the Souss-Massa region. A partnership — where they recommend and co-install SoussFlow alongside their hardware — provides a ready-made distribution channel with built-in trust from existing customers.</p>
+  </div>
+
+  <div class="tag-row">
+    <span class="tag tag-o">Distribution Channel</span>
+    <span class="tag tag-g">Hardware Validated</span>
+    <span class="tag tag-b">Partnership Interest Confirmed</span>
+    <span class="tag tag-n">Market Access</span>
+  </div>
+
+  <div class="pfoot">
+    <div class="pfoot-brand"><img src="../landingpage/public/logo.png" alt="">SoussFlow</div>
+    <div class="pfoot-rule"></div>
+    <div>Confidential · Page 4 of 7</div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════
+     PAGE 5 · ADDED VALUE + TECHNOLOGY
+══════════════════════════════════════════════ -->
+<div class="page page-value" style="padding-bottom: 80px;">
+  <div class="page-bar"></div>
+  <div class="page-bg-num">05</div>
+
+  <div class="sh">
+    <div class="sh-eyebrow">Section 05</div>
+    <h2>Our Added Value</h2>
   </div>
 
   <div class="value-grid">
-    <div class="value-item">
-      <h4>Region-Specific AI Models</h4>
-      <p>Our anomaly detection models are trained on Souss-Massa agricultural data, understanding local soil types, olive tree water needs, and seasonal climate patterns.</p>
+    <div class="vg-card">
+      <div class="vg-num vg-n1">01</div>
+      <div>
+        <h4>Region-Specific AI Models</h4>
+        <p>Anomaly detection trained on Souss-Massa data — local soil types, olive water requirements, and seasonal climate patterns that generic solutions miss entirely.</p>
+      </div>
     </div>
-    <div class="value-item">
-      <h4>WhatsApp-First Alerts</h4>
-      <p>Instant anomaly notifications via WhatsApp — the communication channel farmers already use daily — with support for Darija (Moroccan Arabic).</p>
+    <div class="vg-card">
+      <div class="vg-num vg-n2">02</div>
+      <div>
+        <h4>WhatsApp-First Alerts</h4>
+        <p>Instant anomaly notifications via WhatsApp — the channel farmers already use daily — with Darija and French language support for the Moroccan market.</p>
+      </div>
     </div>
-    <div class="value-item">
-      <h4>Affordable & Accessible</h4>
-      <p>Designed for small-to-medium farms with pricing adapted to the Moroccan market. No expensive proprietary hardware required.</p>
+    <div class="vg-card">
+      <div class="vg-num vg-n3">03</div>
+      <div>
+        <h4>Affordable &amp; Accessible</h4>
+        <p>Designed for small-to-medium farms with pricing adapted to the Moroccan market. No expensive proprietary hardware required.</p>
+      </div>
     </div>
-    <div class="value-item">
-      <h4>End-to-End Platform</h4>
-      <p>From IoT sensor data collection to ML-powered anomaly detection, dashboard visualization, and actionable alerts — all in one unified platform.</p>
+    <div class="vg-card">
+      <div class="vg-num vg-n4">04</div>
+      <div>
+        <h4>End-to-End Platform</h4>
+        <p>From IoT sensor data ingestion to ML anomaly detection, dashboard visualisation, and actionable alerts — all in one unified, maintained system.</p>
+      </div>
     </div>
   </div>
 
-  <div class="page-footer">
-    <div class="footer-brand">
-      <img src="../landingpage/public/logo.png" alt="Logo"> SoussFlow
+  <!-- TECHNOLOGY -->
+  <div class="sh" style="margin-top: 32px;">
+    <div class="sh-eyebrow">Section 06</div>
+    <h2>Technology Stack</h2>
+  </div>
+
+  <p>SoussFlow is built on a modern, cloud-native stack designed for reliability, low-latency data processing, and easy extensibility as the platform scales.</p>
+
+  <div class="tech-layer">
+    <div class="tl-head tl-iot">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><rect x="4" y="4" width="16" height="16" rx="2"/><circle cx="12" cy="12" r="3"/></svg>
+      IoT &amp; Sensor Layer
     </div>
-    <div>Confidential — Page 3</div>
+    <div class="tl-body">
+      <span class="pill"><span class="pill-dot" style="background:#15803d"></span>Soil Moisture Sensors</span>
+      <span class="pill"><span class="pill-dot" style="background:#15803d"></span>Flow Meters</span>
+      <span class="pill"><span class="pill-dot" style="background:#15803d"></span>Pressure Transducers</span>
+      <span class="pill"><span class="pill-dot" style="background:#14b8a6"></span>MQTT Protocol</span>
+      <span class="pill"><span class="pill-dot" style="background:#14b8a6"></span>LoRaWAN / WiFi</span>
+    </div>
+  </div>
+
+  <div class="tech-layer">
+    <div class="tl-head tl-backend">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+      Backend &amp; AI Layer
+    </div>
+    <div class="tl-body">
+      <span class="pill"><span class="pill-dot" style="background:#1a56db"></span>Python 3.12</span>
+      <span class="pill"><span class="pill-dot" style="background:#1a56db"></span>FastAPI</span>
+      <span class="pill"><span class="pill-dot" style="background:#1a56db"></span>Supabase (PostgreSQL)</span>
+      <span class="pill"><span class="pill-dot" style="background:#4b5563"></span>OpenAI API</span>
+      <span class="pill"><span class="pill-dot" style="background:#4b5563"></span>JWT Auth</span>
+      <span class="pill"><span class="pill-dot" style="background:#14b8a6"></span>SSE Real-time</span>
+      <span class="pill"><span class="pill-dot" style="background:#15803d"></span>Wassender (WhatsApp)</span>
+    </div>
+  </div>
+
+  <div class="tech-layer">
+    <div class="tl-head tl-front">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/></svg>
+      Frontend &amp; Dashboard
+    </div>
+    <div class="tl-body">
+      <span class="pill"><span class="pill-dot" style="background:#4f46e5"></span>Next.js 16</span>
+      <span class="pill"><span class="pill-dot" style="background:#4f46e5"></span>TypeScript</span>
+      <span class="pill"><span class="pill-dot" style="background:#4f46e5"></span>Redux Toolkit + RTK Query</span>
+      <span class="pill"><span class="pill-dot" style="background:#0ea5e9"></span>Tailwind CSS</span>
+      <span class="pill"><span class="pill-dot" style="background:#0ea5e9"></span>next-intl (AR / FR)</span>
+    </div>
+  </div>
+
+  <div class="tech-layer">
+    <div class="tl-head tl-infra">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
+      Infrastructure &amp; Deployment
+    </div>
+    <div class="tl-body">
+      <span class="pill"><span class="pill-dot" style="background:#374151"></span>Vercel (Frontend)</span>
+      <span class="pill"><span class="pill-dot" style="background:#374151"></span>Supabase Cloud (DB)</span>
+      <span class="pill"><span class="pill-dot" style="background:#374151"></span>GitHub Actions (CI/CD)</span>
+    </div>
+  </div>
+
+  <div class="pfoot">
+    <div class="pfoot-brand"><img src="../landingpage/public/logo.png" alt="">SoussFlow</div>
+    <div class="pfoot-rule"></div>
+    <div>Confidential · Page 5 of 7</div>
   </div>
 </div>
 
-<!-- ════════════════════════ PAGE 4: BUSINESS MODEL ════════════════════════ -->
-<div class="page" style="padding-bottom: 80px;">
-  <div class="page-top-accent"></div>
 
-  <svg class="corner-decor" viewBox="0 0 120 120">
-    <path d="M120,0 L120,120 C60,120 0,60 0,0 Z" fill="#16a34a"/>
-  </svg>
+<!-- ══════════════════════════════════════════════
+     PAGE 6 · BUSINESS MODEL
+══════════════════════════════════════════════ -->
+<div class="page page-business" style="padding-bottom: 80px;">
+  <div class="page-bar"></div>
+  <div class="page-bg-num">06</div>
 
-  <div class="section-header">
-    <div class="section-icon blue">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
-      </svg>
-    </div>
-    <div>
-      <span class="section-number">Section 05</span>
-      <h2>Business Model</h2>
-    </div>
+  <div class="sh">
+    <div class="sh-eyebrow">Section 07</div>
+    <h2>Business Model</h2>
   </div>
 
-  <p>
-    SoussFlow operates on an <strong>installation fee + monthly subscription</strong> model, designed to minimize upfront costs for farmers while ensuring sustainable revenue for continued platform development and support.
+  <p class="lead">
+    SoussFlow operates on an <strong>installation fee + monthly subscription</strong> model — minimising upfront costs for farmers while creating sustainable recurring revenue for platform development and local support.
   </p>
 
-  <h3 class="subsection-title">Revenue Streams</h3>
+  <div class="sub-heading">Revenue Streams</div>
 
-  <table class="pricing-table">
+  <table class="bm-table">
     <thead>
       <tr>
-        <th>Revenue Stream</th>
+        <th style="width:28%">Stream</th>
         <th>Description</th>
-        <th>Pricing</th>
+        <th style="width:22%">Pricing</th>
       </tr>
     </thead>
     <tbody>
       <tr>
         <td><strong>Installation Fee</strong></td>
         <td>On-site sensor deployment, system configuration, platform setup, and farmer onboarding training</td>
-        <td class="price-tag">One-time fee</td>
+        <td><span class="price-chip">One-time fee</span></td>
       </tr>
       <tr>
         <td><strong>Monthly Subscription</strong></td>
-        <td>Platform access, real-time monitoring, anomaly detection, WhatsApp alerts, dashboard, and ongoing support</td>
-        <td class="price-tag">Per farm / month</td>
+        <td>Platform access, real-time monitoring, anomaly detection, WhatsApp alerts, dashboard &amp; support</td>
+        <td><span class="price-chip">Per farm / month</span></td>
       </tr>
       <tr>
         <td><strong>Premium Add-ons</strong></td>
         <td>Advanced predictive analytics, custom reporting, multi-farm management, and API integrations</td>
-        <td class="price-tag">Optional tiers</td>
+        <td><span class="price-chip">Optional tiers</span></td>
       </tr>
     </tbody>
   </table>
 
-  <h3 class="subsection-title">Why This Model Works</h3>
+  <div class="sub-heading">Why This Model Works</div>
 
-  <div class="two-col">
-    <div class="feature-card">
-      <h4><span class="icon-dot green"></span> Low Barrier to Entry</h4>
-      <p>The installation fee covers hardware and setup, while the affordable monthly subscription makes the platform accessible to small and medium farms.</p>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-icon ci-green"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#15803d" stroke-width="2" stroke-linecap="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div>
+      <h4>Low Barrier to Entry</h4>
+      <p>The installation fee covers hardware and setup. The affordable monthly subscription makes the platform accessible to small and medium farms.</p>
     </div>
-    <div class="feature-card">
-      <h4><span class="icon-dot blue"></span> Recurring Revenue</h4>
-      <p>Monthly subscriptions create predictable, sustainable revenue that funds continuous improvement of the anomaly detection models and platform features.</p>
+    <div class="card">
+      <div class="card-icon ci-blue"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1a56db" stroke-width="2" stroke-linecap="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg></div>
+      <h4>Recurring Revenue</h4>
+      <p>Monthly subscriptions create predictable, sustainable revenue that funds continuous improvement of the anomaly detection models.</p>
     </div>
-    <div class="feature-card">
-      <h4><span class="icon-dot green"></span> Scalable Growth</h4>
-      <p>Each new farm installation has a marginal cost decrease, while the subscription model scales linearly with the customer base.</p>
+    <div class="card">
+      <div class="card-icon ci-green"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#15803d" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg></div>
+      <h4>Scalable Growth</h4>
+      <p>Each new farm installation has a lower marginal cost. The subscription model scales linearly with the growing customer base.</p>
     </div>
-    <div class="feature-card">
-      <h4><span class="icon-dot blue"></span> Value-Aligned Pricing</h4>
-      <p>Farmers pay as they benefit. The water savings and early anomaly detection typically offset the subscription cost within the first months of usage.</p>
+    <div class="card">
+      <div class="card-icon ci-blue"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1a56db" stroke-width="2" stroke-linecap="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></div>
+      <h4>Value-Aligned Pricing</h4>
+      <p>Water savings and early anomaly detection typically offset the subscription cost within the first months of active use.</p>
     </div>
   </div>
 
-  <h3 class="subsection-title">Go-to-Market Strategy</h3>
+  <div class="sub-heading">Distribution Channels</div>
 
-  <div class="highlight-box">
-    <p style="margin-bottom: 8px;"><strong>Phase 1 — Pilot (2026):</strong> Deploy on 3–5 partner farms in Taroudant and Chtouka Ait Baha provinces. Validate anomaly detection accuracy and gather real-world performance data.</p>
-    <p style="margin-bottom: 8px;"><strong>Phase 2 — Regional Launch:</strong> Expand across Souss-Massa with partnerships with irrigation equipment wholesalers for bundled distribution.</p>
-    <p style="margin-bottom: 0;"><strong>Phase 3 — National Scale:</strong> Extend to other high-value crops (citrus, avocado) and regions across Morocco.</p>
-  </div>
-
-  <!-- Bottom decorative element -->
-  <div style="text-align: center; margin-top: 40px;">
-    <svg width="300" height="60" viewBox="0 0 300 60">
-      <defs>
-        <linearGradient id="footerGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" style="stop-color:#16a34a;stop-opacity:0.15"/>
-          <stop offset="50%" style="stop-color:#2563eb;stop-opacity:0.15"/>
-          <stop offset="100%" style="stop-color:#16a34a;stop-opacity:0.15"/>
-        </linearGradient>
-      </defs>
-      <rect x="0" y="25" width="300" height="2" rx="1" fill="url(#footerGrad)"/>
-      <circle cx="150" cy="26" r="16" fill="#fff" stroke="#e2e8f0" stroke-width="1"/>
-      <text x="150" y="30" text-anchor="middle" font-family="Inter" font-size="10" font-weight="600" fill="#16a34a">SF</text>
-    </svg>
-    <p style="font-size: 9pt; color: var(--gray-400); margin-top: 8px;">
-      SoussFlow — Empowering Moroccan Agriculture Through Intelligent Technology
-    </p>
-  </div>
-
-  <div class="page-footer">
-    <div class="footer-brand">
-      <img src="../landingpage/public/logo.png" alt="Logo"> SoussFlow
+  <div class="grid-3">
+    <div class="card" style="text-align:center;">
+      <div class="card-icon ci-green" style="margin:0 auto 10px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#15803d" stroke-width="2" stroke-linecap="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+      </div>
+      <h4>SCPC Sapel &amp; Wholesalers</h4>
+      <p>Bundled hardware + software via existing irrigation equipment distributors.</p>
     </div>
-    <div>Confidential — Page 4</div>
+    <div class="card" style="text-align:center;">
+      <div class="card-icon ci-blue" style="margin:0 auto 10px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1a56db" stroke-width="2" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+      </div>
+      <h4>Direct to Farm</h4>
+      <p>Direct sales &amp; installation targeting farms in Taroudant and Chtouka Ait Baha.</p>
+    </div>
+    <div class="card" style="text-align:center;">
+      <div class="card-icon ci-green" style="margin:0 auto 10px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#15803d" stroke-width="2" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      </div>
+      <h4>Agricultural Cooperatives</h4>
+      <p>Group deployment across member farms via regional cooperative partnerships.</p>
+    </div>
+  </div>
+
+  <div class="pfoot">
+    <div class="pfoot-brand"><img src="../landingpage/public/logo.png" alt="">SoussFlow</div>
+    <div class="pfoot-rule"></div>
+    <div>Confidential · Page 6 of 7</div>
   </div>
 </div>
+
+
+<!-- ══════════════════════════════════════════════
+     PAGE 7 · ROADMAP & NEXT STEPS
+══════════════════════════════════════════════ -->
+<div class="page page-roadmap" style="padding-bottom: 80px;">
+  <div class="page-bar"></div>
+  <div class="page-bg-num">07</div>
+
+  <div class="sh">
+    <div class="sh-eyebrow">Section 08</div>
+    <h2>Roadmap &amp; Next Steps</h2>
+  </div>
+
+  <p class="lead">
+    SoussFlow's go-to-market strategy is structured in three phases — from a controlled pilot to a full regional rollout and national expansion across Morocco.
+  </p>
+
+  <div class="timeline">
+    <div class="tl-item">
+      <div class="tl-dot tld-green">1</div>
+      <div class="tl-content">
+        <div class="tl-phase tph-green">Phase 1 — Pilot Deployment</div>
+        <h4>First Farms Go Live</h4>
+        <p>Deploy SoussFlow on 3–5 partner farms in Taroudant and Chtouka Ait Baha. Validate anomaly detection accuracy, calibrate ML models to local soil and climate conditions, and collect real-world performance data. Finalise the SCPC Sapel distribution agreement.</p>
+        <span class="tl-date td-green">Q2 – Q3 2026</span>
+      </div>
+    </div>
+
+    <div class="tl-item">
+      <div class="tl-dot tld-blue">2</div>
+      <div class="tl-content">
+        <div class="tl-phase tph-blue">Phase 2 — Regional Launch</div>
+        <h4>Souss-Massa Rollout</h4>
+        <p>Scale across the Souss-Massa region via wholesaler partnerships. Target 30–50 farms in the first full year of commercial operation. Launch the Arabic-language dashboard and Darija WhatsApp onboarding flow. Onboard first agricultural cooperatives.</p>
+        <span class="tl-date td-blue">Q4 2026 – Q2 2027</span>
+      </div>
+    </div>
+
+    <div class="tl-item">
+      <div class="tl-dot tld-navy">3</div>
+      <div class="tl-content">
+        <div class="tl-phase tph-navy">Phase 3 — National Scale</div>
+        <h4>Morocco-Wide Expansion</h4>
+        <p>Extend to citrus, avocado, and tomato crops and new regions — Gharb, Haouz, Tadla. Develop a marketplace for certified third-party IoT hardware. Explore expansion to Tunisia and Senegal where similar agricultural contexts exist.</p>
+        <span class="tl-date td-navy">2027 and beyond</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="sub-heading">Immediate Action Items</div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-icon ci-green"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#15803d" stroke-width="2" stroke-linecap="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div>
+      <h4>Pilot Farm Selection</h4>
+      <p>Identify and contract 3–5 farms for the initial deployment. Prioritise farms with existing drip infrastructure and internet connectivity.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon ci-green"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#15803d" stroke-width="2" stroke-linecap="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><polyline points="16 11 18 13 22 9"/><circle cx="8.5" cy="7" r="4"/></svg></div>
+      <h4>SCPC Sapel Partnership</h4>
+      <p>Formalise the distribution agreement: define bundling terms, commission structure, and joint installation workflow for new clients.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon ci-blue"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1a56db" stroke-width="2" stroke-linecap="round"><rect x="4" y="4" width="16" height="16" rx="2"/><circle cx="12" cy="12" r="3"/></svg></div>
+      <h4>Hardware Procurement</h4>
+      <p>Source and bench-test soil probes, flow meters, and pressure sensors identified during the SCPC Sapel visit for IoT compatibility.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon ci-blue"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1a56db" stroke-width="2" stroke-linecap="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div>
+      <h4>Model Training Data</h4>
+      <p>Begin collecting labelled historical irrigation data from partner farms to train and fine-tune the anomaly detection models on local patterns.</p>
+    </div>
+  </div>
+
+  <div class="closing-block">
+    <div class="closing-block-title">Empowering Moroccan Agriculture<br>Through <em>Intelligent Technology</em></div>
+    <p>SoussFlow &nbsp;·&nbsp; soussflow.com &nbsp;·&nbsp; contact@soussflow.com</p>
+  </div>
+
+  <div class="pfoot">
+    <div class="pfoot-brand"><img src="../landingpage/public/logo.png" alt="">SoussFlow</div>
+    <div class="pfoot-rule"></div>
+    <div>Confidential · Page 7 of 7</div>
+  </div>
+</div>
+
 
 </body>
 </html>

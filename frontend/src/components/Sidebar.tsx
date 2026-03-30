@@ -126,7 +126,7 @@ export default function Sidebar({ activePage, setActivePage }: { activePage: str
                     {renderSectionHeader(t("section_monitoring"))}
                     {renderMenuButton("alerts", Bell, t("nav_alerts"), 2)}
                     {renderMenuButton("reports", FileText, t("nav_reports"))}
-                    {renderMenuButton("system_health", Heart, t("nav_system_health"))}
+                    {/* {renderMenuButton("system_health", Heart, t("nav_system_health"))} */}
 
                     {renderSectionHeader(t("section_system"))}
                     {renderMenuButton("ai_assistant", Sparkles, t("nav_ai_assistant"))}

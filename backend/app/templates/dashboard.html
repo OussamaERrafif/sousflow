@@ -709,22 +709,57 @@
                                 <div class="col-md-6">
                                     <label class="form-label">Anomaly Type</label>
                                     <select class="form-select" id="alertAnomalyType">
-                                        <option value="low_soil_moisture">🌱 Low Soil Moisture</option>
-                                        <option value="irrigation_failure">💧 Irrigation Failure</option>
-                                        <option value="sensor_error">📡 Sensor Error</option>
+                                        <optgroup label="🌱 Agronomic">
+                                            <option value="low_soil_moisture">Low Soil Moisture</option>
+                                            <option value="high_soil_moisture">High Soil Moisture</option>
+                                            <option value="irrigation_failure">Irrigation Failure</option>
+                                            <option value="soil_moisture_drift">Soil Moisture Drift</option>
+                                        </optgroup>
+                                        <optgroup label="💧 Hydraulic">
+                                            <option value="LEAK_BRANCH">Leak — Branch</option>
+                                            <option value="PIPE_BURST">Pipe Burst</option>
+                                            <option value="FILTER_CLOG_EARLY">Filter Clog (Early)</option>
+                                            <option value="FILTER_CLOG_SEVERE">Filter Clog (Severe)</option>
+                                            <option value="VALVE_STUCK_OPEN">Valve Stuck Open</option>
+                                            <option value="VALVE_STUCK_CLOSED">Valve Stuck Closed</option>
+                                            <option value="PRESSURE_ANOMALY_LOW">Pressure Low</option>
+                                            <option value="PRESSURE_ANOMALY_HIGH">Pressure High</option>
+                                            <option value="DRIPPER_CLOG_PARTIAL">Dripper Clog (Partial)</option>
+                                            <option value="DRIPPER_CLOG_SEVERE">Dripper Clog (Severe)</option>
+                                        </optgroup>
+                                        <optgroup label="⚙️ Equipment">
+                                            <option value="PUMP_DEGRADATION">Pump Degradation</option>
+                                            <option value="PUMP_FAILURE_IMMINENT">Pump Failure Imminent</option>
+                                            <option value="RESERVOIR_CRITICAL">Reservoir Critical</option>
+                                            <option value="RESERVOIR_LEAK">Reservoir Leak</option>
+                                        </optgroup>
+                                        <optgroup label="📡 Statistical / Sensor">
+                                            <option value="sensor_error">Sensor Error</option>
+                                            <option value="stuck_sensor">Stuck Sensor</option>
+                                            <option value="z_score">Z-Score Spike</option>
+                                            <option value="sudden_change">Sudden Change</option>
+                                            <option value="drift">Drift</option>
+                                            <option value="correlation">Correlation Anomaly</option>
+                                        </optgroup>
                                     </select>
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label">Severity</label>
                                     <select class="form-select" id="alertSeverity">
-                                        <option value="low">⚠️ Low</option>
-                                        <option value="medium" selected>⚠️ Medium</option>
+                                        <option value="low">🟡 Low</option>
+                                        <option value="medium" selected>🟠 Medium</option>
+                                        <option value="high">🔴 High</option>
                                         <option value="critical">🚨 Critical</option>
                                     </select>
                                 </div>
                                 <div class="col-12">
                                     <button class="btn btn-danger w-100" onclick="injectFarmAnomaly()" id="injectAnomalyBtn" style="border-radius: 10px;">
                                         <i class="bi bi-exclamation-triangle me-2"></i>Inject Anomaly & Send Alerts
+                                    </button>
+                                </div>
+                                <div class="col-12">
+                                    <button class="btn btn-outline-secondary w-100" onclick="clearAllAnomalies()" id="clearAnomaliesBtn" style="border-radius: 10px;">
+                                        <i class="bi bi-trash me-2"></i>Clear All Alerts & Anomalies
                                     </button>
                                 </div>
                             </div>
@@ -1804,6 +1839,37 @@
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = '<i class="bi bi-exclamation-triangle me-2"></i>Inject Anomaly & Send Alerts';
+            }
+        }
+
+        async function clearAllAnomalies() {
+            const farmId = getSelectedFarmId();
+            if (!farmId) {
+                showToast('Please select a farm in the top bar first', 'error');
+                return;
+            }
+            if (!confirm('Clear ALL anomaly events for this farm? This cannot be undone.')) return;
+
+            const btn = document.getElementById('clearAnomaliesBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Clearing...';
+
+            try {
+                const res = await apiFetch('/api/anomalies/clear', { method: 'DELETE' });
+                if (!res) return;
+                if (!res.ok) {
+                    const err = await res.json();
+                    throw new Error(err.detail || 'Clear failed');
+                }
+                const data = await res.json();
+                alertLog(`Cleared ${data.deleted} anomaly event(s) for this farm.`, 'success');
+                showToast(`${data.deleted} anomaly event(s) cleared`, 'success');
+            } catch(err) {
+                alertLog('Error: ' + err.message, 'error');
+                showToast(err.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-trash me-2"></i>Clear All Alerts & Anomalies';
             }
         }
 
