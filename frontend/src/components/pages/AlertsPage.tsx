@@ -57,6 +57,7 @@ export default function AlertsPage() {
     const [anomalyLoading, setAnomalyLoading] = useState(false);
     const [ackLoading, setAckLoading] = useState(false);
     const [ackNotes, setAckNotes] = useState("");
+    const [clearLoading, setClearLoading] = useState(false);
 
     const fetchAnomalyDashboard = async () => {
         setAnomalyLoading(true);
@@ -95,6 +96,25 @@ export default function AlertsPage() {
             console.error("Acknowledge error:", e);
         } finally {
             setAckLoading(false);
+        }
+    };
+
+    const handleClearAll = async () => {
+        if (!window.confirm("Delete all anomalies for this farm? This cannot be undone.")) return;
+        setClearLoading(true);
+        try {
+            const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+            const farmId = typeof window !== "undefined" ? localStorage.getItem("activeFarmId") : null;
+            const headers: Record<string, string> = {};
+            if (token) headers["Authorization"] = `Bearer ${token}`;
+            if (farmId) headers["X-Farm-ID"] = farmId;
+            await fetch(`${getApiBaseUrl()}/api/anomalies/clear`, { method: "DELETE", headers });
+            setAnomalyDashboard(null);
+            fetchAnomalyDashboard();
+        } catch (e) {
+            console.error("Clear anomalies error:", e);
+        } finally {
+            setClearLoading(false);
         }
     };
 
@@ -255,6 +275,16 @@ export default function AlertsPage() {
                         >
                             <Plus className="w-5 h-5" />
                             Create Rule
+                        </button>
+                    )}
+                    {activeTab === "anomalies" && anomalyDashboard && (
+                        <button
+                            onClick={handleClearAll}
+                            disabled={clearLoading}
+                            className="flex items-center gap-2 bg-destructive/10 text-destructive hover:bg-destructive/20 border border-destructive/20 px-4 py-2.5 rounded-xl font-semibold transition-colors disabled:opacity-50"
+                        >
+                            <Trash2 className="w-4 h-4" />
+                            {clearLoading ? "Clearing..." : "Clear All"}
                         </button>
                     )}
                 </div>

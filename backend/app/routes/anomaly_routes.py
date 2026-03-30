@@ -114,6 +114,16 @@ async def report_false_positive(request: FalsePositiveRequest, user=Depends(get_
     return {"flagged": True, "anomaly_id": request.anomaly_id}
 
 
+@router.delete("/clear")
+async def clear_anomalies(user=Depends(get_current_user)):
+    """Permanently delete all anomaly events for the active farm."""
+    farm_id = _extract_farm_id(user)
+    if not farm_id:
+        raise HTTPException(400, "No active farm")
+    deleted = await anomaly_service.clear_all_anomalies(farm_id)
+    return {"deleted": deleted}
+
+
 @router.post("/inject")
 async def inject_anomaly(
     request: AnomalyInjectRequest,

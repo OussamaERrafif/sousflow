@@ -1053,6 +1053,13 @@ async def mark_false_positive(farm_id: str, anomaly_id: str) -> bool:
     return bool(result.data)
 
 
+async def clear_all_anomalies(farm_id: str) -> int:
+    """Permanently delete all anomaly events for a farm. Returns the count deleted."""
+    supabase = get_supabase_admin()
+    result = supabase.table("anomaly_events").delete().eq("farm_id", farm_id).execute()
+    return len(result.data) if result.data else 0
+
+
 async def list_anomalies(
     farm_id: str,
     anomaly_type=None,
