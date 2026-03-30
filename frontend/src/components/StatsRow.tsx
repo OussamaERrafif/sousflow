@@ -39,7 +39,7 @@ export default function StatsRow() {
     if (!hasLiveData && error) {
         return (
             <div className="mb-8 p-4 bg-destructive/10 border border-destructive/20 rounded-xl">
-                <p className="text-destructive font-medium">Failed to load dashboard data. Please login or check your connection.</p>
+                <p className="text-destructive font-medium">{t("load_error")}</p>
             </div>
         );
     }
@@ -82,7 +82,7 @@ export default function StatsRow() {
             value: `${totalZones}`,
             label: t("active_zones"),
             trend: getTrend(totalZones, 'zones'),
-            trendLabel: "vs yesterday",
+            trendLabel: t("vs_yesterday"),
             iconBg: "bg-primary/10",
             iconColor: "text-primary",
         },
@@ -91,7 +91,7 @@ export default function StatsRow() {
             value: `${reservoirLevel.toFixed(0)}%`,
             label: t("water_saved"),
             trend: getTrend(reservoirLevel, 'reservoir'),
-            trendLabel: "vs yesterday",
+            trendLabel: t("vs_yesterday"),
             iconBg: "bg-blue-500/10",
             iconColor: "text-blue-500",
         },
@@ -100,7 +100,7 @@ export default function StatsRow() {
             value: `${healthScore}%`,
             label: t("solar_energy"),
             trend: getTrend(healthScore, 'health'),
-            trendLabel: "vs yesterday",
+            trendLabel: t("vs_yesterday"),
             iconBg: "bg-emerald-500/10",
             iconColor: "text-emerald-500",
         },
@@ -109,7 +109,7 @@ export default function StatsRow() {
             value: `${avgTemp.toFixed(1)}°C`,
             label: t("soil_temp"),
             trend: getTrend(avgTemp, 'temp'),
-            trendLabel: "vs yesterday",
+            trendLabel: t("vs_yesterday"),
             iconBg: "bg-amber-500/10",
             iconColor: "text-amber-500",
         },
@@ -124,11 +124,11 @@ export default function StatsRow() {
                 <div className="flex items-center gap-3">
                     <span className="text-sm font-medium text-emerald-500 bg-emerald-500/10 px-4 py-1.5 rounded-full border border-emerald-500/20 flex items-center gap-2">
                         <span className={`w-2 h-2 rounded-full ${connected ? "bg-emerald-500 animate-pulse" : "bg-muted-foreground"}`}></span>
-                        {connected ? tg("system_normal") : "Connecting..."}
+                        {connected ? tg("system_normal") : t("connecting")}
                     </span>
                     {lastUpdateTime && (
                         <span className="text-xs text-muted-foreground hidden sm:inline-block">
-                            Last update: {lastUpdateTime}
+                            {t("last_update")}: {lastUpdateTime}
                         </span>
                     )}
                 </div>
@@ -139,11 +139,11 @@ export default function StatsRow() {
                 {STATS.map((stat, i) => (
                     <div 
                         key={i} 
-                        className="group p-5 rounded-2xl border border-border bg-card shadow-sm hover:shadow-xl hover:shadow-black/5 hover:-translate-y-1 transition-all duration-300 cursor-pointer"
+                        className="group p-6 rounded-[2rem] border-2 border-border/50 bg-card shadow-sm hover:shadow-xl hover:shadow-black/5 hover:-translate-y-1 transition-all duration-300 cursor-pointer"
                     >
-                        <div className="flex items-start justify-between mb-4">
-                            <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${stat.iconBg} border border-border`}>
-                                <stat.icon className={`w-5 h-5 ${stat.iconColor}`} />
+                        <div className="flex items-start justify-between mb-5">
+                            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${stat.iconBg} border-2 border-white/50 dark:border-black/50 shadow-inner`}>
+                                <stat.icon className={`w-7 h-7 ${stat.iconColor}`} strokeWidth={2.5} />
                             </div>
                             {stat.trend && (
                                 <div className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold ${
@@ -156,10 +156,10 @@ export default function StatsRow() {
                             )}
                         </div>
                         <div>
-                            <h3 className="text-2xl md:text-3xl font-bold text-foreground mb-1 tracking-tight" dir="ltr">
+                            <h3 className="text-3xl md:text-4xl font-black text-foreground mb-1.5 tracking-tight" dir="ltr">
                                 {stat.value}
                             </h3>
-                            <p className="text-sm font-medium text-muted-foreground">{stat.label}</p>
+                            <p className="text-base font-bold text-muted-foreground">{stat.label}</p>
                             {stat.trend && (
                                 <p className="text-[10px] text-muted-foreground/60 mt-1">{stat.trendLabel}</p>
                             )}

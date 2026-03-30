@@ -42,9 +42,11 @@ export default function Footer() {
                     <button 
                         onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                         className="flex items-center gap-2 text-white font-medium"
+                        aria-label={mobileMenuOpen ? "Fermer le menu du pied de page" : "Ouvrir le menu du pied de page"}
+                        aria-expanded={mobileMenuOpen}
                     >
-                        {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-                        <span>{tNav('product')} & More</span>
+                        {mobileMenuOpen ? <X size={24} aria-hidden="true" /> : <Menu size={24} aria-hidden="true" />}
+                        <span>{tNav('product')} & Suite</span>
                     </button>
                 </div>
 
@@ -91,17 +93,17 @@ export default function Footer() {
                             {t('tagline')}
                         </p>
                         <div className="flex gap-4">
-                            <a href="#" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center hover:bg-copper-500 hover:text-white transition-colors duration-300">
-                                <Twitter size={18} />
+                            <a href="#" aria-label="Follow us on Twitter" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center hover:bg-copper-500 hover:text-white transition-colors duration-300">
+                                <Twitter size={18} aria-hidden="true" />
                             </a>
-                            <a href="#" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center hover:bg-copper-500 hover:text-white transition-colors duration-300">
-                                <Linkedin size={18} />
+                            <a href="#" aria-label="Follow us on LinkedIn" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center hover:bg-copper-500 hover:text-white transition-colors duration-300">
+                                <Linkedin size={18} aria-hidden="true" />
                             </a>
-                            <a href="#" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center hover:bg-copper-500 hover:text-white transition-colors duration-300">
-                                <Facebook size={18} />
+                            <a href="#" aria-label="Follow us on Facebook" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center hover:bg-copper-500 hover:text-white transition-colors duration-300">
+                                <Facebook size={18} aria-hidden="true" />
                             </a>
-                            <a href="#" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center hover:bg-copper-500 hover:text-white transition-colors duration-300">
-                                <Instagram size={18} />
+                            <a href="#" aria-label="Follow us on Instagram" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center hover:bg-copper-500 hover:text-white transition-colors duration-300">
+                                <Instagram size={18} aria-hidden="true" />
                             </a>
                         </div>
                     </div>

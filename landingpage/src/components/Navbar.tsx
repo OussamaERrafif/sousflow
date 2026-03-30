@@ -35,16 +35,19 @@ export default function Navbar() {
                 </div>
 
                 <div className="hidden md:flex flex-1 items-center justify-center gap-8 text-sm font-medium text-foreground/80">
-                    <a href="#" className="hover:text-copper-600 transition-colors">{t('home')}</a>
-                    <a href="#product" className="hover:text-copper-600 transition-colors">{t('product')}</a>
-                    <a href="#how-it-works" className="hover:text-copper-600 transition-colors">{t('howItWorks')}</a>
-                    <a href="#pricing" className="hover:text-copper-600 transition-colors">{t('pricing')}</a>
-                    <a href="#case-studies" className="hover:text-copper-600 transition-colors">{t('caseStudies')}</a>
-                    <a href="#about" className="hover:text-copper-600 transition-colors">{t('about')}</a>
+                    <a href="#" className="hover:text-copper-600 transition-colors uppercase tracking-tight">{t('home')}</a>
+                    <a href="#product" className="hover:text-copper-600 transition-colors uppercase tracking-tight">{t('product')}</a>
+                    <a href="#how-it-works" className="hover:text-copper-600 transition-colors uppercase tracking-tight">{t('howItWorks')}</a>
+                    <a href="#pricing" className="hover:text-copper-600 transition-colors uppercase tracking-tight">{t('pricing')}</a>
+                    <a href="#case-studies" className="hover:text-copper-600 transition-colors uppercase tracking-tight">{t('caseStudies')}</a>
+                    <a href="#about" className="hover:text-copper-600 transition-colors uppercase tracking-tight">{t('about')}</a>
                 </div>
 
                 <div className="hidden md:flex items-center">
-                    <a href="https://sousflowfrontend.vercel.app/ar" className="bg-copper-600 hover:bg-copper-700 text-white px-6 py-2.5 rounded-full font-medium transition-all shadow-lg shadow-copper-500/25 hover:shadow-copper-500/40 hover:-translate-y-0.5">
+                    <a 
+                        href="https://sousflowfrontend.vercel.app/ar" 
+                        className="bg-copper-600 hover:bg-copper-700 text-white px-6 py-2.5 rounded-full font-medium transition-all shadow-lg shadow-copper-500/25 hover:shadow-copper-500/40 hover:-translate-y-0.5"
+                    >
                         {t('getStarted')}
                     </a>
                 </div>
@@ -52,6 +55,9 @@ export default function Navbar() {
                 <button
                     className="md:hidden p-2 text-foreground"
                     onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                    aria-label={mobileMenuOpen ? "Fermer le menu" : "Ouvrir le menu"}
+                    aria-expanded={mobileMenuOpen}
+                    role="button"
                 >
                     {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
                 </button>

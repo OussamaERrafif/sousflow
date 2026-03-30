@@ -1,15 +1,29 @@
 import type { Metadata } from "next";
+import { Tajawal, Inter } from "next/font/google";
 import { NextIntlClientProvider } from 'next-intl';
 import { getMessages } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { routing } from '@/i18n/routing';
 import { ThemeProvider } from '@/components/ThemeProvider';
-import { HtmlLangSetter } from '@/components/HtmlLangSetter';
+import { ReduxProvider } from "@/lib/store/ReduxProvider";
 import "./globals.css";
 
+const tajawal = Tajawal({
+  subsets: ["arabic", "latin"],
+  weight: ["400", "500", "700", "800", "900"],
+  variable: "--font-tajawal",
+  display: "swap",
+});
+
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+  display: "swap",
+});
+
 export const metadata: Metadata = {
-  title: "SousFlow - Smart Irrigation",
-  description: "Smart Irrigation Dashboard",
+  title: "SoussFlow - Smart Irrigation Dashboard",
+  description: "Optimized irrigation monitoring and crop yield prediction for Morocco.",
 };
 
 export default async function LocaleLayout({
@@ -28,11 +42,23 @@ export default async function LocaleLayout({
   const messages = await getMessages();
 
   return (
-    <NextIntlClientProvider messages={messages}>
-      <HtmlLangSetter locale={locale} />
-      <ThemeProvider>
-        {children}
-      </ThemeProvider>
-    </NextIntlClientProvider>
+    <html
+      lang={locale}
+      dir={locale === 'ar' ? 'rtl' : 'ltr'}
+      suppressHydrationWarning
+      className={`${tajawal.variable} ${inter.variable}`}
+    >
+      <body className={`antialiased bg-background text-foreground selection:bg-primary/10 ${locale === 'ar' ? 'font-tajawal' : 'font-sans'}`}>
+        <ReduxProvider>
+          <NextIntlClientProvider messages={messages} locale={locale}>
+            <ThemeProvider>
+              <div className="min-h-screen">
+                {children}
+              </div>
+            </ThemeProvider>
+          </NextIntlClientProvider>
+        </ReduxProvider>
+      </body>
+    </html>
   );
 }

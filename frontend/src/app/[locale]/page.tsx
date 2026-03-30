@@ -136,8 +136,8 @@ export default function Dashboard() {
   return (
     <div className="flex w-full min-h-screen bg-[#F5F0E8] dark:bg-zinc-900">
       <Sidebar activePage={activePage} setActivePage={setActivePage} />
-      <main className="flex-1 mb-16 md:mb-0 p-4 md:p-8 overflow-x-hidden md:ltr:ml-64 md:rtl:mr-64">
-        <div className="max-w-7xl mx-auto">
+      <main className="flex-1 mb-16 md:mb-0 p-4 md:p-8 overflow-x-hidden md:ltr:ml-64 md:rtl:mr-64 text-base md:text-lg">
+        <div className="max-w-7xl mx-auto space-y-6">
           {renderPage()}
         </div>
       </main>

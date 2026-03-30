@@ -1,24 +1,29 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Tajawal, Inter } from "next/font/google";
 import "../globals.css";
 import { NextIntlClientProvider } from 'next-intl';
 import { getMessages } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { routing } from '@/i18n/routing';
 
-const geistSans = Geist({
-    variable: "--font-geist-sans",
-    subsets: ["latin"],
+// Arabic & Latin bilingual — renders Arabic correctly without fallback serif
+const tajawal = Tajawal({
+    variable: "--font-tajawal",
+    subsets: ["arabic", "latin"],
+    weight: ["300", "400", "500", "700", "800"],
+    display: "swap",
 });
 
-const geistMono = Geist_Mono({
-    variable: "--font-geist-mono",
+// Latin — used for French & English locales
+const inter = Inter({
+    variable: "--font-inter",
     subsets: ["latin"],
+    display: "swap",
 });
 
 export const metadata: Metadata = {
-    title: "sousflow",
-    description: "Predict crop yield and reduce irrigation waste with AI.",
+    title: "SoussFlow — Prédiction de rendement et gestion intelligente de l'eau",
+    description: "SoussFlow uses AI and IoT sensors to help Moroccan farmers predict crop yield and reduce irrigation waste.",
 };
 
 export default async function RootLayout({
@@ -35,12 +40,13 @@ export default async function RootLayout({
     }
 
     const messages = await getMessages();
+    const isArabic = locale === "ar";
+    const fontVariable = isArabic ? tajawal.variable : inter.variable;
+    const fontClass = isArabic ? "font-tajawal" : "font-inter";
 
     return (
-        <html lang={locale} dir={locale === 'ar' ? 'rtl' : 'ltr'}>
-            <body
-                className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-            >
+        <html lang={locale} dir={isArabic ? "rtl" : "ltr"}>
+            <body className={`${fontVariable} ${fontClass} antialiased`}>
                 <NextIntlClientProvider messages={messages}>
                     {children}
                 </NextIntlClientProvider>

@@ -48,20 +48,20 @@ export default function HistoricalData() {
         <div className="mb-10">
             <div className="flex items-center justify-between mb-5">
                 <div>
-                    <h2 className="text-2xl font-black text-zinc-800 dark:text-zinc-100 tracking-tight">{td("moisture_history")}</h2>
+                    <h2 className="text-2xl md:text-3xl font-black text-zinc-800 dark:text-zinc-100 tracking-tight">{td("moisture_history")}</h2>
                 </div>
                 {connected && (
-                    <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-3 py-1 rounded-full border border-emerald-200 dark:border-emerald-800 flex items-center gap-1.5">
-                        <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
+                    <span className="text-sm font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-4 py-1.5 rounded-full border border-emerald-200 dark:border-emerald-800 flex items-center gap-2">
+                        <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
                         Live data
                     </span>
                 )}
             </div>
 
-            <div className="bg-white dark:bg-zinc-800 rounded-2xl border border-zinc-200 dark:border-zinc-700 shadow-sm p-6 overflow-hidden">
-                <div className="flex items-center gap-2 mb-6">
-                    <BarChart3 className="w-5 h-5 text-zinc-400" />
-                    <span className="text-sm font-bold text-zinc-600 dark:text-zinc-400">Average soil moisture (%) — last 24h</span>
+            <div className="bg-white dark:bg-zinc-800 rounded-[2rem] border-2 border-zinc-200 dark:border-zinc-700 shadow-sm p-6 md:p-8 overflow-hidden">
+                <div className="flex items-center gap-3 mb-8">
+                    <BarChart3 className="w-6 h-6 text-zinc-400" strokeWidth={2.5} />
+                    <span className="text-base font-bold text-zinc-600 dark:text-zinc-400">Average soil moisture (%) — last 24h</span>
                 </div>
 
                 {isLoading ? (
@@ -78,7 +78,7 @@ export default function HistoricalData() {
                                         style={{ height: hasBar ? `${pct}%` : "4px" }}
                                     >
                                         {hasBar && (
-                                            <div className="opacity-0 group-hover:opacity-100 absolute -top-8 left-1/2 -translate-x-1/2 bg-zinc-800 text-white text-[10px] font-bold px-2 py-1 rounded-md whitespace-nowrap z-10 transition-opacity pointer-events-none">
+                                            <div className="opacity-0 group-hover:opacity-100 absolute -top-10 left-1/2 -translate-x-1/2 bg-zinc-800 text-white text-xs md:text-sm font-bold px-3 py-1.5 rounded-lg whitespace-nowrap z-10 transition-opacity pointer-events-none shadow-md">
                                                 {d.value}%
                                             </div>
                                         )}
@@ -91,11 +91,11 @@ export default function HistoricalData() {
 
                 {!isLoading && !hasData && (
                     <div className="h-48 flex items-center justify-center -mt-48 relative z-10">
-                        <p className="text-zinc-400 dark:text-zinc-500 font-bold text-sm">No historical data yet. The chart will populate as readings come in.</p>
+                        <p className="text-zinc-400 dark:text-zinc-500 font-bold text-base bg-white/80 dark:bg-zinc-800/80 px-4 py-2 rounded-xl backdrop-blur-sm">No historical data yet. The chart will populate as readings come in.</p>
                     </div>
                 )}
 
-                <div className="flex justify-between mt-4 text-[10px] font-bold text-zinc-400 dark:text-zinc-500 border-t border-zinc-100 dark:border-zinc-700 pt-3 px-1 tracking-wider" dir="ltr">
+                <div className="flex justify-between mt-6 text-xs md:text-sm font-bold text-zinc-400 dark:text-zinc-500 border-t-2 border-zinc-100 dark:border-zinc-700 pt-4 px-2 tracking-wider" dir="ltr">
                     {["00:00", "06:00", "12:00", "18:00", "23:59"].map((label) => (
                         <span key={label}>{label}</span>
                     ))}

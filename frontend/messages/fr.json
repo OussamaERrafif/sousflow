@@ -14,7 +14,15 @@
         "nav_settings": "Paramètres",
         "nav_map": "Carte",
         "nav_iot_devices": "Appareils IoT",
-        "nav_system_health": "Santé Système"
+        "nav_system_health": "Santé Système",
+        "section_operations": "Opérations",
+        "section_monitoring": "Surveillance",
+        "section_system": "Système",
+        "more": "Plus",
+        "close": "Fermer",
+        "not_logged_in": "Non connecté",
+        "logout": "Déconnexion",
+        "login": "Connexion"
     },
     "SystemHealth": {
         "title": "Santé du Système",
@@ -51,7 +59,11 @@
         "critical_desc": "Chute de pression brutale. Veuillez intervenir immédiatement.",
         "repair_now": "Réparer",
         "open_sector": "Ouvrir",
-        "view_details": "Détails"
+        "view_details": "Détails",
+        "live_anomaly_title": "{count} secteur(s) avec anomalie capteur",
+        "live_anomaly_desc": "Secteurs: {zones}",
+        "live_dry_title": "{count} secteur(s) très sec(s)",
+        "live_irrigating_desc": "{count} secteur(s) en cours d'irrigation"
     },
     "StatsRow": {
         "water_saved": "Eau économisée",
@@ -59,7 +71,11 @@
         "solar_desc": "Production actuelle",
         "soil_temp": "Température sol",
         "soil_temp_desc": "Aujourd'hui",
-        "active_zones": "Secteurs actifs"
+        "active_zones": "Secteurs actifs",
+        "vs_yesterday": "vs. hier",
+        "connecting": "Connexion...",
+        "last_update": "Mis à jour",
+        "load_error": "Impossible de charger les données. Vérifiez votre connexion."
     },
     "ZoneGrid": {
         "title": "Secteurs d'irrigation",
@@ -131,7 +147,24 @@
         "mark_read": "Lu",
         "call_tech": "Appeler technicien",
         "time_ago": "Il y a {time}",
-        "today": "Aujourd'hui"
+        "today": "Aujourd'hui",
+        "live": "En direct",
+        "all_clear": "Tous les secteurs sont en bon état",
+        "unknown": "inconnu",
+        "anomaly_title": "{zone} — Anomalie détectée",
+        "anomaly_desc": "Valeurs anormales détectées. Stress: {stress}",
+        "critical_dry_title": "{zone} — Sol très sec",
+        "critical_dry_desc": "Humidité du sol à {pct}%. Irrigation urgente requise.",
+        "low_moisture_title": "{zone} — Faible humidité",
+        "low_moisture_desc": "Humidité du sol à {pct}% — en dessous de l'optimal (55-70%).",
+        "irrigation_active_title": "{zone} — Irrigation en cours",
+        "irrigation_active_desc": "Irrigation automatique active. Humidité: {pct}%.",
+        "static_alert1_title": "Fuite d'eau — Secteur 5",
+        "static_alert1_desc": "Chute de pression soudaine détectée",
+        "static_alert2_title": "Faible humidité — Secteur 3",
+        "static_alert2_desc": "Humidité du sol sous le seuil (45%)",
+        "static_alert3_title": "Irrigation terminée — Secteur 1",
+        "static_alert3_desc": "Irrigation planifiée terminée avec succès"
     },
     "Alerts": {
         "alert1_title": "Fuite d'eau — Secteur 5",
@@ -244,7 +277,7 @@
         "LEAK_ZONE": "Fuite zone",
         "PIPE_BURST": "Rupture tuyau",
         "DRIPPER_CLOG_PARTIAL": "Goutteur partiel",
-        "DRIPPER_CLOG_SEVERE": "Goutteur severe",
+        "DRIPPER_CLOG_SEVERE": "Goutteur sévère",
         "FILTER_CLOG_EARLY": "Filtre colmaté précoce",
         "FILTER_CLOG_CRITICAL": "Filtre colmaté critique",
         "VALVE_STUCK_OPEN": "Vanne ouverte bloquée",
