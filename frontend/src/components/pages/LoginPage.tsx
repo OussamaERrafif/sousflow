@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSignInApiAuthSigninPostMutation } from "@/lib/store/generated/api";
+import { routing } from "@/i18n/routing";
 import { setCredentials } from "@/lib/store/slices/authSlice";
 import { useAppDispatch } from "@/lib/store/hooks";
 import { Leaf, User, Lock, Eye, EyeOff, AlertCircle, Zap } from "lucide-react";
@@ -41,7 +42,7 @@ export default function LoginPage() {
       const data = await signIn({ signInRequest: { username: FAST_LOGIN_USER, password: FAST_LOGIN_PASS } }).unwrap();
       try { localStorage.setItem("token", data.access_token); } catch {}
       dispatch(setCredentials({ user: data.user as { id: string; username: string }, token: data.access_token }));
-      router.push("/");
+      router.push(`/${routing.defaultLocale}`);
     } catch (err: any) {
       setError(err?.data?.detail || "Invalid username or password");
     }
