@@ -35,10 +35,10 @@ OLIVE_THRESHOLDS = {
 
 
 async def ingest_reading(farm_id: str, reading: dict, recorded_by: Optional[str] = None) -> dict:
-    """Insert a single IoT reading into normalized v3 tables"""
+    """Insert a single IoT reading into iot_readings"""
     debug("=== Ingest Reading Start ===", farm=farm_id[:8])
     debug_obj("Reading data", reading, farm=farm_id[:8])
-    
+
     supabase = get_supabase_admin()
 
     ts_raw = reading.get("timestamp", datetime.now(timezone.utc).isoformat())
@@ -46,54 +46,26 @@ async def ingest_reading(farm_id: str, reading: dict, recorded_by: Optional[str]
         ts_raw = datetime.fromisoformat(ts_raw.replace("Z", "+00:00"))
     ts_str = ts_raw.isoformat()
 
-    # Environment reading
-    env_data = {"farm_id": farm_id, "timestamp": ts_str}
-    for col in ["air_temperature_c", "air_humidity_pct", "air_pressure_hpa",
-                "light_intensity_lux", "solar_radiation_wm2", "precipitation_mm",
-                "wind_speed_kmh", "cloud_cover_pct"]:
-        if col in reading:
-            env_data[col] = reading[col]
-    debug_db_query("INSERT", "environment_readings", farm=farm_id[:8])
-    supabase.table("environment_readings").insert(env_data).execute()
+    data = {**reading, "farm_id": farm_id, "timestamp": ts_str}
+    if recorded_by:
+        data["recorded_by"] = recorded_by
 
-    # Infrastructure reading
-    infra_data = {"farm_id": farm_id, "timestamp": ts_str}
-    for col in ["reservoir_level_pct", "main_pump_flow_lpm", "main_pressure_mpa", "filter_status"]:
-        if col in reading:
-            infra_data[col] = reading[col]
-    debug_db_query("INSERT", "infrastructure_readings", farm=farm_id[:8])
-    supabase.table("infrastructure_readings").insert(infra_data).execute()
+    debug_db_query("INSERT", "iot_readings", farm=farm_id[:8])
+    supabase.table("iot_readings").insert(data).execute()
 
-    logger.info("IoT reading inserted (v3)", farm=farm_id[:8])
+    logger.info("IoT reading inserted", farm=farm_id[:8])
     debug("=== Ingest Reading End ===", farm=farm_id[:8])
     return {"farm_id": farm_id, "timestamp": ts_str, **reading}
 
 
 async def ingest_batch(farm_id: str, readings: list[dict], recorded_by: Optional[str] = None) -> dict:
-    """Insert batch of readings into v3 normalized tables"""
+    """Insert batch of readings into iot_readings"""
     supabase = get_supabase_admin()
     inserted = 0
     failed = 0
     errors = []
 
-    env_rows = []
-    infra_rows = []
-    zone_health_rows = []
-
-    # Look up zone UUID mapping (integer zone_number → UUID)
-    zone_map = {}
-    try:
-        zones_result = (
-            supabase.table("zones")
-            .select("id, zone_number")
-            .eq("farm_id", farm_id)
-            .execute()
-        )
-        for z in (zones_result.data or []):
-            zone_map[z["zone_number"]] = z["id"]
-    except Exception:
-        pass
-
+    rows = []
     for i, r in enumerate(readings):
         try:
             ts_raw = r.get("timestamp", datetime.now(timezone.utc).isoformat())
@@ -101,86 +73,25 @@ async def ingest_batch(farm_id: str, readings: list[dict], recorded_by: Optional
                 ts_raw = datetime.fromisoformat(ts_raw.replace("Z", "+00:00"))
             ts_str = ts_raw.isoformat()
 
-            env_data = {"farm_id": farm_id, "timestamp": ts_str}
-            for col in ["air_temperature_c", "air_humidity_pct", "air_pressure_hpa",
-                        "light_intensity_lux", "solar_radiation_wm2", "precipitation_mm",
-                        "wind_speed_kmh", "cloud_cover_pct"]:
-                if col in r:
-                    env_data[col] = r[col]
-            env_rows.append(env_data)
-
-            infra_data = {"farm_id": farm_id, "timestamp": ts_str}
-            for col in ["reservoir_level_pct", "main_pump_flow_lpm", "main_pressure_mpa", "filter_status"]:
-                if col in r:
-                    infra_data[col] = r[col]
-            infra_rows.append(infra_data)
-
-            # Zone health reading (per-zone data)
-            zone_num = r.get("zone_id")
-            zone_uuid = zone_map.get(zone_num) if zone_num is not None else None
-            if zone_uuid:
-                zone_health_rows.append({
-                    "farm_id": farm_id,
-                    "zone_id": zone_uuid,
-                    "timestamp": ts_str,
-                    "avg_soil_moisture_pct": r.get("soil_moisture_pct"),
-                    "stress_score": r.get("stress_score"),
-                    "stress_class": r.get("stress_class"),
-                    "health_score": r.get("health_score"),
-                    "irrigation_needed": r.get("irrigation_needed", 0),
-                    "is_anomaly": r.get("is_anomaly", 0),
-                    "total_inlet_flow_lpm": r.get("zone_flow_lpm"),
-                    "water_efficiency_pct": None,
-                    "leak_count": 0,
-                })
-
+            row = {**r, "farm_id": farm_id, "timestamp": ts_str}
+            if recorded_by:
+                row["recorded_by"] = recorded_by
+            rows.append(row)
         except Exception as e:
             failed += 1
             errors.append(f"Row {i}: {str(e)}")
 
-    # Deduplicate env rows by timestamp (one per farm per cycle)
-    seen_ts = set()
-    unique_env = []
-    for row in env_rows:
-        ts = row["timestamp"]
-        if ts not in seen_ts:
-            seen_ts.add(ts)
-            unique_env.append(row)
-
-    seen_ts_infra = set()
-    unique_infra = []
-    for row in infra_rows:
-        ts = row["timestamp"]
-        if ts not in seen_ts_infra:
-            seen_ts_infra.add(ts)
-            unique_infra.append(row)
-
     chunk_size = 200
-    for start in range(0, len(unique_env), chunk_size):
-        chunk = unique_env[start:start + chunk_size]
+    for start in range(0, len(rows), chunk_size):
+        chunk = rows[start:start + chunk_size]
         try:
-            result = supabase.table("environment_readings").insert(chunk).execute()
+            result = supabase.table("iot_readings").insert(chunk).execute()
             inserted += len(result.data) if result.data else 0
         except Exception as e:
             failed += len(chunk)
-            errors.append(f"Env chunk {start}: {str(e)}")
+            errors.append(f"Chunk {start}: {str(e)}")
 
-    for start in range(0, len(unique_infra), chunk_size):
-        chunk = unique_infra[start:start + chunk_size]
-        try:
-            supabase.table("infrastructure_readings").insert(chunk).execute()
-        except Exception as e:
-            errors.append(f"Infra chunk {start}: {str(e)}")
-
-    # Persist zone health readings
-    for start in range(0, len(zone_health_rows), chunk_size):
-        chunk = zone_health_rows[start:start + chunk_size]
-        try:
-            supabase.table("zone_health_readings").insert(chunk).execute()
-        except Exception as e:
-            errors.append(f"Zone health chunk {start}: {str(e)}")
-
-    logger.info("Batch ingest complete (v3)", inserted=inserted, failed=failed, farm=farm_id[:8])
+    logger.info("Batch ingest complete", inserted=inserted, failed=failed, farm=farm_id[:8])
 
     # Run anomaly detection (non-blocking)
     try:
@@ -215,15 +126,21 @@ async def query_readings(
     
     supabase = get_supabase_admin()
 
-    query = supabase.table("environment_readings").select("*").eq("farm_id", farm_id)
+    query = supabase.table("iot_readings").select("*").eq("farm_id", farm_id)
 
+    if zone_id is not None:
+        query = query.eq("zone_id", zone_id)
     if start_date:
         query = query.gte("timestamp", start_date.isoformat())
     if end_date:
         query = query.lte("timestamp", end_date.isoformat())
+    if anomalies_only:
+        query = query.eq("is_anomaly", 1)
+    if irrigation_only:
+        query = query.eq("irrigation_needed", 1)
 
     query = query.order("timestamp", desc=True).range(offset, offset + limit - 1)
-    debug_db_query("SELECT", "environment_readings", farm=farm_id[:8])
+    debug_db_query("SELECT", "iot_readings", farm=farm_id[:8])
     result = query.execute()
     
     debug("=== Query Readings End ===", farm=farm_id[:8], count=len(result.data or []))
@@ -455,7 +372,7 @@ async def ingest_environment_reading(farm_id: str, reading: dict, recorded_by: O
             ts = datetime.fromisoformat(ts.replace("Z", "+00:00"))
         data["timestamp"] = ts.isoformat()
 
-    result = supabase.table("environment_readings").insert(data).execute()
+    result = supabase.table("iot_readings").insert(data).execute()
     logger.info("Environment reading inserted", farm=farm_id[:8])
     return result.data[0] if result.data else {}
 
@@ -474,7 +391,7 @@ async def ingest_infrastructure_reading(farm_id: str, reading: dict, recorded_by
             ts = datetime.fromisoformat(ts.replace("Z", "+00:00"))
         data["timestamp"] = ts.isoformat()
 
-    result = supabase.table("infrastructure_readings").insert(data).execute()
+    result = supabase.table("iot_readings").insert(data).execute()
     logger.info("Infrastructure reading inserted", farm=farm_id[:8])
     return result.data[0] if result.data else {}
 
@@ -502,7 +419,7 @@ async def ingest_branch_flow_reading(farm_id: str, branch_id: str, zone_id: str,
     outlet = reading.get("outlet_flow_lpm", 0) or 0
     data["leak_detected"] = (inlet - outlet) > 0.5
 
-    result = supabase.table("branch_flow_readings").insert(data).execute()
+    result = supabase.table("iot_readings").insert(data).execute()
     logger.info("Branch flow reading inserted", branch=branch_id[:8], farm=farm_id[:8])
     return result.data[0] if result.data else {}
 
@@ -534,7 +451,7 @@ async def ingest_soil_moisture_reading(farm_id: str, branch_id: str, zone_id: st
         max_diff = max(start, middle, end) - min(start, middle, end)
         data["uniformity_coefficient"] = max(0, 100 - (max_diff / max(start, middle, end) * 100)) if max(start, middle, end) > 0 else 100
 
-    result = supabase.table("soil_moisture_readings").insert(data).execute()
+    result = supabase.table("iot_readings").insert(data).execute()
     logger.info("Soil moisture reading inserted", branch=branch_id[:8], farm=farm_id[:8])
     return result.data[0] if result.data else {}
 
@@ -557,16 +474,16 @@ async def ingest_zone_health_reading(farm_id: str, zone_id: str, reading: dict, 
             ts = datetime.fromisoformat(ts.replace("Z", "+00:00"))
         data["timestamp"] = ts.isoformat()
 
-    result = supabase.table("zone_health_readings").insert(data).execute()
+    result = supabase.table("iot_readings").insert(data).execute()
     logger.info("Zone health reading inserted", zone=zone_id[:8], farm=farm_id[:8])
     return result.data[0] if result.data else {}
 
 
 async def get_latest_environment(farm_id: str) -> Optional[dict]:
-    """Get the most recent environment reading"""
+    """Get the most recent iot reading (environmental fields)"""
     supabase = get_supabase_admin()
     result = (
-        supabase.table("environment_readings")
+        supabase.table("iot_readings")
         .select("*")
         .eq("farm_id", farm_id)
         .order("timestamp", desc=True)
@@ -577,10 +494,10 @@ async def get_latest_environment(farm_id: str) -> Optional[dict]:
 
 
 async def get_latest_infrastructure(farm_id: str) -> Optional[dict]:
-    """Get the most recent infrastructure reading"""
+    """Get the most recent iot reading (infrastructure fields)"""
     supabase = get_supabase_admin()
     result = (
-        supabase.table("infrastructure_readings")
+        supabase.table("iot_readings")
         .select("*")
         .eq("farm_id", farm_id)
         .order("timestamp", desc=True)
@@ -591,48 +508,17 @@ async def get_latest_infrastructure(farm_id: str) -> Optional[dict]:
 
 
 async def get_latest_per_branch(farm_id: str, zone_id: Optional[str] = None) -> list[dict]:
-    """Get the most recent branch flow reading for each branch in a zone/farm"""
-    supabase = get_supabase_admin()
-
-    query = (
-        supabase.table("branch_flow_readings")
-        .select("branch_id, zone_id")
-        .eq("farm_id", farm_id)
-    )
-
-    if zone_id:
-        query = query.eq("zone_id", zone_id)
-
-    branches_result = query.execute()
-
-    if not branches_result.data:
-        return []
-
-    branch_ids = sorted(set(r["branch_id"] for r in branches_result.data))
-    latest = []
-
-    for bid in branch_ids:
-        result = (
-            supabase.table("branch_flow_readings")
-            .select("*")
-            .eq("branch_id", bid)
-            .order("timestamp", desc=True)
-            .limit(1)
-            .execute()
-        )
-        if result.data:
-            latest.append(result.data[0])
-
-    return latest
+    """Get the most recent iot reading per zone (branch concept maps to zone in iot_readings)"""
+    return await get_latest_per_zone_health(farm_id)
 
 
 async def get_latest_per_zone_health(farm_id: str) -> list[dict]:
-    """Get the most recent zone health reading for each zone"""
+    """Get the most recent iot reading for each zone"""
     supabase = get_supabase_admin()
 
     zones_result = (
         supabase.table("zones")
-        .select("id")
+        .select("zone_number")
         .eq("farm_id", farm_id)
         .eq("is_active", True)
         .execute()
@@ -641,14 +527,15 @@ async def get_latest_per_zone_health(farm_id: str) -> list[dict]:
     if not zones_result.data:
         return []
 
-    zone_ids = sorted(set(r["id"] for r in zones_result.data))
+    zone_numbers = sorted(set(r["zone_number"] for r in zones_result.data))
     latest = []
 
-    for zid in zone_ids:
+    for znum in zone_numbers:
         result = (
-            supabase.table("zone_health_readings")
+            supabase.table("iot_readings")
             .select("*")
-            .eq("zone_id", zid)
+            .eq("farm_id", farm_id)
+            .eq("zone_id", znum)
             .order("timestamp", desc=True)
             .limit(1)
             .execute()
@@ -741,8 +628,8 @@ async def analyze_zone_hierarchical(
     supabase = get_supabase_admin()
     since = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
 
-    zone_healths = (
-        supabase.table("zone_health_readings")
+    readings_result = (
+        supabase.table("iot_readings")
         .select("*")
         .eq("farm_id", farm_id)
         .eq("zone_id", zone_id)
@@ -752,41 +639,13 @@ async def analyze_zone_hierarchical(
         .execute()
     )
 
-    branch_flows = (
-        supabase.table("branch_flow_readings")
-        .select("*")
-        .eq("farm_id", farm_id)
-        .eq("zone_id", zone_id)
-        .gte("timestamp", since)
-        .order("timestamp", desc=False)
-        .limit(5000)
-        .execute()
-    )
+    rows = readings_result.data or []
 
-    soil_moistures = (
-        supabase.table("soil_moisture_readings")
-        .select("*")
-        .eq("farm_id", farm_id)
-        .eq("zone_id", zone_id)
-        .gte("timestamp", since)
-        .order("timestamp", desc=False)
-        .limit(5000)
-        .execute()
-    )
-
-    zone_health_rows = zone_healths.data or []
-    branch_flow_rows = branch_flows.data or []
-    soil_moisture_rows = soil_moistures.data or []
-
-    if not zone_health_rows:
+    if not rows:
         return {"zone_id": zone_id, "readings": 0, "message": "No data in this period"}
 
-    avg_moisture = [r["avg_soil_moisture_pct"] for r in zone_health_rows if r.get("avg_soil_moisture_pct")]
-    avg_efficiency = [r["water_efficiency_pct"] for r in zone_health_rows if r.get("water_efficiency_pct")]
-    leak_counts = [r["leak_count"] for r in zone_health_rows if r.get("leak_count")]
-    stress_scores = [r["stress_score"] for r in zone_health_rows if r.get("stress_score")]
-
-    total_leaks = sum(leak_counts)
+    avg_moisture = [r["soil_moisture_pct"] for r in rows if r.get("soil_moisture_pct") is not None]
+    stress_scores = [r["stress_score"] for r in rows if r.get("stress_score") is not None]
 
     recommendations = []
     if avg_moisture:
@@ -798,28 +657,14 @@ async def analyze_zone_hierarchical(
         elif avg > 60:
             recommendations.append("💧 Soil moisture high. Reduce irrigation to prevent root rot.")
 
-    if avg_efficiency:
-        avg_eff = sum(avg_efficiency) / len(avg_efficiency)
-        if avg_eff < 70:
-            recommendations.append(f"⚠️ Water efficiency low ({avg_eff:.0f}%). Check for leaks or blockages.")
-        elif avg_eff > 95:
-            recommendations.append("✅ Excellent water efficiency!")
-
-    if total_leaks > 5:
-        recommendations.append(f"🔴 {total_leaks} leak events detected. Inspect irrigation lines.")
-
     if not recommendations:
         recommendations.append("✅ All parameters within optimal ranges.")
 
     return {
         "zone_id": zone_id,
         "period_hours": hours,
-        "zone_health_readings": len(zone_health_rows),
-        "branch_flow_readings": len(branch_flow_rows),
-        "soil_moisture_readings": len(soil_moisture_rows),
+        "readings": len(rows),
         "avg_soil_moisture_pct": round(sum(avg_moisture) / len(avg_moisture), 1) if avg_moisture else None,
-        "avg_water_efficiency_pct": round(sum(avg_efficiency) / len(avg_efficiency), 1) if avg_efficiency else None,
-        "total_leak_events": total_leaks,
         "avg_stress_score": round(sum(stress_scores) / len(stress_scores), 3) if stress_scores else None,
         "recommendations": recommendations,
     }

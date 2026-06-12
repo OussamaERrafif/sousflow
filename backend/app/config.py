@@ -17,8 +17,8 @@ class Settings(BaseSettings):
     HOST: str = "0.0.0.0"
     PORT: int = 8000
 
-    # CORS
-    ALLOWED_ORIGINS: str = "http://localhost:3000"
+    # CORS — comma-separated list of allowed origins (set in production via env var)
+    ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:3001"
 
     # Supabase (used as database only, not for auth)
     SUPABASE_URL: str = ""
