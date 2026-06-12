@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useTranslations } from "next-intl";
 import { getApiBaseUrl } from "@/lib/apiConfig";
 import {
@@ -22,6 +22,7 @@ interface AnomalyEventData {
     zone_id: string | null;
     target_columns: string[];
     details: Record<string, unknown>;
+    detection_method: string | null;
     created_at: string;
 }
 
@@ -59,7 +60,7 @@ export default function AlertsPage() {
     const [ackNotes, setAckNotes] = useState("");
     const [clearLoading, setClearLoading] = useState(false);
 
-    const fetchAnomalyDashboard = async () => {
+    const fetchAnomalyDashboard = useCallback(async () => {
         setAnomalyLoading(true);
         try {
             const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
@@ -68,15 +69,13 @@ export default function AlertsPage() {
             if (token) headers["Authorization"] = `Bearer ${token}`;
             if (farmId) headers["X-Farm-ID"] = farmId;
             const res = await fetch(`${getApiBaseUrl()}/api/anomalies/dashboard`, { headers });
-            if (res.ok) {
-                setAnomalyDashboard(await res.json());
-            }
+            if (res.ok) setAnomalyDashboard(await res.json());
         } catch (e) {
             console.error("Anomaly dashboard error:", e);
         } finally {
             setAnomalyLoading(false);
         }
-    };
+    }, []);
 
     const handleAcknowledge = async (ids: string[], resolutionNotes?: string) => {
         setAckLoading(true);
@@ -136,12 +135,26 @@ export default function AlertsPage() {
         }
     };
 
-    // Derive live alerts from SSE
-    const { readings: sseReadings, connected, lastUpdate, anomalyCount } = useAppSelector((state) => state.iot);
-    const hasLiveData = connected && sseReadings.length > 0;
+    // Derive live alerts from SSE zones
+    const { zones: sseZones, connected, lastUpdate, anomalyCount, activeCriticalAnomalies } = useAppSelector((state) => state.iot);
+
+    // Auto-refresh anomaly dashboard every 30 seconds when the tab is active
+    useEffect(() => {
+        if (activeTab !== "anomalies") return;
+        fetchAnomalyDashboard();
+        const interval = setInterval(fetchAnomalyDashboard, 30_000);
+        return () => clearInterval(interval);
+    }, [activeTab, fetchAnomalyDashboard]);
+
+    // Zone UUID → display name lookup (built from live SSE data)
+    const zoneNameById = useMemo(() => {
+        const map: Record<string, string> = {};
+        sseZones.forEach(z => { map[z.zone_id] = z.zone_name || `Zone ${z.zone_number}`; });
+        return map;
+    }, [sseZones]);
+    const hasLiveData = connected && sseZones.length > 0;
 
     useDebugLog("AlertsPage - alertRules", alertRules);
-    useDebugLog("AlertsPage - sseReadings", sseReadings);
     useDebugLog("AlertsPage - connected", connected);
     useDebugLog("AlertsPage - lastUpdate", lastUpdate);
 
@@ -149,39 +162,41 @@ export default function AlertsPage() {
     const liveAlerts: LiveAlert[] = [];
 
     if (hasLiveData) {
-        sseReadings.forEach((r) => {
-            const zoneLabel = `Zone ${r.zone_id}`;
-            if (r.is_anomaly) {
+        const timeStr = lastUpdate ? new Date(lastUpdate).toLocaleTimeString() : "just now";
+        sseZones.forEach((z) => {
+            const zoneLabel = z.zone_name || `Zone ${z.zone_number}`;
+            const pct = z.avg_moisture_pct ?? 100;
+            if (z.leak_count > 0) {
                 liveAlerts.push({
-                    id: `anomaly-${r.zone_id}`,
+                    id: `anomaly-${z.zone_id}`,
                     type: "critical",
                     title: `Sensor Anomaly — ${zoneLabel}`,
                     message: "Abnormal sensor reading detected. Check hardware.",
-                    time: lastUpdate ? new Date(lastUpdate).toLocaleTimeString() : "just now",
+                    time: timeStr,
                 });
-            } else if ((r.soil_moisture_pct ?? 100) < 35) {
+            } else if (pct < 35) {
                 liveAlerts.push({
-                    id: `dry-${r.zone_id}`,
+                    id: `dry-${z.zone_id}`,
                     type: "critical",
                     title: `Critically Dry — ${zoneLabel}`,
-                    message: `Soil moisture ${r.soil_moisture_pct?.toFixed(0)}% — immediate irrigation needed.`,
-                    time: lastUpdate ? new Date(lastUpdate).toLocaleTimeString() : "just now",
+                    message: `Soil moisture ${pct.toFixed(0)}% — immediate irrigation needed.`,
+                    time: timeStr,
                 });
-            } else if ((r.soil_moisture_pct ?? 100) < 45) {
+            } else if (pct < 45) {
                 liveAlerts.push({
-                    id: `low-${r.zone_id}`,
+                    id: `low-${z.zone_id}`,
                     type: "warning",
                     title: `Low Moisture — ${zoneLabel}`,
-                    message: `Soil moisture ${r.soil_moisture_pct?.toFixed(0)}% is below optimal (55%).`,
-                    time: lastUpdate ? new Date(lastUpdate).toLocaleTimeString() : "just now",
+                    message: `Soil moisture ${pct.toFixed(0)}% is below optimal (55%).`,
+                    time: timeStr,
                 });
-            } else if (r.irrigation_needed === 1) {
+            } else if (z.irrigation_needed) {
                 liveAlerts.push({
-                    id: `irr-${r.zone_id}`,
+                    id: `irr-${z.zone_id}`,
                     type: "info",
                     title: `Irrigation Active — ${zoneLabel}`,
-                    message: `Automated irrigation running. Moisture: ${r.soil_moisture_pct?.toFixed(0)}%.`,
-                    time: lastUpdate ? new Date(lastUpdate).toLocaleTimeString() : "just now",
+                    message: `Automated irrigation running. Moisture: ${pct.toFixed(0)}%.`,
+                    time: timeStr,
                 });
             }
         });
@@ -252,12 +267,46 @@ export default function AlertsPage() {
         low: "bg-blue-400",
     };
 
-    const anomalyTypeLabel: Record<string, string> = {
+    // Maps anomaly_type to human-readable label from i18n (fallback: prettified type string)
+    const ANOMALY_TYPE_LABELS: Record<string, string> = {
         z_score: ta("type_z_score"),
         sudden_change: ta("type_sudden_change"),
         stuck_sensor: ta("type_stuck_sensor"),
         drift: ta("type_drift"),
         correlation: ta("type_correlation"),
+        ml_isolation_forest: ta("ml_isolation_forest"),
+        LEAK_BRANCH: ta("LEAK_BRANCH"),
+        LEAK_ZONE: ta("LEAK_ZONE"),
+        PIPE_BURST: ta("PIPE_BURST"),
+        DRIPPER_CLOG_PARTIAL: ta("DRIPPER_CLOG_PARTIAL"),
+        DRIPPER_CLOG_SEVERE: ta("DRIPPER_CLOG_SEVERE"),
+        FILTER_CLOG_EARLY: ta("FILTER_CLOG_EARLY"),
+        FILTER_CLOG_CRITICAL: ta("FILTER_CLOG_CRITICAL"),
+        VALVE_STUCK_OPEN: ta("VALVE_STUCK_OPEN"),
+        VALVE_STUCK_CLOSED: ta("VALVE_STUCK_CLOSED"),
+        PRESSURE_ANOMALY_LOW: ta("PRESSURE_ANOMALY_LOW"),
+        PRESSURE_ANOMALY_HIGH: ta("PRESSURE_ANOMALY_HIGH"),
+        PUMP_DEGRADATION: ta("PUMP_DEGRADATION"),
+        PUMP_FAILURE_IMMINENT: ta("PUMP_FAILURE_IMMINENT"),
+        PUMP_CAVITATION: ta("PUMP_CAVITATION"),
+        RESERVOIR_CRITICAL: ta("RESERVOIR_CRITICAL"),
+        RESERVOIR_LEAK: ta("RESERVOIR_LEAK"),
+        OVER_IRRIGATION: ta("OVER_IRRIGATION"),
+        UNDER_IRRIGATION: ta("UNDER_IRRIGATION"),
+    };
+    const anomalyTypeLabel = (type: string): string =>
+        ANOMALY_TYPE_LABELS[type] ?? type.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+
+    // Detection method → short domain label
+    const DETECTION_METHOD_LABEL: Record<string, { label: string; cls: string }> = {
+        hydraulic_rule:  { label: ta("domain_hydraulic"),   cls: "bg-blue-500/10 text-blue-600 dark:text-blue-400" },
+        equipment_rule:  { label: ta("domain_equipment"),   cls: "bg-purple-500/10 text-purple-600 dark:text-purple-400" },
+        isolation_forest:{ label: ta("domain_ml"),          cls: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" },
+        z_score:         { label: ta("domain_statistical"), cls: "bg-zinc-500/10 text-zinc-600 dark:text-zinc-400" },
+        sudden_change:   { label: ta("domain_statistical"), cls: "bg-zinc-500/10 text-zinc-600 dark:text-zinc-400" },
+        stuck_sensor:    { label: ta("domain_statistical"), cls: "bg-zinc-500/10 text-zinc-600 dark:text-zinc-400" },
+        drift:           { label: ta("domain_statistical"), cls: "bg-zinc-500/10 text-zinc-600 dark:text-zinc-400" },
+        correlation:     { label: ta("domain_statistical"), cls: "bg-zinc-500/10 text-zinc-600 dark:text-zinc-400" },
     };
 
     return (
@@ -304,7 +353,7 @@ export default function AlertsPage() {
                     {ta("tab_alerts")}
                 </button>
                 <button
-                    onClick={() => { setActiveTab("anomalies"); fetchAnomalyDashboard(); }}
+                    onClick={() => setActiveTab("anomalies")}
                     className={`px-4 py-2 text-sm font-medium rounded-md transition-colors flex items-center gap-2 ${
                         activeTab === "anomalies"
                             ? "bg-card shadow-sm text-foreground"
@@ -314,7 +363,9 @@ export default function AlertsPage() {
                     <Shield className="w-4 h-4" />
                     {ta("tab_anomalies")}
                     {anomalyCount > 0 && (
-                        <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{anomalyCount}</span>
+                        <span className={`text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full ${activeCriticalAnomalies > 0 ? "bg-red-500 animate-pulse" : "bg-orange-500"}`}>
+                            {anomalyCount}
+                        </span>
                     )}
                 </button>
             </div>
@@ -382,26 +433,31 @@ export default function AlertsPage() {
                                 <div className="space-y-3">
                                     {anomalyDashboard.recent.map((anomaly) => (
                                         <div key={anomaly.id} className="p-4 rounded-2xl border bg-card hover:shadow-md transition-all">
-                                            <div className="flex items-start gap-4">
+                                                            <div className="flex items-start gap-3">
                                                 <div className={`shrink-0 w-3 h-3 rounded-full mt-1.5 ${severityColor[anomaly.severity] || "bg-gray-400"}`} />
                                                 <div className="flex-1 min-w-0">
-                                                    <div className="flex items-start justify-between gap-2">
-                                                        <div className="flex items-center gap-2 flex-wrap">
-                                                            <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${
+                                                    <div className="flex items-start justify-between gap-2 flex-wrap">
+                                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                                                                 anomaly.severity === "critical" ? "bg-red-500/10 text-red-500" :
                                                                 anomaly.severity === "high" ? "bg-orange-500/10 text-orange-500" :
                                                                 anomaly.severity === "medium" ? "bg-amber-500/10 text-amber-500" :
                                                                 "bg-blue-500/10 text-blue-500"
                                                             }`}>
-                                                                {ta(`severity_${anomaly.severity}`)}
+                                                                {({"critical": ta("severity_critical"), "high": ta("severity_high"), "medium": ta("severity_medium"), "low": ta("severity_low")} as Record<string, string>)[anomaly.severity] ?? anomaly.severity}
                                                             </span>
-                                                            <span className="font-semibold text-foreground">
-                                                                {anomalyTypeLabel[anomaly.anomaly_type] || anomaly.anomaly_type}
+                                                            {anomaly.detection_method && DETECTION_METHOD_LABEL[anomaly.detection_method] && (
+                                                                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${DETECTION_METHOD_LABEL[anomaly.detection_method].cls}`}>
+                                                                    {DETECTION_METHOD_LABEL[anomaly.detection_method].label}
+                                                                </span>
+                                                            )}
+                                                            <span className="font-semibold text-foreground text-sm">
+                                                                {anomalyTypeLabel(anomaly.anomaly_type)}
                                                             </span>
                                                         </div>
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="text-xs text-muted-foreground shrink-0" dir="ltr">
-                                                                {new Date(anomaly.created_at).toLocaleTimeString()}
+                                                        <div className="flex items-center gap-2 shrink-0">
+                                                            <span className="text-xs text-muted-foreground" dir="ltr">
+                                                                {new Date(anomaly.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                                                             </span>
                                                             <button
                                                                 onClick={() => handleAcknowledge([anomaly.id])}
@@ -418,12 +474,17 @@ export default function AlertsPage() {
                                                             </button>
                                                         </div>
                                                     </div>
-                                                    <p className="text-sm text-muted-foreground mt-1">
+                                                    <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1.5">
+                                                        {anomaly.zone_id && (
+                                                            <span className="font-medium text-foreground/70">
+                                                                {zoneNameById[anomaly.zone_id] ?? `Zone …${anomaly.zone_id.slice(-4)}`}
+                                                            </span>
+                                                        )}
+                                                        {anomaly.zone_id && anomaly.target_columns.length > 0 && <span>·</span>}
                                                         {anomaly.target_columns.join(", ")}
-                                                        {anomaly.zone_id && ` · Zone`}
                                                     </p>
                                                     {anomaly.details && typeof anomaly.details === "object" && "message" in (anomaly.details as Record<string, unknown>) && (
-                                                        <p className="text-xs text-muted-foreground mt-1 italic">
+                                                        <p className="text-xs text-muted-foreground/80 mt-0.5 italic leading-snug">
                                                             {String((anomaly.details as Record<string, unknown>).message)}
                                                         </p>
                                                     )}
@@ -437,7 +498,7 @@ export default function AlertsPage() {
                     ) : (
                         <div className="p-8 text-center bg-muted/30 rounded-2xl border border-dashed border-border">
                             <Shield className="w-12 h-12 text-muted-foreground/40 mx-auto mb-3" />
-                            <p className="text-muted-foreground font-medium">Click to load anomaly data</p>
+                            <p className="text-muted-foreground font-medium">{ta("noData")}</p>
                         </div>
                     )}
                 </div>
@@ -508,8 +569,8 @@ export default function AlertsPage() {
                                 className="w-full px-4 py-2.5 rounded-xl border border-input bg-background focus:border-primary focus:outline-none font-medium"
                             >
                                 <option value="">All Zones</option>
-                                {[1, 2, 3, 4, 5, 6, 7, 8].map(n => (
-                                    <option key={n} value={n}>Zone {n}</option>
+                                {(sseZones.length > 0 ? sseZones : []).map(z => (
+                                    <option key={z.zone_id} value={z.zone_number}>{z.zone_name || `Zone ${z.zone_number}`}</option>
                                 ))}
                             </select>
                         </div>

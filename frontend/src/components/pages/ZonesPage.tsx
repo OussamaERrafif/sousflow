@@ -44,7 +44,7 @@ function MoistureBar({ level, status }: { level: number; status: string }) {
     );
 }
 
-const STATUS_CONFIG = {
+const STATUS_STYLE = {
     good: {
         dot: "bg-emerald-500",
         border: "border-emerald-500/25",
@@ -52,7 +52,6 @@ const STATUS_CONFIG = {
         icon: CheckCircle2,
         text: "text-emerald-600 dark:text-emerald-400",
         iconBg: "bg-emerald-500/10 border-emerald-500/20",
-        label: "Good",
     },
     warning: {
         dot: "bg-amber-500 animate-pulse",
@@ -61,7 +60,6 @@ const STATUS_CONFIG = {
         icon: AlertTriangle,
         text: "text-amber-600 dark:text-amber-400",
         iconBg: "bg-amber-500/10 border-amber-500/20",
-        label: "Warning",
     },
     critical: {
         dot: "bg-red-500 animate-pulse",
@@ -70,7 +68,6 @@ const STATUS_CONFIG = {
         icon: AlertOctagon,
         text: "text-red-600 dark:text-red-400",
         iconBg: "bg-red-500/10 border-red-500/20",
-        label: "Critical",
     },
     off: {
         dot: "bg-muted-foreground/40",
@@ -79,7 +76,6 @@ const STATUS_CONFIG = {
         icon: PauseCircle,
         text: "text-muted-foreground",
         iconBg: "bg-muted border-border",
-        label: "Off",
     },
 } as const;
 
@@ -274,8 +270,8 @@ export default function ZonesPage() {
             {/* Zone cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                 {sseZones.map((zone: ZoneReading) => {
-                    const statusKey = getZoneStatus(zone) as keyof typeof STATUS_CONFIG;
-                    const cfg = STATUS_CONFIG[statusKey] ?? STATUS_CONFIG.good;
+                    const statusKey = getZoneStatus(zone) as keyof typeof STATUS_STYLE;
+                    const cfg = STATUS_STYLE[statusKey] ?? STATUS_STYLE.good;
                     const Icon = cfg.icon;
                     const isSelected = selectedZoneId === zone.zone_id;
                     const isIrrigating = controlStates?.zone_valves?.[zone.zone_number] ?? false;
@@ -302,7 +298,7 @@ export default function ZonesPage() {
                                             </h3>
                                             <div className="flex items-center gap-1.5 mt-0.5">
                                                 <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${cfg.dot}`} />
-                                                <span className={`text-[11px] font-medium ${cfg.text}`}>{cfg.label}</span>
+                                                <span className={`text-[11px] font-medium ${cfg.text}`}>{t(`status_${statusKey}`)}</span>
                                                 {zone.leak_count > 0 && (
                                                     <span className="text-[10px] font-semibold text-red-500 bg-red-500/10 px-1.5 py-0.5 rounded-full border border-red-500/20">
                                                         {zone.leak_count} leak{zone.leak_count > 1 ? "s" : ""}

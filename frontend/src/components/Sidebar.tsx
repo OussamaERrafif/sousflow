@@ -1,6 +1,6 @@
 "use client";
 
-import { Home, Leaf, Bell, Settings, Activity, FileText, Globe, LogIn, LogOut, User, Sparkles, Map, Cpu, Heart, Menu } from "lucide-react";
+import { Home, Leaf, Bell, Settings, Activity, FileText, LogIn, LogOut, User, Sparkles, Map, Cpu, Heart, Menu } from "lucide-react";
 import { useTranslations, useLocale } from "next-intl";
 import { usePathname, useRouter } from "@/i18n/routing";
 import { useAppSelector, useAppDispatch } from "@/lib/store/hooks";
@@ -15,6 +15,7 @@ export default function Sidebar({ activePage, setActivePage }: { activePage: str
     const pathname = usePathname();
     const dispatch = useAppDispatch();
     const { isAuthenticated, user } = useAppSelector((state) => state.auth);
+    const { anomalyCount, activeCriticalAnomalies } = useAppSelector((state) => state.iot);
     const [signOut] = useSignOutApiAuthSignoutPostMutation();
     const [showMore, setShowMore] = useState(false);
 
@@ -49,7 +50,7 @@ export default function Sidebar({ activePage, setActivePage }: { activePage: str
         }
     };
 
-    const renderMenuButton = (id: string, icon: any, label: string, badge?: number) => {
+    const renderMenuButton = (id: string, icon: any, label: string, badge?: number, badgeCritical?: boolean) => {
         const Icon = icon;
         const isActive = activePage === id;
         return (
@@ -66,7 +67,7 @@ export default function Sidebar({ activePage, setActivePage }: { activePage: str
                 <div className="relative">
                     <Icon className={`w-5 h-5 shrink-0 transition-colors ${isActive ? "text-primary" : "group-hover:text-primary"}`} aria-hidden="true" />
                     {badge && (
-                        <span className="absolute -top-1.5 -right-1.5 bg-destructive text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full flex items-center justify-center min-w-[18px] h-[18px]" aria-label={`${badge} notifications`}>
+                        <span className={`absolute -top-1.5 -right-1.5 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full flex items-center justify-center min-w-[18px] h-[18px] ${badgeCritical ? "bg-red-500 animate-pulse" : "bg-destructive"}`} aria-label={`${badge} notifications`}>
                             {badge}
                         </span>
                     )}
@@ -124,9 +125,9 @@ export default function Sidebar({ activePage, setActivePage }: { activePage: str
                     {renderMenuButton("iot_devices", Cpu, t("nav_iot_devices"))}
 
                     {renderSectionHeader(t("section_monitoring"))}
-                    {renderMenuButton("alerts", Bell, t("nav_alerts"), 2)}
+                    {renderMenuButton("alerts", Bell, t("nav_alerts"), anomalyCount > 0 ? anomalyCount : undefined, activeCriticalAnomalies > 0)}
                     {renderMenuButton("reports", FileText, t("nav_reports"))}
-                    {/* {renderMenuButton("system_health", Heart, t("nav_system_health"))} */}
+                    {renderMenuButton("system_health", Heart, t("nav_system_health"))}
 
                     {renderSectionHeader(t("section_system"))}
                     {renderMenuButton("ai_assistant", Sparkles, t("nav_ai_assistant"))}
@@ -200,7 +201,7 @@ export default function Sidebar({ activePage, setActivePage }: { activePage: str
                         { id: "dashboard", icon: Home, label: t("nav_dashboard") },
                         { id: "zones", icon: Leaf, label: t("nav_zones") },
                         { id: "map", icon: Map, label: t("nav_map") },
-                        { id: "alerts", icon: Bell, label: t("nav_alerts"), badge: 2 },
+                        { id: "alerts", icon: Bell, label: t("nav_alerts"), badge: anomalyCount > 0 ? anomalyCount : undefined },
                         { id: "settings", icon: Activity, label: t("nav_settings") }
                     ].map((item) => (
                         <li key={item.id} className="flex-1 h-full">

@@ -67,6 +67,8 @@ export interface SSEPayload {
   zones: ZoneReading[];
   control_states: ControlStates | null;
   anomaly_count: number;
+  active_critical_anomalies: number;
+  system_health_score: number | null;
   simulator_running: boolean;
   timestamp: string;
 }
@@ -96,6 +98,8 @@ interface IoTState {
   readings: LegacyReading[]; // backward compat for old components
   controlStates: ControlStates | null;
   anomalyCount: number;
+  activeCriticalAnomalies: number;
+  systemHealthScore: number | null;
   simulatorRunning: boolean;
   lastUpdate: string | null;
   connected: boolean;
@@ -108,6 +112,8 @@ const initialState: IoTState = {
   readings: [],
   controlStates: null,
   anomalyCount: 0,
+  activeCriticalAnomalies: 0,
+  systemHealthScore: null,
   simulatorRunning: false,
   lastUpdate: null,
   connected: false,
@@ -118,7 +124,7 @@ const iotSlice = createSlice({
   initialState,
   reducers: {
     setLiveData(state, action: PayloadAction<SSEPayload>) {
-      const { environment, infrastructure, zones, control_states, anomaly_count, simulator_running, timestamp } = action.payload;
+      const { environment, infrastructure, zones, control_states, anomaly_count, active_critical_anomalies, system_health_score, simulator_running, timestamp } = action.payload;
       
       if (isDebugMode()) {
         console.debug("[SoussFlow/IoT] setLiveData received:", {
@@ -133,6 +139,8 @@ const iotSlice = createSlice({
       state.zones = zones;
       state.controlStates = control_states || null;
       state.anomalyCount = anomaly_count || 0;
+      state.activeCriticalAnomalies = active_critical_anomalies || 0;
+      state.systemHealthScore = system_health_score ?? null;
       state.simulatorRunning = simulator_running;
       state.lastUpdate = timestamp;
       state.connected = true;

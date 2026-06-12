@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import { AlertOctagon, AlertTriangle, Info, CheckCircle, Smartphone } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useAppSelector } from "@/lib/store/hooks";
@@ -10,8 +10,8 @@ export default function AlertPanel() {
     const tz = useTranslations("Zones");
     const [dismissed, setDismissed] = useState<Set<string>>(new Set());
 
-    const { readings: sseReadings, connected, lastUpdate } = useAppSelector((state) => state.iot);
-    const hasLiveData = connected && sseReadings.length > 0;
+    const { zones: sseZones, connected, lastUpdate } = useAppSelector((state) => state.iot);
+    const hasLiveData = connected && sseZones && sseZones.length > 0;
 
     type Alert = {
         id: string;
@@ -26,38 +26,39 @@ export default function AlertPanel() {
     if (hasLiveData) {
         const timeStr = lastUpdate ? new Date(lastUpdate).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : t("today");
 
-        sseReadings.forEach((r) => {
-            const zoneName = tz(`zone${r.zone_id}`);
-            if (r.is_anomaly) {
+        sseZones.forEach((z) => {
+            const zoneName = z.zone_name || tz(`zone${z.zone_number}`);
+            const pct = z.avg_moisture_pct ?? 0;
+            if (z.leak_count > 0) {
                 alerts.push({
-                    id: `anomaly-${r.zone_id}`,
+                    id: `leak-${z.zone_id}`,
                     type: "critical",
                     title: t("anomaly_title", { zone: zoneName }),
-                    desc: t("anomaly_desc", { stress: r.stress_class ?? t("unknown") }),
+                    desc: t("anomaly_desc", { stress: z.stress_class ?? t("unknown") }),
                     time: timeStr,
                 });
-            } else if ((r.soil_moisture_pct ?? 100) < 35) {
+            } else if (pct < 35) {
                 alerts.push({
-                    id: `critical-dry-${r.zone_id}`,
+                    id: `critical-dry-${z.zone_id}`,
                     type: "critical",
                     title: t("critical_dry_title", { zone: zoneName }),
-                    desc: t("critical_dry_desc", { pct: r.soil_moisture_pct?.toFixed(0) ?? "0" }),
+                    desc: t("critical_dry_desc", { pct: pct.toFixed(0) }),
                     time: timeStr,
                 });
-            } else if ((r.soil_moisture_pct ?? 100) < 45) {
+            } else if (pct < 45) {
                 alerts.push({
-                    id: `low-${r.zone_id}`,
+                    id: `low-${z.zone_id}`,
                     type: "warning",
                     title: t("low_moisture_title", { zone: zoneName }),
-                    desc: t("low_moisture_desc", { pct: r.soil_moisture_pct?.toFixed(0) ?? "0" }),
+                    desc: t("low_moisture_desc", { pct: pct.toFixed(0) }),
                     time: timeStr,
                 });
-            } else if (r.irrigation_needed === 1) {
+            } else if (z.irrigation_needed) {
                 alerts.push({
-                    id: `irr-${r.zone_id}`,
+                    id: `irr-${z.zone_id}`,
                     type: "info",
                     title: t("irrigation_active_title", { zone: zoneName }),
-                    desc: t("irrigation_active_desc", { pct: r.soil_moisture_pct?.toFixed(0) ?? "0" }),
+                    desc: t("irrigation_active_desc", { pct: pct.toFixed(0) }),
                     time: timeStr,
                 });
             }
@@ -74,20 +75,28 @@ export default function AlertPanel() {
     const visible = alerts.filter(a => !dismissed.has(a.id));
     const unreadCount = visible.filter(a => a.type !== "info").length;
 
-    const getIcon = (type: string) => {
-        switch (type) {
-            case "critical": return <AlertOctagon className="w-5 h-5 text-red-600" />;
-            case "warning":  return <AlertTriangle className="w-5 h-5 text-amber-500" />;
-            case "info":     return <Info className="w-5 h-5 text-sky-500" />;
-            default:         return <CheckCircle className="w-5 h-5 text-emerald-500" />;
-        }
+    const ALERT_STYLES: Record<string, { icon: React.ReactNode; border: string; iconBg: string }> = {
+        critical: {
+            icon:   <AlertOctagon className="w-5 h-5 text-red-600" />,
+            border: "border-l-4 border-red-500 rtl:border-r-4 rtl:border-l-0",
+            iconBg: "bg-red-50 dark:bg-red-900/20 border-red-100 dark:border-red-800",
+        },
+        warning: {
+            icon:   <AlertTriangle className="w-5 h-5 text-amber-500" />,
+            border: "border-l-4 border-amber-400 rtl:border-r-4 rtl:border-l-0",
+            iconBg: "bg-amber-50 dark:bg-amber-900/20 border-amber-100 dark:border-amber-800",
+        },
+        info: {
+            icon:   <Info className="w-5 h-5 text-sky-500" />,
+            border: "border-l-4 border-sky-400 rtl:border-r-4 rtl:border-l-0",
+            iconBg: "bg-sky-50 dark:bg-sky-900/20 border-sky-100 dark:border-sky-800",
+        },
     };
-
-    const getBorderStyle = (type: string) =>
-        ({ critical: "border-l-4 border-red-500 rtl:border-r-4 rtl:border-l-0", warning: "border-l-4 border-amber-400 rtl:border-r-4 rtl:border-l-0", info: "border-l-4 border-sky-400 rtl:border-r-4 rtl:border-l-0" }[type] ?? "");
-
-    const getIconBg = (type: string) =>
-        ({ critical: "bg-red-50 dark:bg-red-900/20 border-red-100 dark:border-red-800", warning: "bg-amber-50 dark:bg-amber-900/20 border-amber-100 dark:border-amber-800", info: "bg-sky-50 dark:bg-sky-900/20 border-sky-100 dark:border-sky-800" }[type] ?? "bg-zinc-50 dark:bg-zinc-800 border-zinc-100 dark:border-zinc-700");
+    const DEFAULT_ALERT_STYLE = {
+        icon:   <CheckCircle className="w-5 h-5 text-emerald-500" />,
+        border: "",
+        iconBg: "bg-zinc-50 dark:bg-zinc-800 border-zinc-100 dark:border-zinc-700",
+    };
 
     return (
         <div className="mb-24 md:mb-8">
@@ -118,16 +127,17 @@ export default function AlertPanel() {
                 </div>
             ) : (
                 <div className="space-y-3">
-                    {(visible.length > 0 ? visible : alerts).map((alert) => {
+                    {visible.map((alert) => {
                         const isUnread = !dismissed.has(alert.id);
+                        const style = ALERT_STYLES[alert.type] ?? DEFAULT_ALERT_STYLE;
                         return (
                             <div
                                 key={alert.id}
-                                className={`p-3 rounded-xl border transition-all bg-card ${isUnread ? `shadow-sm ${getBorderStyle(alert.type)}` : "opacity-60 bg-muted border-border"}`}
+                                className={`p-3 rounded-xl border transition-all bg-card ${isUnread ? `shadow-sm ${style.border}` : "opacity-60 bg-muted border-border"}`}
                             >
                                 <div className="flex gap-3 items-start">
-                                    <div className={`shrink-0 p-2 rounded-lg border ${getIconBg(alert.type)} ${isUnread && alert.type !== "info" ? "animate-pulse" : ""}`}>
-                                        {getIcon(alert.type)}
+                                    <div className={`shrink-0 p-2 rounded-lg border ${style.iconBg} ${isUnread && alert.type !== "info" ? "animate-pulse" : ""}`}>
+                                        {style.icon}
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <div className="flex justify-between items-start gap-2">

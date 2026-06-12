@@ -98,7 +98,7 @@ export default function ZoneGrid() {
                     <div className="w-16 h-16 bg-muted rounded-2xl flex items-center justify-center mx-auto mb-4">
                         <WifiOff className="w-8 h-8 text-muted-foreground" />
                     </div>
-                    <p className="text-muted-foreground font-medium">No zone data available. Make sure the simulator is running.</p>
+                    <p className="text-muted-foreground font-medium">{t("no_data")}</p>
                 </div>
             </div>
         );

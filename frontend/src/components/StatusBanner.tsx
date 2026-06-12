@@ -7,10 +7,10 @@ import { useDebugLog } from "@/lib/debug";
 export default function StatusBanner() {
     const t = useTranslations("StatusBanner");
 
-    const { readings: sseReadings, connected } = useAppSelector((state) => state.iot);
-    const hasLiveData = connected && sseReadings.length > 0;
+    const { zones: sseZones, connected, anomalyCount } = useAppSelector((state) => state.iot);
+    const hasLiveData = connected && sseZones && sseZones.length > 0;
 
-    useDebugLog("StatusBanner - sseReadings", sseReadings);
+    useDebugLog("StatusBanner - sseZones", sseZones);
     useDebugLog("StatusBanner - connected", connected);
 
     const { data: dashboardData } = useGetDashboardApiIotDashboardGetQuery(
@@ -18,24 +18,24 @@ export default function StatusBanner() {
         { skip: hasLiveData }
     );
 
-    // Derive status from SSE readings when live
+    // Derive status from SSE zone data when live
     let status: "good" | "warning" | "critical";
     let alertMessage: string | undefined;
     let alertDetails: string | undefined;
 
     if (hasLiveData) {
-        const anomalyZones = sseReadings.filter(r => r.is_anomaly);
-        const dryZones     = sseReadings.filter(r => (r.soil_moisture_pct ?? 100) < 35);
-        const irrigatingZones = sseReadings.filter(r => r.irrigation_needed === 1);
+        const leakZones  = sseZones.filter(z => z.leak_count > 0);
+        const dryZones   = sseZones.filter(z => (z.avg_moisture_pct ?? 100) < 35);
+        const irrigating = sseZones.filter(z => z.irrigation_needed);
 
-        if (anomalyZones.length > 0) {
+        if (anomalyCount > 0 || leakZones.length > 0) {
             status = "critical";
-            alertMessage = t("live_anomaly_title", { count: anomalyZones.length });
-            alertDetails  = t("live_anomaly_desc",  { zones: anomalyZones.map(r => r.zone_id).join(", ") });
+            alertMessage = t("live_anomaly_title", { count: anomalyCount || leakZones.length });
+            alertDetails  = t("live_anomaly_desc",  { zones: leakZones.map(z => z.zone_number).join(", ") });
         } else if (dryZones.length > 0) {
             status = "warning";
-            alertMessage = t("live_dry_title",       { count: dryZones.length });
-            alertDetails  = t("live_irrigating_desc", { count: irrigatingZones.length });
+            alertMessage = t("live_dry_title",        { count: dryZones.length });
+            alertDetails  = t("live_irrigating_desc", { count: irrigating.length });
         } else {
             status = "good";
         }

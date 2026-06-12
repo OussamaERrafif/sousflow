@@ -142,9 +142,12 @@
     },
     "StatsRow": {
         "water_saved": "توفير الماء",
+        "reservoir_level": "مستوى الخزان",
         "solar_energy": "الطاقة الشمسية",
+        "system_health": "صحة النظام",
         "solar_desc": "الإنتاج الحالي",
         "soil_temp": "حرارة التربة",
+        "air_temp": "حرارة الهواء",
         "soil_temp_desc": "اليوم",
         "active_zones": "القطاعات نشطة",
         "vs_yesterday": "مقارنةً بالأمس",
@@ -211,10 +214,14 @@
         "critical": "حرج",
         "manual_mode": "تحكم يدوي",
         "switch_to_manual": "التبديل إلى الوضع اليدوي",
-        "switch_to_auto": "التبديل إلى الوضع التلقائي"
+        "switch_to_auto": "التبديل إلى الوضع التلقائي",
+        "no_data": "لا تتوفر بيانات للقطاعات. تأكد من تشغيل المحاكي."
     },
     "DataViz": {
-        "moisture_history": "تحليل الرطوبة (24 ساعة)"
+        "moisture_history": "تحليل الرطوبة (24 ساعة)",
+        "avg_moisture_label": "متوسط رطوبة التربة (%) — آخر 24 ساعة",
+        "live": "مباشر",
+        "no_data": "لا توجد بيانات تاريخية. سيتم ملء الرسم البياني مع ورود القراءات."
     },
     "AlertPanel": {
         "title": "تنبيهات النظام",

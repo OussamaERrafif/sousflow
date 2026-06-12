@@ -3,7 +3,6 @@ ML Anomaly Detection Service — Isolation Forest for detecting multivariate ano
 Feature-flagged via ML_ANOMALY_ENABLED config.
 """
 import uuid
-import os
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 import numpy as np
@@ -118,7 +117,8 @@ async def detect_ml_anomalies(
     Run ML anomaly detection on readings.
     Returns list of anomalies with detection_method='isolation_forest'.
     """
-    enabled = os.getenv("ML_ANOMALY_ENABLED", "false").lower() == "true"
+    from app.config import get_settings as _gs
+    enabled = _gs().ML_ANOMALY_ENABLED
     if not enabled:
         return []
 

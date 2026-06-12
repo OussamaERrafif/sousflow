@@ -48,6 +48,18 @@ def render_template(name: str, request: Request, context: dict | None = None) ->
 _latest_readings_cache = []
 _hierarchical_readings_cache = {}
 _simulator_status_cache = {"running": False}
+_farm_zones_cache: dict = {"data": [], "ts": 0.0}
+_FARM_ZONES_TTL = 90.0  # seconds
+
+# Cache for SSE anomaly counts — refreshed every 10 seconds to reduce DB load
+# Structure: farm_id -> (total_unacked, critical_unacked, timestamp)
+_anomaly_count_cache: dict[str, tuple[int, int, float]] = {}
+_ANOMALY_COUNT_TTL = 10.0
+
+# Cache for farm health score — refreshed every 2 minutes (snapshots are hourly)
+# Structure: farm_id -> (score_or_none, timestamp)
+_health_score_cache: dict[str, tuple[float | None, float]] = {}
+_HEALTH_SCORE_TTL = 120.0
 
 
 def update_readings_cache(readings: list, running: bool):
@@ -230,18 +242,23 @@ async def lifespan(app: FastAPI):
     health_task = asyncio.create_task(run_health_worker(interval_hours=1, enabled=True))
     logger.info("Started health snapshot worker")
 
+    from app.workers.retention_worker import run_retention_worker
+    retention_task = asyncio.create_task(run_retention_worker(interval_hours=24, enabled=True))
+    logger.info("Started IoT data retention worker")
+
+    from app.workers.ml_retrain_worker import run_ml_retrain_worker
+    ml_retrain_task = asyncio.create_task(run_ml_retrain_worker())
+    logger.info("Started ML model retrain worker")
+
     yield
 
-    baseline_task.cancel()
-    health_task.cancel()
-    try:
-        await baseline_task
-    except asyncio.CancelledError:
-        pass
-    try:
-        await health_task
-    except asyncio.CancelledError:
-        pass
+    for task in (baseline_task, health_task, retention_task, ml_retrain_task):
+        task.cancel()
+    for task in (baseline_task, health_task, retention_task, ml_retrain_task):
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
 
     from app.services.iot_simulator import stop_iot_simulator, is_simulator_running
     if is_simulator_running():
@@ -263,10 +280,15 @@ from app.config import get_settings as _get_settings
 _settings = _get_settings()
 _origins = [o.strip() for o in _settings.ALLOWED_ORIGINS.split(",") if o.strip()]
 
+# Credentials + wildcard is forbidden by the CORS spec and a security risk.
+_allow_credentials = "*" not in _origins
+if not _allow_credentials:
+    logger.warning("CORS: wildcard origin detected — disabling credentials to comply with CORS spec")
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_origins,
-    allow_credentials=True,
+    allow_credentials=_allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -512,30 +534,42 @@ async def sse_events():
                                 "manual_overrides": {z: simulator.manual_override.get(z, False) for z in range(1, simulator.n_zones + 1)},
                             }
 
-                        # Get unacknowledged anomaly count (non-blocking)
+                        # Get unacknowledged anomaly count — cached to avoid DB hit every 2s
                         anomaly_count = 0
                         critical_count = 0
                         system_health_score = None
                         try:
-                            from app.supabase_client import get_supabase_admin as _get_sb
-                            from datetime import datetime, timezone, timedelta
-                            _sb = _get_sb()
-                            _anomaly_result = _sb.table("anomaly_events").select("id", count="exact").eq(
-                                "farm_id", simulator.farm_id
-                            ).eq("acknowledged", False).execute()
-                            anomaly_count = _anomaly_result.count or 0
-                            
-                            _critical = _sb.table("anomaly_events").select("id", count="exact").eq(
-                                "farm_id", simulator.farm_id
-                            ).eq("acknowledged", False).eq("severity", "critical").execute()
-                            critical_count = _critical.count or 0
+                            _ac_cached = _anomaly_count_cache.get(simulator.farm_id)
+                            if _ac_cached and time.time() - _ac_cached[2] < _ANOMALY_COUNT_TTL:
+                                anomaly_count, critical_count = _ac_cached[0], _ac_cached[1]
+                            else:
+                                from app.supabase_client import get_supabase_admin as _get_sb
+                                _sb = _get_sb()
+                                _anomaly_result = _sb.table("anomaly_events").select("id", count="exact").eq(
+                                    "farm_id", simulator.farm_id
+                                ).eq("acknowledged", False).eq("false_positive", False).execute()
+                                anomaly_count = _anomaly_result.count or 0
 
-                            _health = _sb.table("farm_health_snapshots").select("overall_score").eq(
-                                "farm_id", simulator.farm_id
-                            ).gte("snapshot_at", (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat())
-                            _health_result = _health.order("snapshot_at", desc=True).limit(1).maybe_single().execute()
-                            if _health_result.data:
-                                system_health_score = _health_result.data.get("overall_score")
+                                _critical = _sb.table("anomaly_events").select("id", count="exact").eq(
+                                    "farm_id", simulator.farm_id
+                                ).eq("acknowledged", False).eq("false_positive", False).eq("severity", "critical").execute()
+                                critical_count = _critical.count or 0
+                                _anomaly_count_cache[simulator.farm_id] = (anomaly_count, critical_count, time.time())
+
+                            # Health score — cached separately (snapshots are hourly)
+                            _hs_cached = _health_score_cache.get(simulator.farm_id)
+                            if _hs_cached and time.time() - _hs_cached[1] < _HEALTH_SCORE_TTL:
+                                system_health_score = _hs_cached[0]
+                            else:
+                                from app.supabase_client import get_supabase_admin as _get_sb2
+                                from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+                                _sb2 = _get_sb2()
+                                _health_q = _sb2.table("farm_health_snapshots").select("overall_score").eq(
+                                    "farm_id", simulator.farm_id
+                                ).gte("snapshot_at", (_dt.now(_tz.utc) - _td(hours=2)).isoformat())
+                                _health_result = _health_q.order("snapshot_at", desc=True).limit(1).maybe_single().execute()
+                                system_health_score = _health_result.data.get("overall_score") if _health_result.data else None
+                                _health_score_cache[simulator.farm_id] = (system_health_score, time.time())
                         except Exception:
                             pass
 
@@ -572,8 +606,8 @@ async def sse_events():
                 yield f"data: {data}\n\n"
             except ImportError:
                 pass
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("SSE generator error", error=str(exc))
 
             await asyncio.sleep(2)
 
@@ -589,7 +623,12 @@ async def sse_events():
 
 
 async def get_farm_zones():
-    """Get farm zones and branches for hierarchical readings using simulator's farm_id"""
+    """Get farm zones and branches for hierarchical readings using simulator's farm_id.
+    Results are cached for _FARM_ZONES_TTL seconds to avoid a DB round-trip on every SSE tick."""
+    global _farm_zones_cache
+    if time.time() - _farm_zones_cache["ts"] < _FARM_ZONES_TTL and _farm_zones_cache["data"]:
+        return _farm_zones_cache["data"]
+
     try:
         from app.supabase_client import get_supabase_admin
         from app.services.iot_simulator import get_simulator
@@ -600,20 +639,22 @@ async def get_farm_zones():
             return []
         farm_id = simulator.farm_id
 
-        zones_resp = supabase.table("zones").select("id, zone_number, name, is_active").eq("farm_id", farm_id).eq("is_active", True).execute()
-        zones = zones_resp.data or []
+        # Single query: fetch zones with nested branches (avoids N+1)
+        zones_resp = supabase.table("zones").select(
+            "id, zone_number, name, is_active, branches(id, branch_number, name)"
+        ).eq("farm_id", farm_id).eq("is_active", True).execute()
 
         result = []
-        for zone in zones:
-            branches_resp = supabase.table("branches").select("id, branch_number, name").eq("zone_id", zone["id"]).eq("is_active", True).execute()
-            branches = branches_resp.data or []
+        for zone in zones_resp.data or []:
+            active_branches = [b for b in (zone.get("branches") or []) if b.get("is_active", True)]
             result.append({
                 "id": zone["id"],
                 "zone_number": zone["zone_number"],
                 "name": zone["name"],
                 "is_active": zone["is_active"],
-                "branches": branches
+                "branches": active_branches,
             })
+        _farm_zones_cache = {"data": result, "ts": time.time()}
         return result
     except Exception as e:
         logger.error("Failed to fetch farm zones", error=str(e))
