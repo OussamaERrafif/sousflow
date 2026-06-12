@@ -3,6 +3,7 @@ Anomaly Detection Service — 8 detection algorithms run on each data ingestion 
 5 statistical algorithms + 3 new rule-based detectors (hydraulic, equipment, agronomic).
 Uses in-memory buffers (per farm) for sliding window calculations.
 """
+import time as _time
 from collections import defaultdict, deque
 from datetime import datetime, timezone, timedelta
 from typing import Optional
@@ -84,6 +85,48 @@ _buffers: dict[str, dict[str, deque]] = defaultdict(lambda: defaultdict(lambda: 
 # ── In-memory infra reading window (per farm) for equipment/hydraulic detectors
 # Structure: _infra_window[farm_id] = deque of infra reading dicts
 _infra_window: dict[str, deque] = defaultdict(lambda: deque(maxlen=50))
+
+# ── Anomaly deduplication ──────────────────────────────────────
+# Physics and rule-based detectors fire on every tick while the condition persists.
+# This cooldown dict prevents flooding the DB with duplicate events.
+_COOLDOWN_MINUTES: dict[str, int] = {
+    "LEAK_BRANCH": 10,
+    "PIPE_BURST": 5,
+    "DRIPPER_CLOG_PARTIAL": 30,
+    "DRIPPER_CLOG_SEVERE": 15,
+    "FILTER_CLOG_EARLY": 60,
+    "FILTER_CLOG_CRITICAL": 20,
+    "VALVE_STUCK_OPEN": 15,
+    "VALVE_STUCK_CLOSED": 15,
+    "PRESSURE_ANOMALY_LOW": 10,
+    "PRESSURE_ANOMALY_HIGH": 10,
+    "PUMP_DEGRADATION": 60,
+    "PUMP_FAILURE_IMMINENT": 10,
+    "RESERVOIR_CRITICAL": 20,
+    "RESERVOIR_LEAK": 30,
+    "stuck_sensor": 60,
+    "drift": 120,
+}
+# Structure: _last_fire[farm_id]["{anomaly_type}:{zone_id}"] = datetime
+_last_fire: dict[str, dict[str, datetime]] = defaultdict(dict)
+
+# ── Zone map cache (zone_number → zone UUID) ──────────────────
+_zone_map_cache: dict[str, tuple[dict, float]] = {}
+_ZONE_MAP_TTL = 120.0  # seconds
+
+
+def _should_fire(farm_id: str, anomaly_type: str, zone_id=None) -> bool:
+    """Return True if this anomaly type is not in cooldown for the given farm/zone."""
+    cooldown_mins = _COOLDOWN_MINUTES.get(anomaly_type)
+    if cooldown_mins is None:
+        return True  # Statistical anomalies (z_score, sudden_change, etc.) always fire
+    key = f"{anomaly_type}:{zone_id}"
+    last = _last_fire[farm_id].get(key)
+    now = datetime.now(timezone.utc)
+    if last and (now - last).total_seconds() < cooldown_mins * 60:
+        return False
+    _last_fire[farm_id][key] = now
+    return True
 
 
 # ── Main entry point ──────────────────────────────────────────
@@ -193,12 +236,14 @@ async def analyze_reading_batch(
         except Exception as e:
             logger.warning(f"[AnomalyService] ML detector failed: {e}")
 
-    # ── Persist and alert ───────────────────────────────────────
-    if all_anomalies:
-        await _persist_anomalies(farm_id, all_anomalies)
-        await _auto_alert(farm_id, [a for a in all_anomalies if a["severity"] in ("high", "critical")])
+    # ── Deduplicate rule-based anomalies to avoid DB flooding ──
+    deduped = [a for a in all_anomalies if _should_fire(farm_id, a["anomaly_type"], a.get("zone_id"))]
 
-    return all_anomalies
+    if deduped:
+        await _persist_anomalies(farm_id, deduped)
+        await _auto_alert(farm_id, [a for a in deduped if a["severity"] in ("high", "critical")])
+
+    return deduped
 
 
 def _update_buffers(farm_id: str, zone_id, reading: dict):
@@ -456,9 +501,14 @@ async def _persist_anomalies(farm_id: str, anomalies: list[dict]):
     """Insert anomaly events into the database."""
     supabase = get_supabase_admin()
 
-    # Map zone_number to zone UUID
-    zones = supabase.table("zones").select("id, zone_number").eq("farm_id", farm_id).execute()
-    zone_map = {z["zone_number"]: z["id"] for z in (zones.data or [])}
+    # Map zone_number to zone UUID — cached to avoid per-call DB round-trip
+    cached_entry = _zone_map_cache.get(farm_id)
+    if cached_entry and _time.time() - cached_entry[1] < _ZONE_MAP_TTL:
+        zone_map = cached_entry[0]
+    else:
+        zones = supabase.table("zones").select("id, zone_number").eq("farm_id", farm_id).execute()
+        zone_map = {z["zone_number"]: z["id"] for z in (zones.data or [])}
+        _zone_map_cache[farm_id] = (zone_map, _time.time())
 
     rows = []
     for a in anomalies:
