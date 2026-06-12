@@ -43,6 +43,7 @@ class Settings(BaseSettings):
 
     # IoT
     IOT_DATA_RETENTION_DAYS: int = 90
+    ML_ANOMALY_ENABLED: bool = False
 
     # IoT Simulator
     IOT_SIMULATOR_ENABLED: bool = False

@@ -67,9 +67,12 @@
     },
     "StatsRow": {
         "water_saved": "Eau économisée",
+        "reservoir_level": "Niveau réservoir",
         "solar_energy": "Énergie solaire",
+        "system_health": "Santé du système",
         "solar_desc": "Production actuelle",
         "soil_temp": "Température sol",
+        "air_temp": "Température air",
         "soil_temp_desc": "Aujourd'hui",
         "active_zones": "Secteurs actifs",
         "vs_yesterday": "vs. hier",
@@ -136,7 +139,8 @@
         "critical": "Critique",
         "manual_mode": "Mode manuel",
         "switch_to_manual": "Passer en mode manuel",
-        "switch_to_auto": "Passer en mode automatique"
+        "switch_to_auto": "Passer en mode automatique",
+        "no_data": "Aucune donnée de secteur disponible. Vérifiez que le simulateur est actif."
     },
     "DataViz": {
         "moisture_history": "Analyse d'humidité (24h)"

@@ -230,18 +230,19 @@ async def lifespan(app: FastAPI):
     health_task = asyncio.create_task(run_health_worker(interval_hours=1, enabled=True))
     logger.info("Started health snapshot worker")
 
+    from app.workers.retention_worker import run_retention_worker
+    retention_task = asyncio.create_task(run_retention_worker(interval_hours=24, enabled=True))
+    logger.info("Started IoT data retention worker")
+
     yield
 
-    baseline_task.cancel()
-    health_task.cancel()
-    try:
-        await baseline_task
-    except asyncio.CancelledError:
-        pass
-    try:
-        await health_task
-    except asyncio.CancelledError:
-        pass
+    for task in (baseline_task, health_task, retention_task):
+        task.cancel()
+    for task in (baseline_task, health_task, retention_task):
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
 
     from app.services.iot_simulator import stop_iot_simulator, is_simulator_running
     if is_simulator_running():
@@ -263,10 +264,15 @@ from app.config import get_settings as _get_settings
 _settings = _get_settings()
 _origins = [o.strip() for o in _settings.ALLOWED_ORIGINS.split(",") if o.strip()]
 
+# Credentials + wildcard is forbidden by the CORS spec and a security risk.
+_allow_credentials = "*" not in _origins
+if not _allow_credentials:
+    logger.warning("CORS: wildcard origin detected — disabling credentials to comply with CORS spec")
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_origins,
-    allow_credentials=True,
+    allow_credentials=_allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -572,8 +578,8 @@ async def sse_events():
                 yield f"data: {data}\n\n"
             except ImportError:
                 pass
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("SSE generator error", error=str(exc))
 
             await asyncio.sleep(2)
 
@@ -589,7 +595,7 @@ async def sse_events():
 
 
 async def get_farm_zones():
-    """Get farm zones and branches for hierarchical readings using simulator's farm_id"""
+    """Get farm zones and branches for hierarchical readings using simulator's farm_id."""
     try:
         from app.supabase_client import get_supabase_admin
         from app.services.iot_simulator import get_simulator
@@ -600,19 +606,20 @@ async def get_farm_zones():
             return []
         farm_id = simulator.farm_id
 
-        zones_resp = supabase.table("zones").select("id, zone_number, name, is_active").eq("farm_id", farm_id).eq("is_active", True).execute()
-        zones = zones_resp.data or []
+        # Single query: fetch zones with nested branches (avoids N+1)
+        zones_resp = supabase.table("zones").select(
+            "id, zone_number, name, is_active, branches(id, branch_number, name)"
+        ).eq("farm_id", farm_id).eq("is_active", True).execute()
 
         result = []
-        for zone in zones:
-            branches_resp = supabase.table("branches").select("id, branch_number, name").eq("zone_id", zone["id"]).eq("is_active", True).execute()
-            branches = branches_resp.data or []
+        for zone in zones_resp.data or []:
+            active_branches = [b for b in (zone.get("branches") or []) if b.get("is_active", True)]
             result.append({
                 "id": zone["id"],
                 "zone_number": zone["zone_number"],
                 "name": zone["name"],
                 "is_active": zone["is_active"],
-                "branches": branches
+                "branches": active_branches,
             })
         return result
     except Exception as e:

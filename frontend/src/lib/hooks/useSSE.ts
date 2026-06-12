@@ -6,26 +6,39 @@ import { setLiveData, setConnected } from "@/lib/store/slices/iotSlice";
 import { API_URLS } from "../apiConfig";
 import { isDebugMode, debugLog } from "../debug";
 
+const MIN_BACKOFF_MS = 2_000;
+const MAX_BACKOFF_MS = 60_000;
+
 export function useSSE() {
   const dispatch = useAppDispatch();
   const { isAuthenticated } = useAppSelector((state) => state.auth);
   const esRef = useRef<EventSource | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const retryCount = useRef(0);
   const [currentUrlIndex, setCurrentUrlIndex] = useState(0);
 
   useEffect(() => {
     if (!isAuthenticated) return;
 
-    function connect() {
+    function scheduleReconnect(urlIndex: number) {
+      const delay = Math.min(MIN_BACKOFF_MS * 2 ** retryCount.current, MAX_BACKOFF_MS);
+      retryCount.current += 1;
+      if (isDebugMode()) {
+        debugLog(`SSE reconnecting in ${delay}ms (attempt ${retryCount.current})`);
+      }
+      reconnectTimer.current = setTimeout(() => connect(urlIndex), delay);
+    }
+
+    function connect(urlIndex: number = currentUrlIndex) {
       if (esRef.current) {
         esRef.current.close();
       }
 
-      const baseUrl = API_URLS[currentUrlIndex].replace(/\/$/, "");
+      const baseUrl = API_URLS[urlIndex].replace(/\/$/, "");
       if (isDebugMode()) {
         debugLog("SSE Connecting to:", `${baseUrl}/api/events`);
       }
-      
+
       const es = new EventSource(`${baseUrl}/api/events`);
       esRef.current = es;
 
@@ -33,6 +46,7 @@ export function useSSE() {
         if (isDebugMode()) {
           debugLog("SSE Connection opened");
         }
+        retryCount.current = 0; // reset backoff on successful open
         dispatch(setConnected(true));
       };
 
@@ -55,18 +69,19 @@ export function useSSE() {
         es.close();
         esRef.current = null;
         dispatch(setConnected(false));
-        
-        // Try fallback URL
-        if (currentUrlIndex < API_URLS.length - 1) {
-          setCurrentUrlIndex((prev) => prev + 1);
+
+        // Cycle through fallback URLs; after exhausting all, use exponential backoff
+        const nextIndex = (urlIndex + 1) % API_URLS.length;
+        if (nextIndex !== 0) {
+          setCurrentUrlIndex(nextIndex);
         } else {
           setCurrentUrlIndex(0);
-          reconnectTimer.current = setTimeout(connect, 5000);
+          scheduleReconnect(0);
         }
       };
     }
 
-    connect();
+    connect(currentUrlIndex);
 
     return () => {
       esRef.current?.close();
