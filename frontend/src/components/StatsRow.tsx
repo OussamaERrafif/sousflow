@@ -104,15 +104,10 @@ export default function StatsRow() {
 
     const lastUpdateTime = lastUpdate ? new Date(lastUpdate).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : null;
 
-    const statusRing: Record<string, string> = {
-        good: "ring-emerald-500/20",
-        warning: "ring-amber-500/20",
-        critical: "ring-red-500/20",
-    };
-    const statusDot: Record<string, string> = {
-        good: "bg-emerald-500",
-        warning: "bg-amber-500 animate-pulse",
-        critical: "bg-red-500 animate-pulse",
+    const STATUS_STYLES: Record<string, { ring: string; dot: string }> = {
+        good:     { ring: "ring-emerald-500/20", dot: "bg-emerald-500" },
+        warning:  { ring: "ring-amber-500/20",   dot: "bg-amber-500 animate-pulse" },
+        critical: { ring: "ring-red-500/20",      dot: "bg-red-500 animate-pulse" },
     };
 
     return (
@@ -137,13 +132,13 @@ export default function StatsRow() {
                 {STATS.map((stat, i) => (
                     <div
                         key={i}
-                        className={`group p-6 rounded-[2rem] border-2 border-border/50 bg-card shadow-sm hover:shadow-xl hover:shadow-black/5 hover:-translate-y-1 transition-all duration-300 cursor-pointer ring-2 ${statusRing[stat.status]}`}
+                        className={`group p-6 rounded-[2rem] border-2 border-border/50 bg-card shadow-sm hover:shadow-xl hover:shadow-black/5 hover:-translate-y-1 transition-all duration-300 cursor-pointer ring-2 ${STATUS_STYLES[stat.status].ring}`}
                     >
                         <div className="flex items-start justify-between mb-5">
                             <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${stat.iconBg} border-2 border-white/50 dark:border-black/50 shadow-inner`}>
                                 <stat.icon className={`w-7 h-7 ${stat.iconColor}`} strokeWidth={2.5} />
                             </div>
-                            <div className={`w-2.5 h-2.5 rounded-full mt-1.5 ${statusDot[stat.status]}`} />
+                            <div className={`w-2.5 h-2.5 rounded-full mt-1.5 ${STATUS_STYLES[stat.status].dot}`} />
                         </div>
                         <div>
                             <h3 className="text-3xl md:text-4xl font-black text-foreground mb-1.5 tracking-tight" dir="ltr">

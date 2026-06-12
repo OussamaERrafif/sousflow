@@ -118,7 +118,7 @@ async def detect_ml_anomalies(
     Returns list of anomalies with detection_method='isolation_forest'.
     """
     from app.config import get_settings as _gs
-    enabled = str(getattr(_gs(), "ML_ANOMALY_ENABLED", "false")).lower() == "true"
+    enabled = _gs().ML_ANOMALY_ENABLED
     if not enabled:
         return []
 

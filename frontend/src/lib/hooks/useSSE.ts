@@ -72,12 +72,8 @@ export function useSSE() {
 
         // Cycle through fallback URLs; after exhausting all, use exponential backoff
         const nextIndex = (urlIndex + 1) % API_URLS.length;
-        if (nextIndex !== 0) {
-          setCurrentUrlIndex(nextIndex);
-        } else {
-          setCurrentUrlIndex(0);
-          scheduleReconnect(0);
-        }
+        setCurrentUrlIndex(nextIndex);
+        if (nextIndex === 0) scheduleReconnect(0);
       };
     }
 

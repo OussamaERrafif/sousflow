@@ -48,6 +48,8 @@ def render_template(name: str, request: Request, context: dict | None = None) ->
 _latest_readings_cache = []
 _hierarchical_readings_cache = {}
 _simulator_status_cache = {"running": False}
+_farm_zones_cache: dict = {"data": [], "ts": 0.0}
+_FARM_ZONES_TTL = 90.0  # seconds
 
 
 def update_readings_cache(readings: list, running: bool):
@@ -595,7 +597,12 @@ async def sse_events():
 
 
 async def get_farm_zones():
-    """Get farm zones and branches for hierarchical readings using simulator's farm_id."""
+    """Get farm zones and branches for hierarchical readings using simulator's farm_id.
+    Results are cached for _FARM_ZONES_TTL seconds to avoid a DB round-trip on every SSE tick."""
+    global _farm_zones_cache
+    if time.time() - _farm_zones_cache["ts"] < _FARM_ZONES_TTL and _farm_zones_cache["data"]:
+        return _farm_zones_cache["data"]
+
     try:
         from app.supabase_client import get_supabase_admin
         from app.services.iot_simulator import get_simulator
@@ -621,6 +628,7 @@ async def get_farm_zones():
                 "is_active": zone["is_active"],
                 "branches": active_branches,
             })
+        _farm_zones_cache = {"data": result, "ts": time.time()}
         return result
     except Exception as e:
         logger.error("Failed to fetch farm zones", error=str(e))

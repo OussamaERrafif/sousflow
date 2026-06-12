@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import { AlertOctagon, AlertTriangle, Info, CheckCircle, Smartphone } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useAppSelector } from "@/lib/store/hooks";
@@ -75,20 +75,28 @@ export default function AlertPanel() {
     const visible = alerts.filter(a => !dismissed.has(a.id));
     const unreadCount = visible.filter(a => a.type !== "info").length;
 
-    const getIcon = (type: string) => {
-        switch (type) {
-            case "critical": return <AlertOctagon className="w-5 h-5 text-red-600" />;
-            case "warning":  return <AlertTriangle className="w-5 h-5 text-amber-500" />;
-            case "info":     return <Info className="w-5 h-5 text-sky-500" />;
-            default:         return <CheckCircle className="w-5 h-5 text-emerald-500" />;
-        }
+    const ALERT_STYLES: Record<string, { icon: React.ReactNode; border: string; iconBg: string }> = {
+        critical: {
+            icon:   <AlertOctagon className="w-5 h-5 text-red-600" />,
+            border: "border-l-4 border-red-500 rtl:border-r-4 rtl:border-l-0",
+            iconBg: "bg-red-50 dark:bg-red-900/20 border-red-100 dark:border-red-800",
+        },
+        warning: {
+            icon:   <AlertTriangle className="w-5 h-5 text-amber-500" />,
+            border: "border-l-4 border-amber-400 rtl:border-r-4 rtl:border-l-0",
+            iconBg: "bg-amber-50 dark:bg-amber-900/20 border-amber-100 dark:border-amber-800",
+        },
+        info: {
+            icon:   <Info className="w-5 h-5 text-sky-500" />,
+            border: "border-l-4 border-sky-400 rtl:border-r-4 rtl:border-l-0",
+            iconBg: "bg-sky-50 dark:bg-sky-900/20 border-sky-100 dark:border-sky-800",
+        },
     };
-
-    const getBorderStyle = (type: string) =>
-        ({ critical: "border-l-4 border-red-500 rtl:border-r-4 rtl:border-l-0", warning: "border-l-4 border-amber-400 rtl:border-r-4 rtl:border-l-0", info: "border-l-4 border-sky-400 rtl:border-r-4 rtl:border-l-0" }[type] ?? "");
-
-    const getIconBg = (type: string) =>
-        ({ critical: "bg-red-50 dark:bg-red-900/20 border-red-100 dark:border-red-800", warning: "bg-amber-50 dark:bg-amber-900/20 border-amber-100 dark:border-amber-800", info: "bg-sky-50 dark:bg-sky-900/20 border-sky-100 dark:border-sky-800" }[type] ?? "bg-zinc-50 dark:bg-zinc-800 border-zinc-100 dark:border-zinc-700");
+    const DEFAULT_ALERT_STYLE = {
+        icon:   <CheckCircle className="w-5 h-5 text-emerald-500" />,
+        border: "",
+        iconBg: "bg-zinc-50 dark:bg-zinc-800 border-zinc-100 dark:border-zinc-700",
+    };
 
     return (
         <div className="mb-24 md:mb-8">
@@ -119,16 +127,17 @@ export default function AlertPanel() {
                 </div>
             ) : (
                 <div className="space-y-3">
-                    {(visible.length > 0 ? visible : alerts).map((alert) => {
+                    {visible.map((alert) => {
                         const isUnread = !dismissed.has(alert.id);
+                        const style = ALERT_STYLES[alert.type] ?? DEFAULT_ALERT_STYLE;
                         return (
                             <div
                                 key={alert.id}
-                                className={`p-3 rounded-xl border transition-all bg-card ${isUnread ? `shadow-sm ${getBorderStyle(alert.type)}` : "opacity-60 bg-muted border-border"}`}
+                                className={`p-3 rounded-xl border transition-all bg-card ${isUnread ? `shadow-sm ${style.border}` : "opacity-60 bg-muted border-border"}`}
                             >
                                 <div className="flex gap-3 items-start">
-                                    <div className={`shrink-0 p-2 rounded-lg border ${getIconBg(alert.type)} ${isUnread && alert.type !== "info" ? "animate-pulse" : ""}`}>
-                                        {getIcon(alert.type)}
+                                    <div className={`shrink-0 p-2 rounded-lg border ${style.iconBg} ${isUnread && alert.type !== "info" ? "animate-pulse" : ""}`}>
+                                        {style.icon}
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <div className="flex justify-between items-start gap-2">

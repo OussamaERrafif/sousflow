@@ -45,10 +45,38 @@ function MoistureBar({ level, status }: { level: number; status: string }) {
 }
 
 const STATUS_STYLE = {
-    good:     { dot: "bg-emerald-500",          border: "border-emerald-500/25", topBorder: "border-t-2 border-t-emerald-500",          icon: CheckCircle2,  text: "text-emerald-600 dark:text-emerald-400", iconBg: "bg-emerald-500/10 border-emerald-500/20" },
-    warning:  { dot: "bg-amber-500 animate-pulse", border: "border-amber-500/30",  topBorder: "border-t-2 border-t-amber-500",           icon: AlertTriangle, text: "text-amber-600 dark:text-amber-400",   iconBg: "bg-amber-500/10 border-amber-500/20"   },
-    critical: { dot: "bg-red-500 animate-pulse",   border: "border-red-500/30",    topBorder: "border-t-2 border-t-red-500",             icon: AlertOctagon,  text: "text-red-600 dark:text-red-400",       iconBg: "bg-red-500/10 border-red-500/20"       },
-    off:      { dot: "bg-muted-foreground/40",     border: "border-border",        topBorder: "border-t-2 border-t-muted-foreground/20", icon: PauseCircle,   text: "text-muted-foreground",                iconBg: "bg-muted border-border"                },
+    good: {
+        dot: "bg-emerald-500",
+        border: "border-emerald-500/25",
+        topBorder: "border-t-2 border-t-emerald-500",
+        icon: CheckCircle2,
+        text: "text-emerald-600 dark:text-emerald-400",
+        iconBg: "bg-emerald-500/10 border-emerald-500/20",
+    },
+    warning: {
+        dot: "bg-amber-500 animate-pulse",
+        border: "border-amber-500/30",
+        topBorder: "border-t-2 border-t-amber-500",
+        icon: AlertTriangle,
+        text: "text-amber-600 dark:text-amber-400",
+        iconBg: "bg-amber-500/10 border-amber-500/20",
+    },
+    critical: {
+        dot: "bg-red-500 animate-pulse",
+        border: "border-red-500/30",
+        topBorder: "border-t-2 border-t-red-500",
+        icon: AlertOctagon,
+        text: "text-red-600 dark:text-red-400",
+        iconBg: "bg-red-500/10 border-red-500/20",
+    },
+    off: {
+        dot: "bg-muted-foreground/40",
+        border: "border-border",
+        topBorder: "border-t-2 border-t-muted-foreground/20",
+        icon: PauseCircle,
+        text: "text-muted-foreground",
+        iconBg: "bg-muted border-border",
+    },
 } as const;
 
 export default function ZonesPage() {

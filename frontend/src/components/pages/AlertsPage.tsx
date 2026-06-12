@@ -136,12 +136,11 @@ export default function AlertsPage() {
         }
     };
 
-    // Derive live alerts from SSE
-    const { readings: sseReadings, zones: sseZones, connected, lastUpdate, anomalyCount } = useAppSelector((state) => state.iot);
-    const hasLiveData = connected && sseReadings.length > 0;
+    // Derive live alerts from SSE zones
+    const { zones: sseZones, connected, lastUpdate, anomalyCount } = useAppSelector((state) => state.iot);
+    const hasLiveData = connected && sseZones.length > 0;
 
     useDebugLog("AlertsPage - alertRules", alertRules);
-    useDebugLog("AlertsPage - sseReadings", sseReadings);
     useDebugLog("AlertsPage - connected", connected);
     useDebugLog("AlertsPage - lastUpdate", lastUpdate);
 
@@ -149,39 +148,41 @@ export default function AlertsPage() {
     const liveAlerts: LiveAlert[] = [];
 
     if (hasLiveData) {
-        sseReadings.forEach((r) => {
-            const zoneLabel = `Zone ${r.zone_id}`;
-            if (r.is_anomaly) {
+        const timeStr = lastUpdate ? new Date(lastUpdate).toLocaleTimeString() : "just now";
+        sseZones.forEach((z) => {
+            const zoneLabel = z.zone_name || `Zone ${z.zone_number}`;
+            const pct = z.avg_moisture_pct ?? 100;
+            if (z.leak_count > 0) {
                 liveAlerts.push({
-                    id: `anomaly-${r.zone_id}`,
+                    id: `anomaly-${z.zone_id}`,
                     type: "critical",
                     title: `Sensor Anomaly — ${zoneLabel}`,
                     message: "Abnormal sensor reading detected. Check hardware.",
-                    time: lastUpdate ? new Date(lastUpdate).toLocaleTimeString() : "just now",
+                    time: timeStr,
                 });
-            } else if ((r.soil_moisture_pct ?? 100) < 35) {
+            } else if (pct < 35) {
                 liveAlerts.push({
-                    id: `dry-${r.zone_id}`,
+                    id: `dry-${z.zone_id}`,
                     type: "critical",
                     title: `Critically Dry — ${zoneLabel}`,
-                    message: `Soil moisture ${r.soil_moisture_pct?.toFixed(0)}% — immediate irrigation needed.`,
-                    time: lastUpdate ? new Date(lastUpdate).toLocaleTimeString() : "just now",
+                    message: `Soil moisture ${pct.toFixed(0)}% — immediate irrigation needed.`,
+                    time: timeStr,
                 });
-            } else if ((r.soil_moisture_pct ?? 100) < 45) {
+            } else if (pct < 45) {
                 liveAlerts.push({
-                    id: `low-${r.zone_id}`,
+                    id: `low-${z.zone_id}`,
                     type: "warning",
                     title: `Low Moisture — ${zoneLabel}`,
-                    message: `Soil moisture ${r.soil_moisture_pct?.toFixed(0)}% is below optimal (55%).`,
-                    time: lastUpdate ? new Date(lastUpdate).toLocaleTimeString() : "just now",
+                    message: `Soil moisture ${pct.toFixed(0)}% is below optimal (55%).`,
+                    time: timeStr,
                 });
-            } else if (r.irrigation_needed === 1) {
+            } else if (z.irrigation_needed) {
                 liveAlerts.push({
-                    id: `irr-${r.zone_id}`,
+                    id: `irr-${z.zone_id}`,
                     type: "info",
                     title: `Irrigation Active — ${zoneLabel}`,
-                    message: `Automated irrigation running. Moisture: ${r.soil_moisture_pct?.toFixed(0)}%.`,
-                    time: lastUpdate ? new Date(lastUpdate).toLocaleTimeString() : "just now",
+                    message: `Automated irrigation running. Moisture: ${pct.toFixed(0)}%.`,
+                    time: timeStr,
                 });
             }
         });
