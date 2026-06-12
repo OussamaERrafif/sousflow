@@ -143,7 +143,10 @@
         "no_data": "Aucune donnée de secteur disponible. Vérifiez que le simulateur est actif."
     },
     "DataViz": {
-        "moisture_history": "Analyse d'humidité (24h)"
+        "moisture_history": "Analyse d'humidité (24h)",
+        "avg_moisture_label": "Humidité sol moyenne (%) — dernières 24h",
+        "live": "En direct",
+        "no_data": "Aucune donnée historique. Le graphique se remplira au fil des lectures."
     },
     "AlertPanel": {
         "title": "Alertes du système",

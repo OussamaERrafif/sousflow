@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { useRouter, usePathname } from "@/i18n/routing";
 import { getApiBaseUrl } from "@/lib/apiConfig";
 import { useLocale } from "next-intl";
-import { useGetProfileApiAuthProfileGetQuery, useSignOutApiAuthSignoutPostMutation } from "@/lib/store/generated/api";
+import { useGetProfileApiAuthProfileGetQuery, useSignOutApiAuthSignoutPostMutation, useChangePasswordApiAuthChangePasswordPostMutation } from "@/lib/store/generated/api";
 import { useAppDispatch, useAppSelector } from "@/lib/store/hooks";
 import { logout } from "@/lib/store/slices/authSlice";
 import { useTheme } from "@/components/ThemeProvider";
@@ -41,7 +41,8 @@ export default function SettingsPage() {
 
     const { data: profile, isLoading } = useGetProfileApiAuthProfileGetQuery();
     const [signOut] = useSignOutApiAuthSignoutPostMutation();
-    const { connected, lastUpdate, readings, simulatorRunning } = useAppSelector((state) => state.iot);
+    const [changePassword, { isLoading: isChangingPassword }] = useChangePasswordApiAuthChangePasswordPostMutation();
+    const { connected, lastUpdate, zones: iotZones, simulatorRunning } = useAppSelector((state) => state.iot);
 
     const handleSignOut = async () => {
         try {
@@ -75,7 +76,7 @@ export default function SettingsPage() {
         setTimeout(() => setNotificationSaved(false), 2000);
     };
 
-    const handleUpdatePassword = () => {
+    const handleUpdatePassword = async () => {
         if (!passwordForm.current || !passwordForm.new || !passwordForm.confirm) {
             setPasswordError("All fields are required");
             return;
@@ -89,9 +90,20 @@ export default function SettingsPage() {
             return;
         }
         setPasswordError("");
-        setPasswordSuccess(true);
-        setPasswordForm({ current: "", new: "", confirm: "" });
-        setTimeout(() => setPasswordSuccess(false), 3000);
+        try {
+            await changePassword({
+                changePasswordRequest: {
+                    old_password: passwordForm.current,
+                    new_password: passwordForm.new,
+                },
+            }).unwrap();
+            setPasswordSuccess(true);
+            setPasswordForm({ current: "", new: "", confirm: "" });
+            setTimeout(() => setPasswordSuccess(false), 3000);
+        } catch (err: unknown) {
+            const detail = (err as { data?: { detail?: string } })?.data?.detail;
+            setPasswordError(detail ?? "Failed to change password. Check your current password.");
+        }
     };
 
     const handleEnable2FA = () => {
@@ -312,10 +324,11 @@ export default function SettingsPage() {
                             <div className="mt-6">
                                 <button
                                     onClick={handleUpdatePassword}
-                                    className="flex items-center gap-2 bg-[#3D1F0F] text-white hover:bg-[#4A2C1A] px-5 py-2.5 rounded-xl font-bold transition-colors"
+                                    disabled={isChangingPassword}
+                                    className="flex items-center gap-2 bg-[#3D1F0F] text-white hover:bg-[#4A2C1A] px-5 py-2.5 rounded-xl font-bold transition-colors disabled:opacity-60"
                                 >
                                     <Save className="w-5 h-5" />
-                                    Update Password
+                                    {isChangingPassword ? "Updating..." : "Update Password"}
                                 </button>
                             </div>
                         </div>
@@ -416,7 +429,7 @@ export default function SettingsPage() {
                                             <div className="mt-2 grid grid-cols-3 gap-2">
                                                 <div className="text-center p-2 bg-zinc-50 dark:bg-zinc-700 rounded-lg">
                                                     <p className="text-xs font-bold text-zinc-500 dark:text-zinc-400">Zones</p>
-                                                    <p className="font-black text-zinc-800 dark:text-zinc-100">{readings.length}</p>
+                                                    <p className="font-black text-zinc-800 dark:text-zinc-100">{iotZones.length}</p>
                                                 </div>
                                                 <div className="text-center p-2 bg-zinc-50 dark:bg-zinc-700 rounded-lg">
                                                     <p className="text-xs font-bold text-zinc-500 dark:text-zinc-400">Simulator</p>

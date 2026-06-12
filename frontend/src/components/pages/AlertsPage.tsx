@@ -137,7 +137,7 @@ export default function AlertsPage() {
     };
 
     // Derive live alerts from SSE
-    const { readings: sseReadings, connected, lastUpdate, anomalyCount } = useAppSelector((state) => state.iot);
+    const { readings: sseReadings, zones: sseZones, connected, lastUpdate, anomalyCount } = useAppSelector((state) => state.iot);
     const hasLiveData = connected && sseReadings.length > 0;
 
     useDebugLog("AlertsPage - alertRules", alertRules);
@@ -508,8 +508,8 @@ export default function AlertsPage() {
                                 className="w-full px-4 py-2.5 rounded-xl border border-input bg-background focus:border-primary focus:outline-none font-medium"
                             >
                                 <option value="">All Zones</option>
-                                {[1, 2, 3, 4, 5, 6, 7, 8].map(n => (
-                                    <option key={n} value={n}>Zone {n}</option>
+                                {(sseZones.length > 0 ? sseZones : []).map(z => (
+                                    <option key={z.zone_id} value={z.zone_number}>{z.zone_name || `Zone ${z.zone_number}`}</option>
                                 ))}
                             </select>
                         </div>

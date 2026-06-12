@@ -53,7 +53,7 @@ export default function HistoricalData() {
                 {connected && (
                     <span className="text-sm font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-4 py-1.5 rounded-full border border-emerald-200 dark:border-emerald-800 flex items-center gap-2">
                         <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
-                        Live data
+                        {td("live")}
                     </span>
                 )}
             </div>
@@ -61,7 +61,7 @@ export default function HistoricalData() {
             <div className="bg-white dark:bg-zinc-800 rounded-[2rem] border-2 border-zinc-200 dark:border-zinc-700 shadow-sm p-6 md:p-8 overflow-hidden">
                 <div className="flex items-center gap-3 mb-8">
                     <BarChart3 className="w-6 h-6 text-zinc-400" strokeWidth={2.5} />
-                    <span className="text-base font-bold text-zinc-600 dark:text-zinc-400">Average soil moisture (%) — last 24h</span>
+                    <span className="text-base font-bold text-zinc-600 dark:text-zinc-400">{td("avg_moisture_label")}</span>
                 </div>
 
                 {isLoading ? (
@@ -91,7 +91,7 @@ export default function HistoricalData() {
 
                 {!isLoading && !hasData && (
                     <div className="h-48 flex items-center justify-center -mt-48 relative z-10">
-                        <p className="text-zinc-400 dark:text-zinc-500 font-bold text-base bg-white/80 dark:bg-zinc-800/80 px-4 py-2 rounded-xl backdrop-blur-sm">No historical data yet. The chart will populate as readings come in.</p>
+                        <p className="text-zinc-400 dark:text-zinc-500 font-bold text-base bg-white/80 dark:bg-zinc-800/80 px-4 py-2 rounded-xl backdrop-blur-sm">{td("no_data")}</p>
                     </div>
                 )}
 
