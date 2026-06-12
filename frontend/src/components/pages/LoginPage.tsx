@@ -8,8 +8,8 @@ import { setCredentials } from "@/lib/store/slices/authSlice";
 import { useAppDispatch } from "@/lib/store/hooks";
 import { Leaf, User, Lock, Eye, EyeOff, AlertCircle, Zap } from "lucide-react";
 
-const FAST_LOGIN_USER = "admin";
-const FAST_LOGIN_PASS = "admin123";
+const FAST_LOGIN_USER = "nada";
+const FAST_LOGIN_PASS = "nada123";
 
 export default function LoginPage() {
   const router = useRouter();
