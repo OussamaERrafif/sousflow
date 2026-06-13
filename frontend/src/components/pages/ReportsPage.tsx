@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useGetReadingsApiIotReadingsGetQuery, useGetDashboardApiIotDashboardGetQuery } from "@/lib/store/generated/api";
 import { useAppSelector } from "@/lib/store/hooks";
-import { FileText, Download, TrendingUp, TrendingDown, Activity, Droplet, ThermometerSun, Zap } from "lucide-react";
+import { AlertTriangle, Download, TrendingUp, TrendingDown, Activity, Droplet, ThermometerSun, Zap } from "lucide-react";
 
 export default function ReportsPage() {
     const t = useTranslations("Sidebar");
@@ -29,18 +29,6 @@ export default function ReportsPage() {
     const { data: dashboardData } = useGetDashboardApiIotDashboardGetQuery();
 
     // Build hourly chart data from readings
-    type ReadingItem = {
-        timestamp?: string;
-        soil_moisture_pct?: number;
-        zone_flow_lpm?: number;
-        zone_id?: number;
-        zone_pressure_mpa?: number;
-        air_temperature_c?: number;
-        air_humidity_pct?: number;
-        irrigation_needed?: number;
-        is_anomaly?: boolean;
-        health_score?: number;
-    };
     const readings: ReadingItem[] = Array.isArray(readingsData)
         ? readingsData
         : (readingsData as { data?: ReadingItem[] } | undefined)?.data ?? [];
@@ -294,49 +282,142 @@ export default function ReportsPage() {
                 </div>
             </div>
 
-            {/* Readings summary table */}
-            {readings.length > 0 && (
-                <div>
-                    <h3 className="text-lg font-black text-zinc-800 mb-4">Recent Readings ({readings.length})</h3>
-                    <div className="bg-white rounded-2xl border border-zinc-200 overflow-hidden overflow-x-auto">
-                        <table className="w-full">
-                            <thead className="bg-zinc-50 border-b border-zinc-200">
-                                <tr>
-                                    <th className="text-left px-5 py-3 text-xs font-bold text-zinc-500 uppercase">Zone</th>
-                                    <th className="text-left px-5 py-3 text-xs font-bold text-zinc-500 uppercase">Time</th>
-                                    <th className="text-left px-5 py-3 text-xs font-bold text-zinc-500 uppercase">Moisture</th>
-                                    <th className="text-left px-5 py-3 text-xs font-bold text-zinc-500 uppercase">Flow</th>
-                                    <th className="text-left px-5 py-3 text-xs font-bold text-zinc-500 uppercase">Health</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {readings.slice(0, 20).map((r, i) => (
-                                    <tr key={i} className="border-b border-zinc-100 hover:bg-zinc-50">
-                                        <td className="px-5 py-3 font-bold text-zinc-800">Zone {r.zone_id ?? "--"}</td>
-                                        <td className="px-5 py-3 text-sm text-zinc-500 font-bold" dir="ltr">
-                                            {r.timestamp ? new Date(r.timestamp).toLocaleTimeString() : "--"}
-                                        </td>
-                                        <td className="px-5 py-3">
-                                            <span className={`text-sm font-black ${(r.soil_moisture_pct ?? 100) < 40 ? "text-red-600" : (r.soil_moisture_pct ?? 100) < 60 ? "text-amber-600" : "text-emerald-600"}`} dir="ltr">
-                                                {r.soil_moisture_pct?.toFixed(1) ?? "--"}%
-                                            </span>
-                                        </td>
-                                        <td className="px-5 py-3 text-sm font-bold text-zinc-600" dir="ltr">
-                                            {r.zone_flow_lpm?.toFixed(1) ?? "--"} L/min
-                                        </td>
-                                        <td className="px-5 py-3">
-                                            <div className="flex items-center gap-2">
-                                                <FileText className="w-4 h-4 text-zinc-400" />
-                                                <span className="text-sm font-bold text-zinc-600">—</span>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            )}
+            {/* Latest reading per zone */}
+            {readings.length > 0 && <ZoneReadingSummary readings={readings} />}
+        </div>
+    );
+}
+
+// ─── Zone reading summary ─────────────────────────────────────────────────────
+
+type ReadingItem = {
+    timestamp?: string;
+    soil_moisture_pct?: number;
+    zone_flow_lpm?: number;
+    zone_id?: number;
+    zone_pressure_mpa?: number;
+    air_temperature_c?: number;
+    air_humidity_pct?: number;
+    health_score?: number;
+    is_anomaly?: boolean;
+    irrigation_needed?: number;
+};
+
+function timeAgo(ts: string): string {
+    const diff = Date.now() - new Date(ts).getTime();
+    const m = Math.floor(diff / 60000);
+    if (m < 1) return "just now";
+    if (m < 60) return `${m}m ago`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}h ago`;
+    return new Date(ts).toLocaleDateString();
+}
+
+function ZoneReadingSummary({ readings }: { readings: ReadingItem[] }) {
+    // Latest reading per zone
+    const latestByZone = readings.reduce<Record<number, ReadingItem>>((acc, r) => {
+        const zid = r.zone_id ?? 0;
+        if (!acc[zid] || new Date(r.timestamp!) > new Date(acc[zid].timestamp!)) {
+            acc[zid] = r;
+        }
+        return acc;
+    }, {});
+
+    const zones = Object.entries(latestByZone).sort(
+        ([a], [b]) => Number(a) - Number(b)
+    );
+
+    return (
+        <div>
+            <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-black text-zinc-800">Latest per Zone</h3>
+                <span className="text-xs text-zinc-500 font-bold bg-zinc-100 px-2.5 py-1 rounded-full">
+                    {readings.length} total readings
+                </span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {zones.map(([zid, r]) => {
+                    const moisture = r.soil_moisture_pct;
+                    const health = r.health_score != null ? r.health_score * 100 : null;
+                    const moistureBg =
+                        moisture == null ? "bg-zinc-50 text-zinc-500"
+                        : moisture < 40 ? "bg-red-50 text-red-700"
+                        : moisture < 60 ? "bg-amber-50 text-amber-700"
+                        : "bg-emerald-50 text-emerald-700";
+                    const moistureBar =
+                        moisture == null ? "bg-zinc-200"
+                        : moisture < 40 ? "bg-red-500"
+                        : moisture < 60 ? "bg-amber-500"
+                        : "bg-emerald-500";
+                    const healthColor =
+                        health == null ? "text-zinc-400"
+                        : health >= 80 ? "text-emerald-600"
+                        : health >= 50 ? "text-amber-600"
+                        : "text-red-600";
+
+                    return (
+                        <div key={zid} className="bg-white rounded-2xl border border-zinc-200 p-4 shadow-sm">
+                            {/* Zone header */}
+                            <div className="flex items-center justify-between mb-3">
+                                <span className="font-black text-zinc-800 text-sm">Zone {zid}</span>
+                                <span className="text-[10px] text-zinc-400 font-bold" dir="ltr">
+                                    {r.timestamp ? timeAgo(r.timestamp) : "--"}
+                                </span>
+                            </div>
+
+                            {/* Moisture */}
+                            <div className="mb-2">
+                                <div className="flex items-center justify-between mb-1">
+                                    <span className="text-[10px] font-bold text-zinc-400 uppercase">Moisture</span>
+                                    <span className={`text-xs font-black px-1.5 py-0.5 rounded-md ${moistureBg}`} dir="ltr">
+                                        {moisture?.toFixed(0) ?? "--"}%
+                                    </span>
+                                </div>
+                                <div className="h-1.5 bg-zinc-100 rounded-full overflow-hidden">
+                                    <div
+                                        className={`h-full rounded-full transition-all ${moistureBar}`}
+                                        style={{ width: `${Math.min(moisture ?? 0, 100)}%` }}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Flow */}
+                            <div className="flex items-center justify-between py-1.5 border-t border-zinc-100">
+                                <span className="text-[10px] font-bold text-zinc-400 uppercase">Flow</span>
+                                <span className="text-xs font-bold text-zinc-700" dir="ltr">
+                                    {r.zone_flow_lpm?.toFixed(1) ?? "--"} L/min
+                                </span>
+                            </div>
+
+                            {/* Health */}
+                            {health != null && (
+                                <div className="flex items-center justify-between py-1.5 border-t border-zinc-100">
+                                    <span className="text-[10px] font-bold text-zinc-400 uppercase">Health</span>
+                                    <span className={`text-xs font-bold ${healthColor}`} dir="ltr">
+                                        {Math.round(health)}%
+                                    </span>
+                                </div>
+                            )}
+
+                            {/* Anomaly badge */}
+                            {r.is_anomaly && (
+                                <div className="flex items-center gap-1.5 mt-2 px-2 py-1 bg-red-50 rounded-lg">
+                                    <AlertTriangle className="w-3 h-3 text-red-500 shrink-0" />
+                                    <span className="text-[10px] font-bold text-red-600">Anomaly detected</span>
+                                </div>
+                            )}
+
+                            {/* Irrigation badge */}
+                            {r.irrigation_needed === 1 && !r.is_anomaly && (
+                                <div className="flex items-center gap-1.5 mt-2 px-2 py-1 bg-sky-50 rounded-lg">
+                                    <span className="w-2 h-2 bg-sky-500 rounded-full animate-pulse shrink-0" />
+                                    <span className="text-[10px] font-bold text-sky-600">Irrigation needed</span>
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
         </div>
     );
 }

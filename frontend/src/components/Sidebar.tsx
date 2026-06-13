@@ -39,14 +39,14 @@ export default function Sidebar({ activePage, setActivePage }: { activePage: str
         }
         localStorage.removeItem("token");
         dispatch(logout());
-        router.push("/login");
+        window.location.href = "/login";
     };
 
     const handleAuthClick = () => {
         if (isAuthenticated) {
             handleSignOut();
         } else {
-            router.push("/login");
+            window.location.href = "/login";
         }
     };
 
@@ -284,6 +284,26 @@ export default function Sidebar({ activePage, setActivePage }: { activePage: str
                                     : 'text-muted-foreground'
                                 }`}>
                                 🇲🇦 العربية
+                            </span>
+                        </button>
+                    </div>
+                    <div className="border-t border-border mt-2 pt-1">
+                        <button
+                            onClick={() => {
+                                setShowMore(false);
+                                handleAuthClick();
+                            }}
+                            className={`w-full flex items-center px-4 py-3 rounded-xl transition-all duration-200 ${
+                                isAuthenticated
+                                    ? "text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                    : "text-foreground hover:bg-accent"
+                            }`}
+                        >
+                            {isAuthenticated
+                                ? <LogOut className="w-5 h-5" />
+                                : <LogIn className="w-5 h-5" />}
+                            <span className="ltr:ml-3 rtl:mr-3 font-medium text-sm">
+                                {isAuthenticated ? t("logout") : t("login")}
                             </span>
                         </button>
                     </div>

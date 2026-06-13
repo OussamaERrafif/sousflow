@@ -22,8 +22,8 @@ const getScoreColor = (score: number): string => {
 
 const getStrokeColor = (score: number): string => {
     if (score >= 80) return "#10b981";
-    if (score >= 60) return "f59e0b";
-    if (score >= 40) return "f97316";
+    if (score >= 60) return "#f59e0b";
+    if (score >= 40) return "#f97316";
     return "#ef4444";
 };
 
