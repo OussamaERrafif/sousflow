@@ -439,6 +439,10 @@
         "device_type_temperature_sensor": "Capteur de température",
         "device_type_humidity_sensor": "Capteur d'humidité air",
         "device_type_gateway": "Passerelle",
-        "device_type_battery": "Batterie"
+        "device_type_battery": "Batterie",
+        "all": "Tous",
+        "sort_status": "Par statut",
+        "sort_type": "Par type",
+        "sort_name": "Par nom"
     }
 }

@@ -128,7 +128,11 @@
         "device_type_temperature_sensor": "مستشعر حرارة",
         "device_type_humidity_sensor": "مستشعر رطوبة هواء",
         "device_type_gateway": "بوابة شبكية",
-        "device_type_battery": "بطارية"
+        "device_type_battery": "بطارية",
+        "all": "الكل",
+        "sort_status": "حسب الحالة",
+        "sort_type": "حسب النوع",
+        "sort_name": "حسب الاسم"
     },
     "GlobalStatus": {
         "system_status": "حالة النظام",
