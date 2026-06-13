@@ -41,7 +41,12 @@
         "low": "Faible",
         "noAnomalies": "Aucune anomalie active",
         "noData": "Aucune donnée disponible",
-        "lastUpdated": "Dernière mise à jour"
+        "lastUpdated": "Dernière mise à jour",
+        "overall_desc": "Score global calculé à partir des 4 domaines : hydraulique, agronomique, équipement et qualité des données.",
+        "hydraulic_desc": "Santé du réseau d'eau : pression des canalisations, débit, niveau du réservoir et état des filtres.",
+        "agronomic_desc": "Santé des cultures : humidité du sol, niveau de stress des oliviers et efficacité de l'irrigation.",
+        "equipment_desc": "État des équipements : pompes, vannes, capteurs et appareils IoT connectés.",
+        "data_desc": "Qualité des données : complétude des lectures, cohérence entre capteurs et fraîcheur des mesures."
     },
     "GlobalStatus": {
         "system_status": "État du système",

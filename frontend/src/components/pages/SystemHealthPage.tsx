@@ -21,11 +21,7 @@ interface HealthData {
     active_anomalies_low: number;
 }
 
-interface SystemHealthPageProps {
-    healthData?: HealthData;
-}
-
-export function SystemHealthPage({ healthData }: SystemHealthPageProps) {
+export function SystemHealthPage({ healthData }: { healthData?: HealthData }) {
     const t = useTranslations("SystemHealth");
     const [data, setData] = useState<HealthData | null>(healthData || null);
     const [loading, setLoading] = useState(!healthData);
@@ -35,7 +31,6 @@ export function SystemHealthPage({ healthData }: SystemHealthPageProps) {
             setData(healthData);
             return;
         }
-
         const fetchHealth = async () => {
             try {
                 const token = localStorage.getItem("token");
@@ -44,24 +39,20 @@ export function SystemHealthPage({ healthData }: SystemHealthPageProps) {
                 if (token) headers["Authorization"] = `Bearer ${token}`;
                 if (farmId) headers["X-Farm-ID"] = farmId;
                 const res = await fetch(`${getApiBaseUrl()}/api/anomalies/health`, { headers });
-                if (res.ok) {
-                    const json = await res.json();
-                    setData(json);
-                }
+                if (res.ok) setData(await res.json());
             } catch (err) {
                 console.error("Failed to fetch health:", err);
             } finally {
                 setLoading(false);
             }
         };
-
         fetchHealth();
     }, [healthData]);
 
     if (loading) {
         return (
             <div className="flex items-center justify-center h-64">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
             </div>
         );
     }
@@ -76,37 +67,74 @@ export function SystemHealthPage({ healthData }: SystemHealthPageProps) {
     }
 
     const domainScores = [
-        { key: "hydraulic", score: data.hydraulic_health_score, icon: Droplets, color: "text-blue-500" },
-        { key: "agronomic", score: data.agronomic_health_score, icon: Thermometer, color: "text-green-500" },
-        { key: "equipment", score: data.equipment_health_score, icon: Gauge, color: "text-purple-500" },
-        { key: "data", score: data.data_quality_score, icon: Activity, color: "text-orange-500" },
+        {
+            key: "hydraulic" as const,
+            score: data.hydraulic_health_score,
+            icon: Droplets,
+            color: "text-blue-500",
+            desc: t("hydraulic_desc"),
+        },
+        {
+            key: "agronomic" as const,
+            score: data.agronomic_health_score,
+            icon: Thermometer,
+            color: "text-green-500",
+            desc: t("agronomic_desc"),
+        },
+        {
+            key: "equipment" as const,
+            score: data.equipment_health_score,
+            icon: Gauge,
+            color: "text-purple-500",
+            desc: t("equipment_desc"),
+        },
+        {
+            key: "data" as const,
+            score: data.data_quality_score,
+            icon: Activity,
+            color: "text-orange-500",
+            desc: t("data_desc"),
+        },
     ];
 
-    const totalAnomalies = data.active_anomalies_critical + data.active_anomalies_high + data.active_anomalies_medium + data.active_anomalies_low;
+    const totalAnomalies =
+        data.active_anomalies_critical +
+        data.active_anomalies_high +
+        data.active_anomalies_medium +
+        data.active_anomalies_low;
 
     return (
         <div className="space-y-6 p-6">
             <div className="flex items-center justify-between">
                 <h1 className="text-2xl font-bold">{t("title")}</h1>
                 <p className="text-sm text-muted-foreground">
-                    {t("lastUpdated")}: {data.snapshot_at ? new Date(data.snapshot_at).toLocaleString() : "—"}
+                    {t("lastUpdated")}:{" "}
+                    {data.snapshot_at ? new Date(data.snapshot_at).toLocaleString() : "—"}
                 </p>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Overall score */}
                 <div className="bg-card rounded-2xl border border-border p-6 shadow-sm">
                     <h2 className="text-lg font-semibold mb-6 text-center">{t("overallScore")}</h2>
                     <div className="flex justify-center">
-                        <HealthScoreRing score={data.overall_score} label={t("overall")} size="lg" />
+                        <div className="relative inline-block">
+                            <HealthScoreRing score={data.overall_score} label={t("overall")} size="lg" />
+                            <InfoTooltip text={t("overall_desc")} />
+                        </div>
                     </div>
                 </div>
 
+                {/* Domain scores */}
                 <div className="bg-card rounded-2xl border border-border p-6 shadow-sm">
                     <h2 className="text-lg font-semibold mb-6">{t("domainScores")}</h2>
                     <div className="grid grid-cols-2 gap-6 justify-items-center">
-                        {domainScores.map(({ key, score, icon: Icon, color }) => (
+                        {domainScores.map(({ key, score, icon: Icon, color, desc }) => (
                             <div key={key} className="flex flex-col items-center gap-2">
-                                <HealthScoreRing score={score} label={t(key)} size="md" />
+                                <div className="relative">
+                                    <HealthScoreRing score={score} label={t(key)} size="md" />
+                                    <InfoTooltip text={desc} />
+                                </div>
                                 <Icon className={`w-5 h-5 ${color}`} />
                             </div>
                         ))}
@@ -118,6 +146,7 @@ export function SystemHealthPage({ healthData }: SystemHealthPageProps) {
                 <AnomalyTimeline days={7} />
             </div>
 
+            {/* Active anomalies */}
             <div className="bg-card rounded-2xl border border-border p-6 shadow-sm">
                 <h2 className="text-lg font-semibold mb-4">{t("activeAnomalies")}</h2>
                 <div className="grid grid-cols-4 gap-4">
@@ -141,6 +170,28 @@ export function SystemHealthPage({ healthData }: SystemHealthPageProps) {
                 {totalAnomalies === 0 && (
                     <p className="text-center text-emerald-500 mt-4 font-medium">{t("noAnomalies")}</p>
                 )}
+            </div>
+        </div>
+    );
+}
+
+/** (!) button with hover tooltip */
+function InfoTooltip({ text }: { text: string }) {
+    return (
+        <div className="absolute -top-1 -end-1 group/tip z-10">
+            <button
+                type="button"
+                aria-label="More info"
+                className="w-5 h-5 rounded-full bg-muted border border-border flex items-center justify-center cursor-help text-[9px] font-black text-muted-foreground hover:bg-primary/10 hover:border-primary/40 hover:text-primary transition-colors"
+            >
+                !
+            </button>
+            {/* Tooltip panel */}
+            <div className="absolute bottom-full end-0 mb-2 z-30 w-56 opacity-0 group-hover/tip:opacity-100 pointer-events-none transition-opacity duration-200">
+                <div className="bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-xs p-3 rounded-xl shadow-xl leading-relaxed">
+                    {text}
+                </div>
+                <div className="absolute top-full end-2 border-4 border-transparent border-t-zinc-900 dark:border-t-zinc-100" />
             </div>
         </div>
     );
